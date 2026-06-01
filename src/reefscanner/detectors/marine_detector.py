@@ -22,13 +22,12 @@ def build_marine(cfg: ReefScannerConfig) -> UltralyticsYoloDetector:
     opts = dict(cfg.detector_options)
     weights = cfg.detector_weights or opts.pop("weights", None)
     if not weights:
-        raise ValueError(
-            "detector='marine' needs weights. Set config.detector_weights (or "
-            "detector_options['weights']) to a SharkTrack / fine-tuned YOLO .pt "
-            "path. Download SharkTrack's weights (~6 MB) once, e.g.:\n"
-            "  https://raw.githubusercontent.com/filippovarini/sharktrack/master/models/sharktrack.pt\n"
-            "See docs/model-research.md."
-        )
+        # No path given: fetch SharkTrack's weights into a local cache so
+        # detector='marine' works out of the box (see weights.py). In Colab,
+        # prefer setting detector_weights to a Drive path for persistence.
+        from ..weights import ensure_sharktrack_weights
+
+        weights = ensure_sharktrack_weights()
     opts.pop("weights", None)
     return UltralyticsYoloDetector(
         name="marine",

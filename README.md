@@ -58,7 +58,7 @@ Common options (all have recall-favoring defaults — see `reefscanner process -
 | `--pad-seconds` | Padding before/after each clip | `2.0` |
 | `--reencode` | Re-encode clips (accurate cuts) vs. stream-copy | off |
 | `--detector` | `none` / `marine` / `generic` | `none` |
-| `--weights` | Detector weights `.pt` (required for `marine`) | — |
+| `--weights` | Detector weights `.pt` (`marine` auto-downloads SharkTrack if omitted) | — |
 | `--conf` | Detector confidence threshold (recall-first = low) | `0.2` |
 | `--target-classes` | Keep only these model classes (e.g. `elasmobranch shark ray`) | all |
 | `--sahi` | SAHI tiled inference (better recall on distant/small animals) | off |
@@ -119,6 +119,11 @@ ReefScanner has two recall strategies, chosen by `detector`:
   curl -L -o sharktrack.pt \
     https://raw.githubusercontent.com/filippovarini/sharktrack/master/models/sharktrack.pt
   ```
+
+  If you omit `--weights`, the `marine` detector **auto-downloads** the
+  SharkTrack weights to a local cache on first use (override the cache dir with
+  `REEFSCANNER_CACHE`); in Colab, prefer pointing `--weights` at a Drive path so
+  the file persists across sessions.
 
   See [`docs/model-research.md`](docs/model-research.md) for the model
   evaluation and why it beats off-the-shelf/aquarium models. Any

@@ -46,10 +46,12 @@ def test_get_detector_none_finds_nothing():
     assert det.detect(np.zeros((4, 4, 3), dtype=np.uint8)) == []
 
 
-def test_marine_requires_weights():
-    # detector=marine without weights is rejected at config construction.
-    with pytest.raises(ValueError):
-        ReefScannerConfig(detector="marine")
+def test_marine_without_weights_is_allowed():
+    # No explicit weights is fine now — the marine builder auto-downloads
+    # SharkTrack weights at runtime (no ValueError at config construction).
+    cfg = ReefScannerConfig(detector="marine")
+    assert cfg.detector == "marine"
+    assert cfg.detector_weights is None
 
 
 def test_marine_with_weights_needs_ultralytics():
