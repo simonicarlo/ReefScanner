@@ -8,11 +8,16 @@ truth for "completed"; the CSV is append-only and reconciled on restart.
 from __future__ import annotations
 
 import csv
+import logging
+import os
+import tempfile
 from pathlib import Path
 from typing import Optional
 
 from .events import Event, derive_timestamp
 from .videoio import VideoInfo
+
+logger = logging.getLogger("reefscanner")
 
 # Column order is part of the contract for the downstream labeling workflow.
 CSV_COLUMNS = [
@@ -34,6 +39,12 @@ CSV_COLUMNS = [
     "species",
     "notes",
 ]
+
+# Pre-`detected_class` (v1) column order. `detected_class` was inserted after
+# `ml_confidence`, so a legacy row is the current schema minus that one column.
+# Used to migrate CSVs written before detector mode existed (see _migrate).
+LEGACY_CSV_COLUMNS = [c for c in CSV_COLUMNS if c != "detected_class"]
+_KNOWN_SCHEMAS = {len(CSV_COLUMNS): CSV_COLUMNS, len(LEGACY_CSV_COLUMNS): LEGACY_CSV_COLUMNS}
 
 
 def event_to_row(
@@ -80,6 +91,63 @@ class CsvWriter:
         if not self.csv_path.exists() or self.csv_path.stat().st_size == 0:
             with open(self.csv_path, "w", newline="") as fh:
                 csv.DictWriter(fh, fieldnames=CSV_COLUMNS).writeheader()
+            return
+        # File exists: make sure its header matches the current schema. A CSV
+        # written by an older version (before `detected_class`) has a narrower
+        # header; appending wider rows under it yields a file that strict
+        # readers like pandas reject ("Expected N fields, saw N+1"). Migrate.
+        with open(self.csv_path, "r", newline="") as fh:
+            try:
+                header = next(csv.reader(fh))
+            except StopIteration:
+                header = []
+        if header != CSV_COLUMNS:
+            self._migrate()
+
+    def _migrate(self) -> None:
+        """Rewrite the CSV to the current schema, row by row, losslessly.
+
+        Handles a file with mixed row widths (legacy v1 rows alongside rows a
+        newer version already appended). Each data row is interpreted by its
+        field count against a known schema, then re-emitted in CSV_COLUMNS
+        order with blanks for columns it didn't have. The original is kept as a
+        ``.pre-migration.bak`` sibling so nothing is destroyed irrecoverably.
+        """
+        with open(self.csv_path, "r", newline="") as fh:
+            raw = list(csv.reader(fh))
+        if not raw:
+            return
+        data_rows = raw[1:]  # drop whatever header was there
+
+        migrated: list[dict[str, object]] = []
+        for cells in data_rows:
+            if not cells:
+                continue
+            schema = _KNOWN_SCHEMAS.get(len(cells))
+            if schema is None:
+                # Unknown width: map positionally against the current schema,
+                # truncating/padding so the row is at least well-formed.
+                schema = CSV_COLUMNS
+                cells = (cells + [""] * len(CSV_COLUMNS))[: len(CSV_COLUMNS)]
+            row = dict(zip(schema, cells))
+            migrated.append({c: row.get(c, "") for c in CSV_COLUMNS})
+
+        backup = self.csv_path.with_suffix(self.csv_path.suffix + ".pre-migration.bak")
+        if not backup.exists():
+            backup.write_bytes(self.csv_path.read_bytes())
+        logger.warning(
+            "Migrated results CSV to current schema (%d columns); original kept at %s",
+            len(CSV_COLUMNS), backup,
+        )
+
+        fd, tmp = tempfile.mkstemp(dir=str(self.csv_path.parent), suffix=".csv")
+        with os.fdopen(fd, "w", newline="") as fh:
+            writer = csv.DictWriter(fh, fieldnames=CSV_COLUMNS, extrasaction="ignore")
+            writer.writeheader()
+            writer.writerows(migrated)
+            fh.flush()
+            os.fsync(fh.fileno())
+        os.replace(tmp, self.csv_path)
 
     def append_rows(self, rows: list[dict[str, object]]) -> None:
         """Append fully-formed rows and flush+fsync so finished work survives."""
@@ -90,8 +158,6 @@ class CsvWriter:
             for row in rows:
                 writer.writerow(row)
             fh.flush()
-            import os
-
             os.fsync(fh.fileno())
 
     def existing_event_ids(self) -> set[str]:
