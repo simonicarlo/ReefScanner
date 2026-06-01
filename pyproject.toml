@@ -24,10 +24,14 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
-# Stage-2 ML confirmer (detector=generic / future marine). Optional by design.
+# Detector stage (detector=marine / generic). Optional by design — the v1
+# default detector=none needs none of this. NOTE: Ultralytics YOLO is AGPL-3.0
+# (copyleft, network clause) — fine for research/internal use; see
+# docs/model-research.md before shipping a hosted/distributed product.
 ml = [
-    "ultralytics==8.3.0",
+    "ultralytics>=8.1,<9",
     "torch>=2.0",
+    "sahi>=0.11",   # tiled inference for distant/small animals (MIT)
 ]
 # ffmpeg fallback for environments without a system binary (Colab has one).
 ffmpeg = ["imageio-ffmpeg>=0.4.9"]

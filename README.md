@@ -57,7 +57,12 @@ Common options (all have recall-favoring defaults — see `reefscanner process -
 | `--min-event-seconds` | Drop events shorter than this | `1.0` |
 | `--pad-seconds` | Padding before/after each clip | `2.0` |
 | `--reencode` | Re-encode clips (accurate cuts) vs. stream-copy | off |
-| `--detector` | `none` / `generic` / `marine` | `none` |
+| `--detector` | `none` / `marine` / `generic` | `none` |
+| `--weights` | Detector weights `.pt` (required for `marine`) | — |
+| `--conf` | Detector confidence threshold (recall-first = low) | `0.2` |
+| `--target-classes` | Keep only these model classes (e.g. `elasmobranch shark ray`) | all |
+| `--sahi` | SAHI tiled inference (better recall on distant/small animals) | off |
+| `--motion-prefilter` | In detector mode, skip dead-static frames | off |
 
 Report the false-positive rate after a human fills the `label` column with
 `TP`/`FP` (acceptance criterion 6, the v2 go/no-go):
@@ -85,6 +90,46 @@ The [`ReefScanner.ipynb`](ReefScanner.ipynb) notebook
 ([open in Colab](https://colab.research.google.com/github/simonicarlo/ReefScanner/blob/main/ReefScanner.ipynb))
 drives the whole pipeline stage-by-stage from Google Drive.
 
+## Detection modes
+
+ReefScanner has two recall strategies, chosen by `detector`:
+
+- **`none` (v1, default) — motion-only.** Background subtraction + size/persistence
+  gating is the recall source. No ML dependencies. Cheap and robust, but its size
+  filter can't separate a *near small fish* from a *far large shark* (in pixels
+  they're the same), so it over-flags close fish and can miss distant animals.
+
+- **`marine` (v2) — detector scans frames.** A YOLO model runs on every sampled
+  frame, localizing *and* classifying animals — so a distant shark is found by
+  appearance, not motion size. Motion demotes to an optional cheap pre-skip
+  (`--motion-prefilter`). This is the recommended path for separating megafauna
+  from daytime fish.
+
+  ```bash
+  reefscanner process <in> --out <out> \
+      --detector marine --weights /path/to/sharktrack.pt \
+      --conf 0.2 --sahi --target-classes elasmobranch
+  ```
+
+  Recommended weights: **SharkTrack** (YOLOv8, single `elasmobranch` class,
+  trained on real BRUVS, MIT-licensed) — see
+  [`docs/model-research.md`](docs/model-research.md) for the model evaluation and
+  why it beats off-the-shelf/aquarium models. Any Ultralytics-compatible `.pt`
+  (e.g. a model fine-tuned on your own footage) drops in via `--weights`.
+  `--sahi` enables tiled inference, which markedly improves recall on
+  *distant/small* animals.
+
+- **`generic` — experimental.** Stock COCO YOLO as a coarse objectness proposer.
+  COCO has no shark/ray classes and underwater domain shift is severe; expect it
+  to *hurt* recall. For experimentation only.
+
+> **Licensing:** `detector=none` is dependency-free. `marine`/`generic` need the
+> `ml` extra (`pip install 'reefscanner[ml]'`), which pulls in **Ultralytics
+> YOLO (AGPL-3.0)** — a copyleft license with a network clause. Fine for internal
+> research; if you ever distribute or host this as a service, read
+> [`docs/model-research.md`](docs/model-research.md) first. SharkTrack's own code
+> is MIT.
+
 ## Output
 
 All outputs land in `<output_folder>`:
@@ -99,9 +144,11 @@ output/
 
 CSV columns:
 `event_id, source_video, start_seconds, end_seconds, duration_s,
-start_timestamp, motion_score, ml_confidence, clip_path, thumbnail_path,
-label, species, notes`. The last three are **reserved for the labeling
-workflow** and left blank — fill them during triage.
+start_timestamp, motion_score, ml_confidence, detected_class, clip_path,
+thumbnail_path, label, species, notes`. `detected_class` is the *model's*
+predicted class (detector mode; blank for motion-only). The last three
+(`label`, `species`, `notes`) are **reserved for the human labeling workflow**
+and left blank — fill them during triage.
 
 ## Resumability
 

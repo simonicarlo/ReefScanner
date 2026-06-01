@@ -37,12 +37,24 @@ def test_roundtrip_dict():
     assert cfg2.min_blob_area == 42
 
 
-def test_get_detector_none_is_abstaining():
+def test_get_detector_none_finds_nothing():
+    import numpy as np
+
     det = get_detector(ReefScannerConfig(detector="none"))
     assert det.name == "none"
-    assert det.confirm(None, None) is None
+    # No ML: the none detector finds nothing (pipeline uses motion mode).
+    assert det.detect(np.zeros((4, 4, 3), dtype=np.uint8)) == []
 
 
-def test_get_detector_marine_is_v2_hook():
-    with pytest.raises(NotImplementedError):
-        get_detector(ReefScannerConfig(detector="marine"))
+def test_marine_requires_weights():
+    # detector=marine without weights is rejected at config construction.
+    with pytest.raises(ValueError):
+        ReefScannerConfig(detector="marine")
+
+
+def test_marine_with_weights_needs_ultralytics():
+    # With weights set, building the marine detector tries to import ultralytics,
+    # which isn't installed in the v1 test env -> ImportError (graceful).
+    cfg = ReefScannerConfig(detector="marine", detector_weights="sharktrack.pt")
+    with pytest.raises(ImportError):
+        get_detector(cfg)

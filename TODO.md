@@ -32,6 +32,30 @@ run verified (CLI + library), notebook + README done.
 - [x] Colab notebook updated with a runnable quickstart cell
 - [x] README usage + canonical smoke-test path documented (§8.1)
 
+## v2 — Detector-scans-frames (architecture done; pending real-footage validation)
+
+Decision: motion's size filter can't separate near-fish from far-shark (perspective).
+Research (`docs/model-research.md`) → **SharkTrack** (YOLOv8, BRUVS-trained, MIT) is
+the pick. Architecture flips to detector-first; motion demotes to optional pre-skip.
+
+- [x] `detection.py` — `Detection(bbox, class_name, confidence)` type
+- [x] Unified `Candidate` (motion OR detection) + detector-aware event aggregation (peak class, class set)
+- [x] `Detector` interface: `detect(frame) -> [Detection]` (was motion confirmer)
+- [x] `detectors/yolo.py` — Ultralytics wrapper (marine=SharkTrack, generic=COCO), optional SAHI tiling, conf + class filtering
+- [x] `marine` detector implemented (loads SharkTrack weights via config); `none` still ML-free; `generic` = COCO objectness
+- [x] Config: `detector_weights`, `use_sahi` + slice params, `target_classes`, `motion_prefilter`, recall-favoring conf
+- [x] Pipeline: branch motion-mode (v1) vs detector-mode; motion optional pre-skip
+- [x] CSV: add `detected_class` column (model's class; `species` stays human-reserved)
+- [x] CLI flags: `--weights`, `--conf`, `--sahi`, `--target-classes`, `--motion-prefilter`
+- [x] Tests: detector-mode end-to-end via stub detector (no ML dep); motion path still green (20 passing)
+- [x] Notebook + README: detector-mode quickstart, SharkTrack weights, Colab note
+
+### Still TODO (needs Colab + real footage — can't run YOLO/download weights in sandbox)
+- [ ] Validate SharkTrack weights in Colab on real BRUV footage: does it catch the distant shark? (tune conf, SAHI)
+- [ ] Measure recall/FP vs the v1 motion baseline on the same clip
+- [ ] Whales: no off-the-shelf optical detector — plan a coarse fine-tuned class + triage
+- [ ] (Later) fine-tune on our own footage using OzFish negatives + elasmobranch positives
+
 ## Notes / decisions
 - ffmpeg located via PATH, with optional `imageio-ffmpeg` fallback (Colab has ffmpeg preinstalled).
 - No mid-video resume by design (background model state is in-memory) — §3, §7.

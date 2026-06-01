@@ -86,11 +86,29 @@ class ReefScannerConfig:
     #: imageio-ffmpeg fallback if installed).
     ffmpeg_path: str | None = None
 
-    # --- Step 4: ML confirmation (pluggable; v1 default = none) ------------
+    # --- Step 4: detector / ML stage (pluggable; v1 default = none) --------
+    #: none = motion-only (no ML deps); marine = YOLO (SharkTrack / fine-tuned,
+    #: the v2 recall source); generic = stock COCO YOLO objectness (experimental).
     detector: str = DETECTOR_NONE
-    #: Drop ML-scored candidates below this confidence (only used when a real
-    #: detector is active; motion gating remains the source of recall).
-    ml_confidence_threshold: float = 0.25
+    #: Path/name of detector weights (e.g. a SharkTrack or fine-tuned `.pt`).
+    #: Required for detector=marine; generic falls back to a stock COCO model.
+    detector_weights: str | None = None
+    #: Confidence threshold for the detector. Recall-favoring (low) by default —
+    #: a false positive costs ~10s of triage; a missed animal is expensive.
+    ml_confidence_threshold: float = 0.2
+    #: Keep only these model class names (case-insensitive); None = keep all
+    #: (recall-first). e.g. ["elasmobranch", "shark", "ray"].
+    target_classes: list[str] | None = None
+    #: In detector mode, skip running the detector on frames with no motion
+    #: (cheap pre-skip). Off by default = run the detector on every sampled
+    #: frame (maximum recall). Recall-safe: never skips during warm-up.
+    motion_prefilter: bool = False
+    #: SAHI tiled inference — improves recall on distant/small animals (the
+    #: missed-distant-shark failure mode). Needs the optional `sahi` package.
+    use_sahi: bool = False
+    sahi_slice_height: int = 512
+    sahi_slice_width: int = 512
+    sahi_overlap: float = 0.2
     #: Free-form options forwarded to the active detector implementation.
     detector_options: dict[str, Any] = field(default_factory=dict)
 
@@ -121,10 +139,19 @@ class ReefScannerConfig:
             raise ValueError("persistence_frames must be >= 1")
         if self.warmup_frames < 0:
             raise ValueError("warmup_frames must be >= 0")
+        if self.detector == DETECTOR_MARINE and not (
+            self.detector_weights or self.detector_options.get("weights")
+        ):
+            raise ValueError(
+                "detector='marine' requires detector_weights (a SharkTrack / "
+                "fine-tuned YOLO .pt path). See docs/model-research.md."
+            )
         # Normalise extensions to lower-case with a leading dot.
         self.extensions = tuple(
             (e if e.startswith(".") else "." + e).lower() for e in self.extensions
         )
+        if self.target_classes is not None:
+            self.target_classes = list(self.target_classes)
 
     # -- (de)serialisation --------------------------------------------------
     @classmethod

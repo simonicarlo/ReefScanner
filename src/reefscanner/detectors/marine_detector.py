@@ -1,35 +1,46 @@
-"""The ``marine`` detector hook — the real v2 ML path (SPEC §3 Step 4, §10).
+"""The ``marine`` detector — the real v2 ML path (SPEC §3 Step 4, §10).
 
-This is the clear seam where a marine-megafauna model fine-tuned on *our own*
-labeled footage (the data factory of §10) — or a suitable external model such
-as FathomNet — drops in later. v1 ships only the hook: it raises with a
-pointer rather than pretending to confirm.
+Loads a marine-megafauna detector into the YOLO wrapper. The recommended weights
+are **SharkTrack** (YOLOv8, single `elasmobranch` class, trained on real BRUVS,
+MIT-licensed) — see ``docs/model-research.md``. Any Ultralytics-compatible
+`.pt` (e.g. a model fine-tuned on our own footage — the §10 data factory) drops
+in the same way.
 
-When implemented, it must remain a *confirmer/suppressor* over motion
-candidates; motion gating stays the source of recall.
+Weights are NOT bundled. Point ``detector_weights`` (or
+``detector_options['weights']``) at a local/Drive path to a SharkTrack /
+fine-tuned `.pt`. In Colab, download SharkTrack's release weights to Drive and
+set the path there.
 """
 
 from __future__ import annotations
 
-from typing import Optional
-
-import numpy as np
-
-from ..motion import MotionCandidate
+from ..config import ReefScannerConfig
+from .yolo import UltralyticsYoloDetector
 
 
-class MarineDetector:
-    name = "marine"
-
-    def __init__(self, weights: Optional[str] = None, **_options) -> None:
-        raise NotImplementedError(
-            "detector='marine' is the v2 hook for a fine-tuned marine-megafauna "
-            "model and is not implemented in v1. The v1 decision to add ML is "
-            "gated on the measured motion-only false-positive rate (SPEC §10). "
-            "Use detector='none' for v1."
+def build_marine(cfg: ReefScannerConfig) -> UltralyticsYoloDetector:
+    opts = dict(cfg.detector_options)
+    weights = cfg.detector_weights or opts.pop("weights", None)
+    if not weights:
+        raise ValueError(
+            "detector='marine' needs weights. Set config.detector_weights (or "
+            "detector_options['weights']) to a SharkTrack / fine-tuned YOLO .pt "
+            "path. SharkTrack: https://github.com/filippovarini/sharktrack "
+            "(see docs/model-research.md)."
         )
-
-    def confirm(
-        self, frame: np.ndarray, candidate: MotionCandidate
-    ) -> Optional[float]:  # pragma: no cover - unreachable in v1
-        raise NotImplementedError
+    opts.pop("weights", None)
+    return UltralyticsYoloDetector(
+        name="marine",
+        weights=weights,
+        # Recall-first: keep the threshold low and all classes by default. A
+        # false positive costs ~10s of triage; a missed animal is expensive.
+        conf=cfg.ml_confidence_threshold,
+        target_classes=cfg.target_classes,
+        imgsz=opts.pop("imgsz", None),
+        device=opts.pop("device", None),
+        use_sahi=cfg.use_sahi,
+        sahi_slice_height=cfg.sahi_slice_height,
+        sahi_slice_width=cfg.sahi_slice_width,
+        sahi_overlap=cfg.sahi_overlap,
+        **opts,
+    )

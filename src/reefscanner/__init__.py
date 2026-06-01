@@ -24,9 +24,10 @@ from .config import (
     VALID_DETECTORS,
     ReefScannerConfig,
 )
+from .detection import Detection
 from .discovery import discover_videos
-from .events import Event, aggregate_events
-from .motion import MotionCandidate, MotionGate
+from .events import Candidate, Event, MotionCandidate, aggregate_events
+from .motion import MotionGate
 from .pipeline import BatchResult, VideoResult, process_folder, process_video
 from .report import FpReport, fp_report
 from .videoio import VideoInfo, probe_video
@@ -50,6 +51,8 @@ __all__ = [
     "VideoInfo",
     "MotionGate",
     "MotionCandidate",
+    "Candidate",
+    "Detection",
     "Event",
     "aggregate_events",
     "fp_report",

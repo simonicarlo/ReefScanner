@@ -1,7 +1,7 @@
 """Detector factory (SPEC §3 Step 4).
 
 ``get_detector`` maps a config detector name to an instance. Only the selected
-detector is imported, so ``detector='none'`` (the v1 default) never pulls in
+detector's dependencies are imported, so ``detector='none'`` never pulls in
 torch/ultralytics (SPEC §8.5).
 """
 
@@ -20,17 +20,16 @@ __all__ = ["Detector", "get_detector"]
 
 def get_detector(cfg: ReefScannerConfig) -> Detector:
     name = cfg.detector
-    options = dict(cfg.detector_options)
     if name == DETECTOR_NONE:
         from .none_detector import NoneDetector
 
-        return NoneDetector(**options)
-    if name == DETECTOR_GENERIC:
-        from .generic_detector import GenericDetector
-
-        return GenericDetector(**options)
+        return NoneDetector(**cfg.detector_options)
     if name == DETECTOR_MARINE:
-        from .marine_detector import MarineDetector
+        from .marine_detector import build_marine
 
-        return MarineDetector(**options)
+        return build_marine(cfg)
+    if name == DETECTOR_GENERIC:
+        from .generic_detector import build_generic
+
+        return build_generic(cfg)
     raise ValueError(f"Unknown detector: {name!r}")
