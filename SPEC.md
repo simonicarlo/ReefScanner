@@ -12,14 +12,9 @@ A triage tool that scans long underwater videos from a **static, mounted camera 
 - **Must be resumable:** Colab disconnects after idle/~12h. Processing must checkpoint per-video so a restart skips already-completed videos and does not lose results.
 - **Code lives on GitHub; footage and outputs live on Drive.** Do not assume footage is in the repo.
 
-## 2. Input assumptions (CONFIRM / OVERRIDE — these are defaults, not facts)
+## 2. Input assumptions
 
-- Container/codec: `.mp4`, H.264
-- Resolution: 1080p
-- Source frame rate: ~25–30 fps
-- Batch size: unknown — design for “many hours across multiple files”
-
-> Replace these with real values before running; they drive sampling and performance.
+Can vary. Best to support various and detect format / framerate automatically.
 
 ## 3. Pipeline
 
