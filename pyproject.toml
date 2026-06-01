@@ -1,0 +1,50 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "reefscanner"
+version = "1.0.0"
+description = "Recall-oriented motion triage for static-camera (BRUV) underwater video."
+readme = "README.md"
+requires-python = ">=3.9"
+license = { file = "LICENSE" }
+authors = [{ name = "ReefScanner contributors" }]
+keywords = ["marine", "bruv", "motion-detection", "video", "triage", "opencv"]
+
+# Core deps are pinned for Colab reproducibility — Colab's preinstalled set
+# drifts (SPEC §6). detector=none (the v1 default) needs nothing below beyond
+# these; no torch/ultralytics required.
+dependencies = [
+    "opencv-python-headless==4.13.0.92",
+    "numpy>=1.24,<3",
+    "pandas>=2.0,<4",
+    "tqdm>=4.65,<5",
+    "PyYAML>=6.0,<7",
+]
+
+[project.optional-dependencies]
+# Stage-2 ML confirmer (detector=generic / future marine). Optional by design.
+ml = [
+    "ultralytics==8.3.0",
+    "torch>=2.0",
+]
+# ffmpeg fallback for environments without a system binary (Colab has one).
+ffmpeg = ["imageio-ffmpeg>=0.4.9"]
+dev = [
+    "pytest>=7.4",
+    "imageio-ffmpeg>=0.4.9",
+]
+
+[project.scripts]
+reefscanner = "reefscanner.cli:main"
+
+[project.urls]
+Homepage = "https://github.com/simonicarlo/reefscanner"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-q"

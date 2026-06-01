@@ -1,0 +1,18 @@
+# Core runtime deps for ReefScanner v1 (detector=none).
+# Pinned for Colab reproducibility — Colab's preinstalled set drifts (SPEC §6).
+# Install in Colab with:  !pip install -q -r requirements.txt
+opencv-python-headless==4.13.0.92
+numpy>=1.24,<3
+pandas>=2.0,<4
+tqdm>=4.65,<5
+PyYAML>=6.0,<7
+
+# ffmpeg is used for clip extraction. Colab ships a system ffmpeg already;
+# uncomment the line below only if you need a bundled fallback binary.
+# imageio-ffmpeg>=0.4.9
+
+# Optional stage-2 ML confirmer (detector=generic / future 'marine'). NOT
+# required for v1 — install only to experiment:
+#   pip install 'reefscanner[ml]'
+# ultralytics==8.3.0
+# torch>=2.0
