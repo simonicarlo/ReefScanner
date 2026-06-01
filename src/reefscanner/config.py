@@ -139,13 +139,8 @@ class ReefScannerConfig:
             raise ValueError("persistence_frames must be >= 1")
         if self.warmup_frames < 0:
             raise ValueError("warmup_frames must be >= 0")
-        if self.detector == DETECTOR_MARINE and not (
-            self.detector_weights or self.detector_options.get("weights")
-        ):
-            raise ValueError(
-                "detector='marine' requires detector_weights (a SharkTrack / "
-                "fine-tuned YOLO .pt path). See docs/model-research.md."
-            )
+        # detector='marine' without an explicit detector_weights path is fine:
+        # the marine builder auto-downloads SharkTrack weights (see weights.py).
         # Normalise extensions to lower-case with a leading dot.
         self.extensions = tuple(
             (e if e.startswith(".") else "." + e).lower() for e in self.extensions
