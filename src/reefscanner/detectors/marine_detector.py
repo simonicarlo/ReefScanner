@@ -25,8 +25,9 @@ def build_marine(cfg: ReefScannerConfig) -> UltralyticsYoloDetector:
         raise ValueError(
             "detector='marine' needs weights. Set config.detector_weights (or "
             "detector_options['weights']) to a SharkTrack / fine-tuned YOLO .pt "
-            "path. SharkTrack: https://github.com/filippovarini/sharktrack "
-            "(see docs/model-research.md)."
+            "path. Download SharkTrack's weights (~6 MB) once, e.g.:\n"
+            "  https://raw.githubusercontent.com/filippovarini/sharktrack/master/models/sharktrack.pt\n"
+            "See docs/model-research.md."
         )
     opts.pop("weights", None)
     return UltralyticsYoloDetector(

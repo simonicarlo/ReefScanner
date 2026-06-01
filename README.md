@@ -112,12 +112,19 @@ ReefScanner has two recall strategies, chosen by `detector`:
   ```
 
   Recommended weights: **SharkTrack** (YOLOv8, single `elasmobranch` class,
-  trained on real BRUVS, MIT-licensed) — see
-  [`docs/model-research.md`](docs/model-research.md) for the model evaluation and
-  why it beats off-the-shelf/aquarium models. Any Ultralytics-compatible `.pt`
-  (e.g. a model fine-tuned on your own footage) drops in via `--weights`.
-  `--sahi` enables tiled inference, which markedly improves recall on
-  *distant/small* animals.
+  trained on real BRUVS, MIT-licensed). The weights are a single ~6 MB file in
+  the SharkTrack repo — download it once:
+
+  ```bash
+  curl -L -o sharktrack.pt \
+    https://raw.githubusercontent.com/filippovarini/sharktrack/master/models/sharktrack.pt
+  ```
+
+  See [`docs/model-research.md`](docs/model-research.md) for the model
+  evaluation and why it beats off-the-shelf/aquarium models. Any
+  Ultralytics-compatible `.pt` (e.g. a model fine-tuned on your own footage)
+  drops in via `--weights`. `--sahi` enables tiled inference, which markedly
+  improves recall on *distant/small* animals.
 
 - **`generic` — experimental.** Stock COCO YOLO as a coarse objectness proposer.
   COCO has no shark/ray classes and underwater domain shift is severe; expect it
