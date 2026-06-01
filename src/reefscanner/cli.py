@@ -54,9 +54,22 @@ def _add_process_args(p: argparse.ArgumentParser) -> None:
     p.add_argument("--ext", dest="extensions", nargs="+",
                    help="Video extensions to discover (e.g. --ext .mp4 .mov).")
 
-    # Detector (stage 2)
-    p.add_argument("--detector", choices=list(VALID_DETECTORS))
-    p.add_argument("--ml-confidence-threshold", type=float)
+    # Detector (stage 2 / v2 recall source)
+    p.add_argument("--detector", choices=list(VALID_DETECTORS),
+                   help="none=motion-only, marine=YOLO (SharkTrack/fine-tuned), "
+                        "generic=stock COCO (experimental).")
+    p.add_argument("--weights", dest="detector_weights",
+                   help="Detector weights .pt path (required for --detector marine).")
+    p.add_argument("--conf", "--ml-confidence-threshold",
+                   dest="ml_confidence_threshold", type=float,
+                   help="Detector confidence threshold (recall-first = low, e.g. 0.2).")
+    p.add_argument("--target-classes", dest="target_classes", nargs="+",
+                   help="Keep only these model classes (e.g. elasmobranch shark ray).")
+    p.add_argument("--sahi", dest="use_sahi", action="store_true", default=None,
+                   help="SAHI tiled inference (better recall on distant/small animals).")
+    p.add_argument("--motion-prefilter", dest="motion_prefilter",
+                   action="store_true", default=None,
+                   help="In detector mode, skip dead-static frames (cheap pre-skip).")
 
     p.add_argument("--quiet", action="store_true", help="Reduce logging.")
     p.add_argument("--no-progress", dest="progress", action="store_false",
@@ -79,7 +92,8 @@ def _config_from_args(args: argparse.Namespace) -> ReefScannerConfig:
         "persistence_frames", "bg_subtractor", "detect_shadows",
         "merge_gap_seconds", "min_event_seconds", "pad_seconds",
         "reencode_clips", "ffmpeg_path", "extensions", "detector",
-        "ml_confidence_threshold",
+        "detector_weights", "ml_confidence_threshold", "target_classes",
+        "use_sahi", "motion_prefilter",
     ]
     for key in overridable:
         val = getattr(args, key, None)
@@ -113,8 +127,12 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
     )
 
     if args.command == "process":
-        cfg = _config_from_args(args)
-        batch = process_folder(cfg, progress=args.progress)
+        try:
+            cfg = _config_from_args(args)
+            batch = process_folder(cfg, progress=args.progress)
+        except (ValueError, ImportError, FileNotFoundError, NotADirectoryError) as exc:
+            print(f"error: {exc}", file=sys.stderr)
+            return 2
         print(
             f"\nProcessed {batch.n_videos_processed} video(s); "
             f"{batch.n_events} event(s) emitted."

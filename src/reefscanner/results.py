@@ -24,6 +24,9 @@ CSV_COLUMNS = [
     "start_timestamp",
     "motion_score",
     "ml_confidence",
+    # Model's predicted class at the peak frame (detector mode); blank in
+    # motion-only mode. Distinct from the human-filled `species` column.
+    "detected_class",
     "clip_path",
     "thumbnail_path",
     # Reserved for the future labeling workflow (SPEC §9, §10) — left blank.
@@ -48,11 +51,15 @@ def event_to_row(
         "start_timestamp": derive_timestamp(
             info.creation_time, event.start_seconds
         ),
-        "motion_score": round(event.peak_motion_score, 1),
+        "motion_score": (
+            "" if event.peak_motion_score is None
+            else round(event.peak_motion_score, 1)
+        ),
         "ml_confidence": (
             "" if event.peak_ml_confidence is None
             else round(event.peak_ml_confidence, 4)
         ),
+        "detected_class": event.peak_class or "",
         "clip_path": clip_path or "",
         "thumbnail_path": thumbnail_path or "",
         "label": "",

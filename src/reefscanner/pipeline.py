@@ -1,9 +1,14 @@
 """Pipeline orchestration (SPEC §3, §7).
 
-Discover -> per-video [sample -> motion gate -> (optional) ML confirm ->
-aggregate -> clips/thumbnails -> CSV] -> mark complete. Resumable per-video:
-completed videos are skipped on restart; an interrupted video reprocesses from
-frame 0 (no mid-video resume).
+Discover -> per-video [sample -> (motion gate | detector scan) -> aggregate ->
+clips/thumbnails -> CSV] -> mark complete. Resumable per-video: completed videos
+are skipped on restart; an interrupted video reprocesses from frame 0.
+
+Two modes (chosen by ``cfg.detector``):
+  * ``none`` — v1 motion-only: the motion gate is the recall source (no ML deps).
+  * ``marine`` / ``generic`` — v2 detector-scans-frames: the detector scans every
+    sampled frame and is the recall source; motion becomes an optional cheap
+    pre-skip (``motion_prefilter``).
 """
 
 from __future__ import annotations
@@ -14,10 +19,10 @@ from pathlib import Path
 from typing import Callable, Optional
 
 from .clips import extract_clip, resolve_ffmpeg, save_thumbnail
-from .config import ReefScannerConfig
+from .config import DETECTOR_NONE, ReefScannerConfig
 from .detectors import get_detector
 from .discovery import discover_videos
-from .events import Event, aggregate_events
+from .events import Candidate, Event, aggregate_events
 from .manifest import Manifest
 from .motion import MotionGate
 from .results import CsvWriter, event_to_row
@@ -50,6 +55,44 @@ class BatchResult:
         return sum(1 for r in self.results if not r.skipped and r.error is None)
 
 
+def _collect_candidates(
+    video,
+    cfg: ReefScannerConfig,
+    info: VideoInfo,
+    detector,
+) -> list[Candidate]:
+    """Produce per-frame candidates via motion (v1) or the detector (v2)."""
+    candidates: list[Candidate] = []
+
+    if cfg.detector == DETECTOR_NONE:
+        # v1 motion-only: the gate is the recall source.
+        gate = MotionGate(cfg)
+        for sample in iter_sampled_frames(info, cfg.frame_sample_fps):
+            cand = gate.process(sample)
+            if cand is not None:
+                candidates.append(cand)
+        return candidates
+
+    # v2 detector-scans-frames: the detector is the recall source.
+    prefilter = MotionGate(cfg) if cfg.motion_prefilter else None
+    for sample in iter_sampled_frames(info, cfg.frame_sample_fps):
+        if prefilter is not None and not prefilter.has_motion(sample):
+            continue  # cheap skip of dead-static frames (recall-safe)
+        for det in detector.detect(sample.frame):
+            candidates.append(
+                Candidate(
+                    sampled_index=sample.index,
+                    source_frame=sample.source_frame,
+                    timestamp=sample.timestamp,
+                    bbox=det.bbox,
+                    score=det.confidence,
+                    class_name=det.class_name,
+                    ml_confidence=det.confidence,
+                )
+            )
+    return candidates
+
+
 def process_video(
     video: Path,
     cfg: ReefScannerConfig,
@@ -57,47 +100,25 @@ def process_video(
     detector,
     ffmpeg: str,
 ) -> tuple[list[Event], list[dict]]:
-    """Run motion gating + aggregation + output for a single video.
+    """Run the per-video pipeline. Returns (events, csv_rows).
 
-    Returns (events, csv_rows). Does no manifest/CSV side effects itself so the
-    caller controls the commit order (clips/thumbs/CSV then mark complete).
+    Does no manifest/CSV side effects itself so the caller controls commit order
+    (clips/thumbs/CSV then mark complete).
     """
     out_dir = Path(cfg.output_folder)
     clips_dir = out_dir / cfg.clips_dirname
     thumbs_dir = out_dir / cfg.thumbnails_dirname
 
-    gate = MotionGate(cfg)
-    candidates = []
-    ml_confidences: list[Optional[float]] = []
-
-    for sample in iter_sampled_frames(info, cfg.frame_sample_fps):
-        cand = gate.process(sample)
-        if cand is None:
-            continue
-        candidates.append(cand)
-        # Stage 2 (optional) only runs on gated candidates — cheap (SPEC §3).
-        conf = detector.confirm(sample.frame, cand)
-        if conf is not None and conf < cfg.ml_confidence_threshold:
-            # An active detector suppresses below-threshold candidates.
-            candidates.pop()
-            continue
-        ml_confidences.append(conf)
-
+    candidates = _collect_candidates(video, cfg, info, detector)
     events = aggregate_events(
-        candidates,
-        cfg,
-        video_stem=video.stem,
-        source_video=str(video),
-        ml_confidences=ml_confidences,
+        candidates, cfg, video_stem=video.stem, source_video=str(video)
     )
 
     rows: list[dict] = []
     for event in events:
         clip_path = extract_clip(event, info, cfg, clips_dir, ffmpeg=ffmpeg)
         thumb_path = save_thumbnail(event, info, cfg, thumbs_dir)
-        rows.append(
-            event_to_row(event, info, str(clip_path), str(thumb_path))
-        )
+        rows.append(event_to_row(event, info, str(clip_path), str(thumb_path)))
     return events, rows
 
 
@@ -123,12 +144,15 @@ def process_folder(
     csv_writer = CsvWriter(csv_path)
     existing_ids = csv_writer.existing_event_ids()
 
-    # Build the (optional) detector once; for 'none' this is a no-op.
+    # Build the detector once (model loaded a single time); for 'none' a no-op.
     detector = get_detector(cfg)
     ffmpeg = resolve_ffmpeg(cfg)
 
     videos = discover_videos(input_root, cfg.extensions)
-    logger.info("Discovered %d video(s) under %s", len(videos), input_root)
+    logger.info(
+        "Discovered %d video(s) under %s (detector=%s)",
+        len(videos), input_root, cfg.detector,
+    )
 
     iterator = videos
     if progress:

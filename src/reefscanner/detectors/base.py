@@ -1,33 +1,29 @@
-"""Pluggable stage-2 detector interface (SPEC §3 Step 4).
+"""Pluggable frame-scanning detector interface (v2, SPEC §3 Step 4).
 
-The ML stage only ever *re-ranks/confirms* motion candidates — motion gating
-is and remains the source of recall. A detector receives the original-
-resolution frame and the motion bbox and returns a confidence in [0, 1], or
-None if it abstains (treated as "keep, unscored").
+In v2 the detector is the source of recall: it scans each sampled frame and
+returns the animals it finds (``detect(frame) -> list[Detection]``), localising
+*and* classifying. Motion is no longer the gate.
+
+Implementations must be import-safe even when their heavy ML dependencies are
+missing; defer such imports to ``__init__`` so that ``detector=none`` never
+imports torch/ultralytics (SPEC §8.5).
 """
 
 from __future__ import annotations
 
-from typing import Optional, Protocol, runtime_checkable
+from typing import Protocol, runtime_checkable
 
 import numpy as np
 
-from ..motion import MotionCandidate
+from ..detection import Detection
 
 
 @runtime_checkable
 class Detector(Protocol):
-    """Confirmer/suppressor over motion candidates.
-
-    Implementations must be import-safe even when their heavy ML dependencies
-    are missing; defer such imports to ``__init__`` so that ``detector=none``
-    never imports torch/ultralytics (SPEC §8.5).
-    """
-
     name: str
+    #: Class labels this detector can output (for documentation / filtering).
+    class_names: list[str]
 
-    def confirm(
-        self, frame: np.ndarray, candidate: MotionCandidate
-    ) -> Optional[float]:
-        """Return a confidence in [0, 1] for the candidate, or None to abstain."""
+    def detect(self, frame: np.ndarray) -> list[Detection]:
+        """Return all detections in a single ORIGINAL-resolution frame."""
         ...
