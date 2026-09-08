@@ -170,7 +170,7 @@ class JobRunner:
         )
 
         last_write = 0.0
-        state = {"videos_done": 0, "videos_total": 0, "events": 0}
+        state = {"videos_done": 0, "videos_total": 0, "events": 0, "skipped": 0}
 
         def on_frame(video: Path, index: int, total: int, fraction: float) -> None:
             nonlocal last_write
@@ -194,6 +194,8 @@ class JobRunner:
             nonlocal last_write
             state["videos_done"] += 1
             state["events"] += len(result.events)
+            if result.skipped:
+                state["skipped"] += 1
             self._record_events(job_id, result)
             last_write = time.monotonic()
             total = state["videos_total"] or state["videos_done"]
@@ -229,12 +231,24 @@ class JobRunner:
                 self._cancels.pop(job_id, None)
 
         errors = [r.error for r in batch.results if r.error]
+        skipped = batch.n_skipped
         if batch.cancelled:
             status, message = JOB_CANCELLED, "Cancelled"
         elif errors:
             # Some videos failed but others succeeded: the run finished, and
             # the per-video errors are surfaced rather than swallowed.
             status, message = JOB_DONE, f"Finished with {len(errors)} error(s)"
+        elif skipped and skipped == len(batch.results):
+            # Nothing was actually analysed. Say so plainly — a run that ends
+            # in a second with no events otherwise looks like a failure.
+            status = JOB_DONE
+            message = (
+                f"Nothing to do — all {skipped} video(s) already scanned with "
+                "these settings. Change a setting to rescan."
+            )
+        elif skipped:
+            status = JOB_DONE
+            message = f"Finished ({skipped} already scanned, skipped)"
         else:
             status, message = JOB_DONE, "Finished"
 

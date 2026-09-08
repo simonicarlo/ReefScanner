@@ -66,6 +66,11 @@ class BatchResult:
     def n_videos_processed(self) -> int:
         return sum(1 for r in self.results if not r.skipped and r.error is None)
 
+    @property
+    def n_skipped(self) -> int:
+        """Videos already finished under these settings, so not redone."""
+        return sum(1 for r in self.results if r.skipped)
+
 
 def _collect_candidates(
     video,
@@ -188,7 +193,7 @@ def process_folder(
 
     csv_path = out_dir / cfg.csv_name
     manifest_path = out_dir / cfg.manifest_name
-    manifest = Manifest(manifest_path, input_root)
+    manifest = Manifest(manifest_path, input_root, scan_key=cfg.scan_fingerprint())
     csv_writer = CsvWriter(csv_path)
     existing_ids = csv_writer.existing_event_ids()
 

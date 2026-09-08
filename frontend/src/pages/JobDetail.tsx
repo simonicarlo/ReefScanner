@@ -2,8 +2,8 @@ import { useState } from "react";
 import { Link, useParams } from "react-router-dom";
 import { useMutation } from "@tanstack/react-query";
 import { api } from "../lib/api";
-import { useClasses, useEvents, useJob } from "../lib/queries";
-import type { EventFilters, ReefEvent, Verdict } from "../lib/types";
+import { useClasses, useEvents, useJob, useJobs } from "../lib/queries";
+import type { EventFilters, Job, ReefEvent, Verdict } from "../lib/types";
 import { basename, duration, percent, score, timecode } from "../lib/format";
 import { Button, Empty, ErrorNote, Spinner, Tag, cx } from "../components/ui";
 
@@ -172,11 +172,7 @@ export function JobDetail() {
       {isLoading && !page ? (
         <Spinner label="Loading events" />
       ) : !page?.items.length ? (
-        <Empty title="No events match">
-          {totalEvents === 0
-            ? "This run found nothing. If the footage is short, the motion gate's warm-up may have covered all of it — lower 'warmup frames' and scan again."
-            : "Try relaxing the filters above."}
-        </Empty>
+        <EmptyGrid jobId={id} job={job} filtered={totalEvents > 0} />
       ) : (
         <>
           <div className="grid grid-cols-[repeat(auto-fill,minmax(230px,1fr))] gap-3">
@@ -222,6 +218,54 @@ export function JobDetail() {
         </>
       )}
     </div>
+  );
+}
+
+function EmptyGrid({
+  jobId,
+  job,
+  filtered,
+}: {
+  jobId: number;
+  job: Job | undefined;
+  filtered: boolean;
+}) {
+  // Other runs of the same project may hold the events someone is looking for
+  // — most often the first one, before a setting was changed.
+  const { data: siblings } = useJobs(job?.project_id ?? 0);
+  const withEvents = (siblings ?? []).filter(
+    (j) => j.id !== jobId && j.events_found > 0,
+  );
+
+  if (filtered) {
+    return <Empty title="No events match">Try relaxing the filters above.</Empty>;
+  }
+
+  const skippedEverything = (job?.message ?? "").startsWith("Nothing to do");
+
+  return (
+    <Empty title={skippedEverything ? "Nothing was scanned" : "This run found nothing"}>
+      <p>
+        {skippedEverything
+          ? "Every video had already been scanned with these exact settings, so there was nothing to redo. Change a setting on the project page and run again to rescan."
+          : "No motion or detections passed the thresholds. If the clips are short, the motion gate's warm-up may cover all of them — lower 'warmup frames' and scan again."}
+      </p>
+      {withEvents.length > 0 && (
+        <p className="mt-3">
+          Looking for earlier results?{" "}
+          {withEvents.map((j, i) => (
+            <span key={j.id}>
+              {i > 0 && ", "}
+              <Link to={`/jobs/${j.id}`} className="text-signal hover:underline">
+                Run #{j.id}
+              </Link>{" "}
+              has {j.events_found}
+            </span>
+          ))}
+          .
+        </p>
+      )}
+    </Empty>
   );
 }
 

@@ -7,6 +7,11 @@ restart (no mid-video resume — SPEC §3, §7).
 
 A relative key (path relative to the input folder) identifies each video so the
 manifest survives the footage folder being moved or mounted elsewhere.
+
+Each entry also records the *scan fingerprint* of the config that produced it
+(``ReefScannerConfig.scan_fingerprint``). A video only counts as done if it was
+finished under the settings being asked for now — otherwise switching detector
+or lowering a threshold would silently skip every video and report no events.
 """
 
 from __future__ import annotations
@@ -19,10 +24,22 @@ from typing import Optional
 
 
 class Manifest:
-    def __init__(self, manifest_path: str | Path, input_root: str | Path):
+    #: Bumped when entry semantics change. v1 entries carry no scan fingerprint,
+    #: so their provenance is unknown and they are not trusted for skipping.
+    VERSION = 2
+
+    def __init__(
+        self,
+        manifest_path: str | Path,
+        input_root: str | Path,
+        scan_key: Optional[str] = None,
+    ):
         self.manifest_path = Path(manifest_path)
         self.input_root = Path(input_root)
-        self._data: dict = {"version": 1, "videos": {}}
+        #: Fingerprint of the config for *this* run. None disables the check,
+        #: which keeps direct Manifest users (and old callers) working.
+        self.scan_key = scan_key
+        self._data: dict = {"version": self.VERSION, "videos": {}}
         self._load()
 
     def _load(self) -> None:
@@ -35,7 +52,7 @@ class Manifest:
             except (json.JSONDecodeError, OSError):
                 # Corrupt/partial manifest: start fresh rather than crash. The
                 # CSV reconciliation (existing_event_ids) still guards dupes.
-                self._data = {"version": 1, "videos": {}}
+                self._data = {"version": self.VERSION, "videos": {}}
 
     def _key(self, video_path: str | Path) -> str:
         p = Path(video_path)
@@ -45,8 +62,20 @@ class Manifest:
             return p.as_posix()
 
     def is_complete(self, video_path: str | Path) -> bool:
+        """Has this video been finished under the settings we're running now?
+
+        A video processed under different settings is *not* complete: the whole
+        point of changing a threshold is to get different events out.
+        """
         entry = self._data["videos"].get(self._key(video_path))
-        return bool(entry and entry.get("status") == "complete")
+        if not entry or entry.get("status") != "complete":
+            return False
+        if self.scan_key is None:
+            return True
+        # A pre-v2 entry has no fingerprint, so there's no way to know what
+        # settings produced it. Reprocess rather than silently skip: a wasted
+        # scan is cheaper than quietly wrong results.
+        return entry.get("scan_key") == self.scan_key
 
     def mark_complete(
         self,
@@ -58,8 +87,10 @@ class Manifest:
             "status": "complete",
             "n_events": n_events,
             "event_ids": event_ids or [],
+            "scan_key": self.scan_key,
             "completed_at": _dt.datetime.now().isoformat(timespec="seconds"),
         }
+        self._data["version"] = self.VERSION
         self._save()
 
     def completed_videos(self) -> list[str]:

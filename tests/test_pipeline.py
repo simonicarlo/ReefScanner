@@ -222,3 +222,62 @@ def test_cancelled_video_is_not_marked_complete(input_dir, output_dir):
     # Resuming reprocesses it and finds the animal.
     batch = process_folder(cfg, progress=False)
     assert batch.n_events >= 1
+
+
+def test_changing_settings_reprocesses_instead_of_skipping(input_dir, output_dir):
+    """Changing a detection setting must invalidate the manifest.
+
+    Otherwise the second run skips every video, finishes instantly and reports
+    no events — which looks exactly like a broken scan rather than a cache hit.
+    """
+    input_dir.mkdir()
+    make_video(input_dir / "dive01.mp4", with_animal=True)
+
+    first = process_folder(_cfg(input_dir, output_dir), progress=False)
+    assert first.n_events >= 1
+
+    # Same settings: correctly skipped, which is the resumability guarantee.
+    again = process_folder(_cfg(input_dir, output_dir), progress=False)
+    assert all(r.skipped for r in again.results)
+
+    # A different threshold is a different question; it must be re-asked.
+    changed = process_folder(
+        _cfg(input_dir, output_dir, min_blob_area=50), progress=False
+    )
+    assert not any(r.skipped for r in changed.results), (
+        "changing min_blob_area must force a rescan"
+    )
+    assert changed.n_events >= 1
+
+
+def test_output_paths_do_not_invalidate_the_manifest(input_dir, output_dir, tmp_path):
+    """Renaming the clips folder isn't a reason to redo hours of analysis."""
+    input_dir.mkdir()
+    make_video(input_dir / "dive01.mp4", with_animal=True)
+
+    process_folder(_cfg(input_dir, output_dir), progress=False)
+    again = process_folder(
+        _cfg(input_dir, output_dir, clips_dirname="videos"), progress=False
+    )
+    assert all(r.skipped for r in again.results)
+
+
+def test_pre_v2_manifest_entries_are_reprocessed(input_dir, output_dir):
+    """An entry with no fingerprint has unknown provenance, so don't trust it."""
+    import json
+
+    input_dir.mkdir()
+    make_video(input_dir / "dive01.mp4", with_animal=True)
+    cfg = _cfg(input_dir, output_dir)
+    process_folder(cfg, progress=False)
+
+    # Rewrite the manifest the way v1 wrote it: no scan_key.
+    manifest_path = output_dir / cfg.manifest_name
+    data = json.loads(manifest_path.read_text())
+    for entry in data["videos"].values():
+        entry.pop("scan_key", None)
+    data["version"] = 1
+    manifest_path.write_text(json.dumps(data))
+
+    rerun = process_folder(cfg, progress=False)
+    assert not any(r.skipped for r in rerun.results)

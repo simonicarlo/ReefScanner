@@ -177,3 +177,39 @@ class ReefScannerConfig:
         d = dataclasses.asdict(self)
         d["extensions"] = list(self.extensions)
         return d
+
+    # -- resumability -------------------------------------------------------
+    #: Fields that only say *where* things go, not *what* gets found. Changing
+    #: one of these must not invalidate a completed video.
+    _FINGERPRINT_EXCLUDES = frozenset(
+        {
+            "input_folder",
+            "output_folder",
+            "extensions",
+            "ffmpeg_path",
+            "csv_name",
+            "manifest_name",
+            "clips_dirname",
+            "thumbnails_dirname",
+        }
+    )
+
+    def scan_fingerprint(self) -> str:
+        """A short hash of every setting that changes what a scan produces.
+
+        The manifest stores this alongside each completed video, so re-running
+        with a different detector (or threshold, or sample rate) reprocesses
+        instead of skipping. Without it, changing a setting and pressing scan
+        again appears to do nothing at all — the run finishes instantly with no
+        new events, which reads as a broken app rather than a cache hit.
+        """
+        import hashlib
+        import json
+
+        payload = {
+            key: value
+            for key, value in self.to_dict().items()
+            if key not in self._FINGERPRINT_EXCLUDES
+        }
+        encoded = json.dumps(payload, sort_keys=True, default=str)
+        return hashlib.sha256(encoded.encode()).hexdigest()[:12]
