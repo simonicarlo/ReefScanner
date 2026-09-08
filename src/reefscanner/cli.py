@@ -4,6 +4,7 @@
                         [--detector none] [...]
     reefscanner report  <output_folder>   # false-positive rate
     reefscanner serve   [--port 8000]     # the local service + review UI
+    reefscanner desktop                   # the same thing in a native window
 
 ``process`` and ``report`` are the headless engine and need no web
 dependencies. ``serve`` needs ``pip install 'reefscanner[app]'`` and is what the
@@ -134,6 +135,12 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
     p_serve.add_argument("--reload", action="store_true",
                          help="Auto-reload on code changes (development).")
 
+    p_desktop = sub.add_parser(
+        "desktop", help="Open ReefScanner in a native window.")
+    p_desktop.add_argument("--db", help="SQLite file to use (default: per-user app data).")
+    p_desktop.add_argument("--debug", action="store_true",
+                           help="Open with web inspector and verbose logs.")
+
     args = parser.parse_args(argv)
 
     logging.basicConfig(
@@ -164,6 +171,11 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
 
     if args.command == "serve":
         return _serve(args)
+
+    if args.command == "desktop":
+        from .desktop.main import run
+
+        return run(db_path=args.db, debug=args.debug)
 
     if args.command == "report":
         csv_path = (

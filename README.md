@@ -10,17 +10,22 @@ for a better detector later.
 
 Everything runs on your machine. No upload, no account, no cloud.
 
-> **Status: v2 in progress.** The analysis engine and the local service are
-> done and tested; the React review UI and the native window are being built.
-> Until then the engine works headlessly via the CLI and the HTTP API.
+> **Status: v2 usable.** Engine, service, review UI and native window all
+> work. Not yet packaged as a double-clickable app — you launch it from a
+> terminal.
 
 ## Install
 
 ```bash
 git clone https://github.com/simonicarlo/reefscanner.git
 cd reefscanner
+
 python3 -m venv .venv && source .venv/bin/activate
-pip install -e '.[app]'
+pip install -e '.[desktop]'
+
+# Build the review UI. Needed once, and again whenever frontend/ changes —
+# the build is not committed to the repo.
+cd frontend && npm install && npm run build && cd ..
 ```
 
 Needs Python ≥ 3.10 and **ffmpeg** for clip extraction — `brew install ffmpeg`
@@ -42,18 +47,42 @@ default motion-only mode needs no ML dependencies at all.
 ## Running it
 
 ```bash
-reefscanner serve            # http://127.0.0.1:8000  (API docs at /docs)
+reefscanner desktop          # native window — the normal way to use it
+reefscanner serve            # same app in your browser, http://127.0.0.1:8000
 ```
 
 There is no authentication, deliberately — it binds to localhost and is meant
 for one person on one machine. Don't put it on a network interface.
 
-Headless, no service required:
+Headless, no UI required:
 
 ```bash
 reefscanner process ~/footage --out ~/results
 reefscanner report ~/results          # false-positive rate once you've labeled
 ```
+
+## Reviewing
+
+Create a project pointing at a footage folder, press **Scan footage**, and
+watch progress live. When it finishes you get a grid of candidate events;
+click one to open the review screen.
+
+Review is built for the keyboard, because the mouse is the bottleneck when
+there are six hundred events:
+
+| Key | Action |
+|---|---|
+| `T` / `F` / `U` | Confirm · reject · unsure |
+| `←` `→` | Previous / next event |
+| `Space` | Play / pause the clip |
+| `B` | Toggle the detection box |
+| `S` | Jump to the species field |
+| `Enter` | Save from the species field |
+
+A verdict jumps straight to the next *unreviewed* event, so you can work
+through a whole run without touching the mouse. Species you've already used
+are suggested as you type, which keeps one animal from becoming three
+spellings.
 
 ## How it works
 
@@ -93,9 +122,9 @@ chosen and what the alternatives were.
 src/reefscanner/
 ├── engine/      the analysis core — no web dependencies, importable alone
 ├── app/         FastAPI service + SQLite state store
-├── desktop/     PyWebView shell (in progress)
-└── cli.py       process | report | serve
-frontend/        React review UI (in progress)
+├── desktop/     PyWebView shell — starts the service, opens a native window
+└── cli.py       process | report | serve | desktop
+frontend/        React + Vite + Tailwind review UI
 ```
 
 The engine never imports from the app, which is what keeps `reefscanner
@@ -152,10 +181,17 @@ leaves everything already committed intact.
 ## Development
 
 ```bash
-pip install -e '.[dev]'
+pip install -e '.[dev,desktop]'
 pytest
+
+# Two terminals: the API with reload, and Vite with hot module replacement.
 reefscanner serve --reload
+cd frontend && npm run dev        # http://localhost:5173, proxies /api
 ```
+
+Fonts are bundled rather than loaded from a CDN — the app has to work with no
+internet. `npm run build` writes into `src/reefscanner/app/static/`, which is
+gitignored; the wheel picks it up from there.
 
 Tests fabricate synthetic BRUV videos (a large slow "animal" plus flickery
 "baitfish" noise the size filter must reject), so no real footage is needed and

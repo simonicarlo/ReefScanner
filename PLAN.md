@@ -230,6 +230,43 @@ boots and answers `/api/health` and `/docs`; a live WebSocket client received
 6 progress messages across a 3-video job ending `done`, `progress=1.0`,
 3 events.
 
+### Tasks 5-7 (session of 2026-09-08, second pass)
+
+- **Task 5 (frontend scaffold) — done.** `frontend/`: Vite + React 19 + TS +
+  Tailwind v4 + TanStack Query + React Router 7. Vite builds straight into
+  `src/reefscanner/app/static/` and proxies `/api` + `/ws` to the backend in
+  dev, so the app is same-origin in both modes and CORS never differs.
+  **Deviation from the plan: no shadcn/ui.** Its installer is interactive and
+  pulls a large dependency tree; the handful of components needed are
+  hand-rolled in `components/ui.tsx` in the same own-the-code spirit.
+  **Fonts are bundled via `@fontsource`, not Google Fonts** — a desktop app
+  must render offline.
+- **Task 6 (triage UI) — done.** Four pages: projects list + create, project
+  detail (config editor built from `/api/projects/defaults`, run button, live
+  job list), job detail (thumbnail grid, filters, review-progress bar,
+  exports), and the review screen (player, bbox overlay, keyboard shortcuts,
+  species datalist, notes). A verdict auto-advances to the next *unreviewed*
+  event, which is what makes long runs bearable.
+- **Task 7 (desktop shell) — done.** `desktop/main.py` picks a free port,
+  starts uvicorn on a daemon thread, polls `/api/health` until it answers,
+  *then* opens the webview — a window pointed at a not-yet-listening port shows
+  an error and never retries. `reefscanner desktop` added to the CLI. A
+  `pick_folder()` JS bridge exists but the UI takes typed paths, because the
+  same build has to work in a plain browser tab where no bridge exists.
+
+**Design direction** (worth keeping if the UI is extended): "deep-water
+instrument". Dark abyssal ground so the footage is the brightest thing on
+screen; colour spent almost nowhere so the three verdict colours carry real
+meaning (cyan confirmed / coral rejected / amber unsure); IBM Plex Sans
+Condensed for labels, IBM Plex Mono with tabular figures for every number.
+
+**Verification:** 38 tests pass (20 engine + 10 service + 3 hooks + 5 desktop).
+Driven in a real browser against a real seeded backend: all four pages render,
+the bbox overlay lands on the animal, pressing `T` persisted a verdict through
+to the database, and CSV/COCO/YOLO exports all returned correct content with
+only TP events included. `reefscanner desktop` was launched for real and
+registered with macOS as a foreground GUI app.
+
 ### Gotchas hit, worth not rediscovering
 
 - **`from __future__ import annotations` breaks SQLModel `Relationship`.**
@@ -242,6 +279,12 @@ boots and answers `/api/health` and `/docs`; a live WebSocket client received
   `warmup_frames=10` at 1 sampled fps consumes the entire clip and emits
   nothing. Service tests use a `TEST_CONFIG` mirroring the engine tests'
   tunings. A "no events" failure is usually this, not a real bug.
+- **The frontend build is gitignored** (`src/reefscanner/app/static/`). A
+  fresh clone must run `npm run build` before `reefscanner desktop` works;
+  the shell prints exactly that if the build is missing.
+- **`erasableSyntaxOnly` is on in the TS config**, so TypeScript constructor
+  parameter properties (`constructor(readonly x: number)`) are a compile
+  error. Declare fields explicitly.
 - **Thumbnails have the detection box drawn onto them**
   (`engine/clips.save_thumbnail`). Good for triage, bad as training images -
   the annotation exporters reference them anyway and say so in their
@@ -254,8 +297,10 @@ boots and answers `/api/health` and `/docs`; a live WebSocket client received
   so task 5's frontend plan is viable.
 - ~~No virtualenv confirmed.~~ Resolved: `.venv` managed by `uv`.
 - ~~Per-video-only progress granularity.~~ Resolved: `on_frame` added, see §6.
-- **Remaining: tasks 5-8** (React scaffold, triage UI, PyWebView shell, final
-  docs/test pass). The API they need is built and documented at `/docs`.
+- **Remaining: task 8 only** — and most of it is done (README rewritten, SPEC
+  §11 added, service + desktop tests written). What's genuinely left: an
+  optional Vitest render smoke test for the frontend, and packaging as a
+  double-clickable app (PyInstaller), which the plan never scoped.
 - **No database migrations.** `Database.create_all()` creates missing tables
   but will not add a column to an existing one. Adding an engine tunable is
   fine (config is a JSON blob); adding a column to `Event` or `Label` needs
