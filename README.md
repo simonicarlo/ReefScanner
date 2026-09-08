@@ -20,13 +20,17 @@ Everything runs on your machine. No upload, no account, no cloud.
 git clone https://github.com/simonicarlo/reefscanner.git
 cd reefscanner
 
-python3 -m venv .venv && source .venv/bin/activate
-pip install -e '.[desktop]'
+uv venv
+uv pip install -e '.[desktop]'
 
 # Build the review UI. Needed once, and again whenever frontend/ changes —
 # the build is not committed to the repo.
 cd frontend && npm install && npm run build && cd ..
 ```
+
+Using [uv](https://docs.astral.sh/uv/); plain pip works the same way if you
+prefer it — `python3 -m venv .venv && source .venv/bin/activate && pip install
+-e '.[desktop]'`.
 
 Needs Python ≥ 3.10 and **ffmpeg** for clip extraction — `brew install ffmpeg`
 on macOS, `apt install ffmpeg` on Debian/Ubuntu, or `pip install
@@ -47,9 +51,13 @@ default motion-only mode needs no ML dependencies at all.
 ## Running it
 
 ```bash
-reefscanner desktop          # native window — the normal way to use it
-reefscanner serve            # same app in your browser, http://127.0.0.1:8000
+uv run reefscanner desktop   # native window — the normal way to use it
+uv run reefscanner serve     # same app in your browser, http://127.0.0.1:8000
 ```
+
+`uv run` finds the project's virtualenv on its own, so there is nothing to
+activate. With the venv activated, drop the `uv run` prefix from every command
+below.
 
 There is no authentication, deliberately — it binds to localhost and is meant
 for one person on one machine. Don't put it on a network interface.
@@ -57,8 +65,14 @@ for one person on one machine. Don't put it on a network interface.
 Headless, no UI required:
 
 ```bash
-reefscanner process ~/footage --out ~/results
-reefscanner report ~/results          # false-positive rate once you've labeled
+uv run reefscanner process ~/footage --out ~/results
+uv run reefscanner report ~/results   # false-positive rate once you've labeled
+```
+
+No footage handy? Generate some synthetic dives to try the whole loop on:
+
+```bash
+uv run python scripts/make_demo_footage.py ~/ReefScanner-demo
 ```
 
 ## Reviewing
@@ -181,11 +195,11 @@ leaves everything already committed intact.
 ## Development
 
 ```bash
-pip install -e '.[dev,desktop]'
-pytest
+uv pip install -e '.[dev,desktop]'
+uv run pytest
 
 # Two terminals: the API with reload, and Vite with hot module replacement.
-reefscanner serve --reload
+uv run reefscanner serve --reload
 cd frontend && npm run dev        # http://localhost:5173, proxies /api
 ```
 
