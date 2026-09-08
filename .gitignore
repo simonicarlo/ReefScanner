@@ -235,3 +235,11 @@ src/reefscanner/app/static/
 # frontend's API layer, which is source, not build output.
 !frontend/src/lib/
 !frontend/src/lib/**
+
+# Real footage and results must never be committed — they're large, private,
+# and belong next to the dives, not in git. ReefScanner defaults a project's
+# output to "<footage folder>_results", so ignore that shape anywhere.
+*_results/
+inputs/
+inputs_results/
+.DS_Store

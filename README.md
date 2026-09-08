@@ -118,7 +118,16 @@ missed animal costs you the observation.
 
 **`marine` — SharkTrack.** A YOLOv8 model trained on real BRUVS footage,
 single `elasmobranch` class, MIT-licensed. The weights download automatically
-on first use. This is the better option if you have the ML extra installed.
+on first use (~6 MB, cached in `~/.cache/reefscanner`). Install the extra
+first:
+
+```bash
+uv pip install -e '.[desktop,ml]'
+```
+
+That pulls torch and ultralytics — a few hundred MB. Then set **Detector →
+marine** in a project's scan settings, or pass `--detector marine` on the CLI.
+Expect it to be considerably slower than motion mode on a CPU.
 
 **`generic`** runs a stock COCO YOLO as a crude objectness proposer. Mostly
 useful for experimenting.

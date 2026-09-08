@@ -43,6 +43,11 @@ ml = [
     "ultralytics>=8.1,<9",
     "torch>=2.0",
     "sahi>=0.11",   # tiled inference for distant/small animals (MIT)
+    # SharkTrack's published checkpoint was saved by an older Ultralytics and
+    # needs dill to unpickle. Ultralytics would try to pip-install it on the
+    # fly, which fails in any venv without pip (uv's, for one) and leaves a
+    # confusing "No module named 'dill'" at the end of a long download.
+    "dill>=0.3",
 ]
 # ffmpeg fallback for environments without a system binary.
 ffmpeg = ["imageio-ffmpeg>=0.4.9"]
