@@ -6,10 +6,10 @@ MIT-licensed) — see ``docs/model-research.md``. Any Ultralytics-compatible
 `.pt` (e.g. a model fine-tuned on our own footage — the §10 data factory) drops
 in the same way.
 
-Weights are NOT bundled. Point ``detector_weights`` (or
-``detector_options['weights']``) at a local/Drive path to a SharkTrack /
-fine-tuned `.pt`. In Colab, download SharkTrack's release weights to Drive and
-set the path there.
+Weights are NOT bundled, but they are fetched on demand: leaving
+``detector_weights`` unset auto-downloads SharkTrack's checkpoint into a local
+cache (see ``weights.py``). Point ``detector_weights`` (or
+``detector_options['weights']``) at a local `.pt` to use your own instead.
 """
 
 from __future__ import annotations
@@ -23,8 +23,7 @@ def build_marine(cfg: ReefScannerConfig) -> UltralyticsYoloDetector:
     weights = cfg.detector_weights or opts.pop("weights", None)
     if not weights:
         # No path given: fetch SharkTrack's weights into a local cache so
-        # detector='marine' works out of the box (see weights.py). In Colab,
-        # prefer setting detector_weights to a Drive path for persistence.
+        # detector='marine' works out of the box (see weights.py).
         from ..weights import ensure_sharktrack_weights
 
         weights = ensure_sharktrack_weights()

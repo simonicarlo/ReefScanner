@@ -8,7 +8,7 @@ from pathlib import Path
 import pytest
 
 from reefscanner import ReefScannerConfig, fp_report, process_folder
-from reefscanner.results import CSV_COLUMNS
+from reefscanner.engine.results import CSV_COLUMNS
 
 from conftest import make_video
 
@@ -121,3 +121,74 @@ def test_detector_none_imports_no_torch(input_dir, output_dir):
 
     assert "torch" not in sys.modules
     assert "ultralytics" not in sys.modules
+
+
+def test_on_frame_reports_progress_within_a_video(input_dir, output_dir):
+    """The per-frame hook is what lets a UI move during one long video."""
+    input_dir.mkdir()
+    make_video(input_dir / "dive01.mp4", with_animal=True)
+
+    seen = []
+
+    def on_frame(video, index, total, fraction):
+        seen.append((video.name, index, total, fraction))
+
+    process_folder(_cfg(input_dir, output_dir), progress=False, on_frame=on_frame)
+
+    assert seen, "on_frame never fired"
+    assert {s[0] for s in seen} == {"dive01.mp4"}
+    assert all(s[2] == 1 for s in seen), "total should count videos"
+    fractions = [s[3] for s in seen]
+    assert all(0.0 <= f <= 1.0 for f in fractions)
+    assert fractions == sorted(fractions), "progress must not go backwards"
+    assert fractions[-1] > fractions[0], "progress must actually advance"
+
+
+def test_should_cancel_stops_the_run(input_dir, output_dir):
+    """Cancelling mid-video leaves the batch partial, not failed."""
+    input_dir.mkdir()
+    make_video(input_dir / "dive01.mp4", with_animal=True)
+    make_video(input_dir / "dive02.mp4", with_animal=True)
+
+    calls = {"n": 0}
+
+    def should_cancel():
+        calls["n"] += 1
+        return calls["n"] > 3  # bail a few frames into the first video
+
+    batch = process_folder(
+        _cfg(input_dir, output_dir), progress=False, should_cancel=should_cancel
+    )
+
+    assert batch.cancelled is True
+    assert batch.n_events == 0
+    # No video was completed, so nothing is marked done and a rerun redoes it.
+    assert not any(r.error for r in batch.results)
+
+
+def test_cancelled_video_is_not_marked_complete(input_dir, output_dir):
+    """A cancelled run must be safely resumable — the manifest stays honest."""
+    import json
+
+    input_dir.mkdir()
+    make_video(input_dir / "dive01.mp4", with_animal=True)
+    cfg = _cfg(input_dir, output_dir)
+
+    calls = {"n": 0}
+    process_folder(
+        cfg,
+        progress=False,
+        should_cancel=lambda: (calls.update(n=calls["n"] + 1), calls["n"] > 2)[1],
+    )
+
+    # The manifest is only written when something is marked complete, so an
+    # absent file is itself the "nothing finished" signal.
+    manifest_path = output_dir / cfg.manifest_name
+    if manifest_path.exists():
+        manifest = json.loads(manifest_path.read_text())
+        completed = manifest.get("videos", manifest)
+        assert not completed, "an interrupted video must not be marked complete"
+
+    # Resuming reprocesses it and finds the animal.
+    batch = process_folder(cfg, progress=False)
+    assert batch.n_events >= 1

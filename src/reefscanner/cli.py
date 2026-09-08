@@ -1,8 +1,13 @@
-"""Command-line interface (SPEC §5).
+"""Command-line interface.
 
     reefscanner process <input_folder> --out <output_folder> [--fps 1.0]
                         [--detector none] [...]
-    reefscanner report  <output_folder>   # false-positive rate (SPEC §8.6)
+    reefscanner report  <output_folder>   # false-positive rate
+    reefscanner serve   [--port 8000]     # the local service + review UI
+
+``process`` and ``report`` are the headless engine and need no web
+dependencies. ``serve`` needs ``pip install 'reefscanner[app]'`` and is what the
+desktop shell wraps.
 
 Every config field is overridable; CLI flags take precedence over an optional
 ``--config file.yaml``.
@@ -17,9 +22,9 @@ from pathlib import Path
 from typing import Optional, Sequence
 
 from . import __version__
-from .config import VALID_DETECTORS, ReefScannerConfig
-from .pipeline import process_folder
-from .report import fp_report
+from .engine.config import VALID_DETECTORS, ReefScannerConfig
+from .engine.pipeline import process_folder
+from .engine.report import fp_report
 
 
 def _add_process_args(p: argparse.ArgumentParser) -> None:
@@ -105,7 +110,7 @@ def _config_from_args(args: argparse.Namespace) -> ReefScannerConfig:
 def main(argv: Optional[Sequence[str]] = None) -> int:
     parser = argparse.ArgumentParser(
         prog="reefscanner",
-        description="Motion triage for static-camera underwater video (v1).",
+        description="Triage static-camera underwater video for marine megafauna.",
     )
     parser.add_argument("--version", action="version",
                         version=f"reefscanner {__version__}")
@@ -118,6 +123,16 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
         "report", help="Report false-positive rate from a labeled results CSV.")
     p_report.add_argument("output_folder", help="Output folder containing the CSV.")
     p_report.add_argument("--csv", help="Explicit CSV path (overrides default).")
+
+    p_serve = sub.add_parser(
+        "serve", help="Run the local web service and review UI.")
+    p_serve.add_argument("--host", default="127.0.0.1",
+                         help="Bind address. Defaults to localhost — the app "
+                              "has no authentication, so do not expose it.")
+    p_serve.add_argument("--port", type=int, default=8000, help="Port (default 8000).")
+    p_serve.add_argument("--db", help="SQLite file to use (default: per-user app data).")
+    p_serve.add_argument("--reload", action="store_true",
+                         help="Auto-reload on code changes (development).")
 
     args = parser.parse_args(argv)
 
@@ -147,6 +162,9 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
             return 1
         return 0
 
+    if args.command == "serve":
+        return _serve(args)
+
     if args.command == "report":
         csv_path = (
             Path(args.csv) if args.csv
@@ -158,6 +176,47 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
 
     parser.error(f"Unknown command: {args.command}")
     return 2
+
+
+def _serve(args: argparse.Namespace) -> int:
+    """Run the FastAPI service under uvicorn."""
+    try:
+        import uvicorn
+
+        from .app.main import create_app
+    except ImportError as exc:
+        print(
+            f"error: the service needs extra dependencies ({exc}).\n"
+            "Install them with:  pip install 'reefscanner[app]'",
+            file=sys.stderr,
+        )
+        return 2
+
+    if args.host not in ("127.0.0.1", "localhost", "::1"):
+        # Worth saying out loud: there is no login, and the media endpoints
+        # serve files from disk to anyone who can reach the port.
+        print(
+            f"warning: binding to {args.host} exposes ReefScanner to your "
+            "network, and it has no authentication.",
+            file=sys.stderr,
+        )
+
+    url = f"http://{args.host}:{args.port}"
+    print(f"ReefScanner service on {url}  (API docs at {url}/docs)")
+
+    if args.reload:
+        # --reload needs an import string, so the DB override travels by env.
+        import os
+
+        if args.db:
+            os.environ["REEFSCANNER_DB"] = args.db
+        uvicorn.run(
+            "reefscanner.app.main:create_app",
+            factory=True, host=args.host, port=args.port, reload=True,
+        )
+    else:
+        uvicorn.run(create_app(db_path=args.db), host=args.host, port=args.port)
+    return 0
 
 
 if __name__ == "__main__":  # pragma: no cover

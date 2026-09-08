@@ -5,8 +5,8 @@ from __future__ import annotations
 from pathlib import Path
 
 from reefscanner import ReefScannerConfig, probe_video
-from reefscanner.motion import MotionGate
-from reefscanner.videoio import iter_sampled_frames
+from reefscanner.engine.motion import MotionGate
+from reefscanner.engine.videoio import iter_sampled_frames
 
 from conftest import make_video
 

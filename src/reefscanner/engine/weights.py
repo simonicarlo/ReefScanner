@@ -3,8 +3,8 @@
 Lets ``detector='marine'`` work with no explicit ``detector_weights`` by
 fetching SharkTrack's YOLOv8 weights (a single ~6 MB file committed in the
 SharkTrack repo) into a local cache — the same convenience Ultralytics provides
-for ``yolov8n.pt``. In Colab you'd usually point ``detector_weights`` at a Drive
-path instead, so the file persists across sessions.
+for ``yolov8n.pt``. Set ``detector_weights`` explicitly to use your own
+fine-tuned checkpoint instead.
 """
 
 from __future__ import annotations

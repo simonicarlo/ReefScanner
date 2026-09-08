@@ -5,7 +5,7 @@ from __future__ import annotations
 import pytest
 
 from reefscanner import ReefScannerConfig
-from reefscanner.detectors import get_detector
+from reefscanner.engine.detectors import get_detector
 
 
 def test_defaults_are_recall_favoring():

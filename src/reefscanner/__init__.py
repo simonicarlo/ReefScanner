@@ -1,38 +1,61 @@
-"""ReefScanner — recall-oriented motion triage for static-camera (BRUV) video.
+"""ReefScanner — a local desktop app for triaging static-camera (BRUV) video.
 
-v1 is deliberately motion-only (no ML): it surfaces "worth a look" moments from
-long underwater videos so a human watches minutes instead of hours, and every
-emitted event doubles as a pre-labeled training candidate for a future
-fine-tuned detector (SPEC §10).
+Long underwater recordings are mostly empty water. ReefScanner watches them for
+you, surfaces the moments worth a look, and gives you a review UI to mark each
+one true/false positive and tag the species — so you watch minutes instead of
+hours, and every reviewed event becomes labeled training data for a better
+detector later.
 
-Library entry points:
+The package has three layers:
+
+* ``reefscanner.engine`` — the headless analysis core (motion gate + pluggable
+  YOLO detectors, clip/thumbnail extraction, CSV export). No web dependencies.
+* ``reefscanner.app`` — the local FastAPI service and SQLite state store that
+  the review UI talks to.
+* ``reefscanner.desktop`` — the PyWebView shell that wraps the service in a
+  native window.
+
+Library entry points (unchanged since v1 — the engine move is transparent):
 
     from reefscanner import ReefScannerConfig, process_folder
-    cfg = ReefScannerConfig(input_folder="/drive/in", output_folder="/drive/out")
+    cfg = ReefScannerConfig(input_folder="~/footage", output_folder="~/results")
     batch = process_folder(cfg)
 
-See ``reefscanner.cli`` for the command-line interface.
+See ``reefscanner.cli`` for the command line: ``process``, ``report``,
+``serve``, ``desktop``.
 """
 
 from __future__ import annotations
 
-from .config import (
+from .engine import (
+    CSV_COLUMNS,
     DEFAULT_EXTENSIONS,
     DETECTOR_GENERIC,
     DETECTOR_MARINE,
     DETECTOR_NONE,
     VALID_DETECTORS,
+    BatchResult,
+    Candidate,
+    CsvWriter,
+    Detection,
+    Event,
+    FpReport,
+    Manifest,
+    MotionCandidate,
+    MotionGate,
     ReefScannerConfig,
+    VideoInfo,
+    VideoResult,
+    aggregate_events,
+    discover_videos,
+    event_to_row,
+    fp_report,
+    probe_video,
+    process_folder,
+    process_video,
 )
-from .detection import Detection
-from .discovery import discover_videos
-from .events import Candidate, Event, MotionCandidate, aggregate_events
-from .motion import MotionGate
-from .pipeline import BatchResult, VideoResult, process_folder, process_video
-from .report import FpReport, fp_report
-from .videoio import VideoInfo, probe_video
 
-__version__ = "1.0.0"
+__version__ = "2.0.0.dev0"
 
 __all__ = [
     "__version__",
@@ -55,6 +78,10 @@ __all__ = [
     "Detection",
     "Event",
     "aggregate_events",
+    "Manifest",
+    "CSV_COLUMNS",
+    "CsvWriter",
+    "event_to_row",
     "fp_report",
     "FpReport",
 ]

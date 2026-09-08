@@ -32,8 +32,9 @@ def resolve_ffmpeg(cfg: ReefScannerConfig) -> str:
         return imageio_ffmpeg.get_ffmpeg_exe()
     except Exception as exc:  # pragma: no cover - environment dependent
         raise RuntimeError(
-            "ffmpeg not found. Install ffmpeg (Colab has it preinstalled), "
-            "set config.ffmpeg_path, or `pip install imageio-ffmpeg`."
+            "ffmpeg not found. Install it (macOS: `brew install ffmpeg`; "
+            "Debian/Ubuntu: `apt install ffmpeg`), set config.ffmpeg_path, "
+            "or `pip install imageio-ffmpeg` for a bundled fallback binary."
         ) from exc
 
 

@@ -31,6 +31,16 @@ from .videoio import VideoInfo, iter_sampled_frames, probe_video
 logger = logging.getLogger("reefscanner")
 
 
+class JobCancelled(Exception):
+    """Raised when ``should_cancel`` asks the run to stop.
+
+    Cancellation is cooperative and checked between sampled frames, so a Stop
+    button reacts within one frame decode rather than after the current video.
+    Work already committed (clips, CSV rows, manifest entries for *finished*
+    videos) is kept — the run is interrupted, not rolled back.
+    """
+
+
 @dataclass
 class VideoResult:
     video: Path
@@ -45,6 +55,8 @@ class BatchResult:
     csv_path: Path
     manifest_path: Path
     results: list[VideoResult] = field(default_factory=list)
+    #: True when the run stopped early because ``should_cancel`` returned True.
+    cancelled: bool = False
 
     @property
     def n_events(self) -> int:
@@ -60,8 +72,24 @@ def _collect_candidates(
     cfg: ReefScannerConfig,
     info: VideoInfo,
     detector,
+    on_frame: Optional[Callable[[float], None]] = None,
+    should_cancel: Optional[Callable[[], bool]] = None,
 ) -> list[Candidate]:
-    """Produce per-frame candidates via motion (v1) or the detector (v2)."""
+    """Produce per-frame candidates via motion (v1) or the detector (v2).
+
+    ``on_frame`` is called after each sampled frame with this video's progress
+    as a 0..1 fraction (always 0.0 when the duration is unknown). It exists so a
+    UI can show movement inside a single long video, where per-video callbacks
+    would sit silent for minutes.
+    """
+
+    def _tick(sample) -> None:
+        if should_cancel is not None and should_cancel():
+            raise JobCancelled(f"cancelled during {video}")
+        if on_frame is not None:
+            duration = info.duration_seconds
+            on_frame(min(1.0, sample.timestamp / duration) if duration > 0 else 0.0)
+
     candidates: list[Candidate] = []
 
     if cfg.detector == DETECTOR_NONE:
@@ -71,12 +99,14 @@ def _collect_candidates(
             cand = gate.process(sample)
             if cand is not None:
                 candidates.append(cand)
+            _tick(sample)
         return candidates
 
     # v2 detector-scans-frames: the detector is the recall source.
     prefilter = MotionGate(cfg) if cfg.motion_prefilter else None
     for sample in iter_sampled_frames(info, cfg.frame_sample_fps):
         if prefilter is not None and not prefilter.has_motion(sample):
+            _tick(sample)
             continue  # cheap skip of dead-static frames (recall-safe)
         for det in detector.detect(sample.frame):
             candidates.append(
@@ -90,6 +120,7 @@ def _collect_candidates(
                     ml_confidence=det.confidence,
                 )
             )
+        _tick(sample)
     return candidates
 
 
@@ -99,6 +130,8 @@ def process_video(
     info: VideoInfo,
     detector,
     ffmpeg: str,
+    on_frame: Optional[Callable[[float], None]] = None,
+    should_cancel: Optional[Callable[[], bool]] = None,
 ) -> tuple[list[Event], list[dict]]:
     """Run the per-video pipeline. Returns (events, csv_rows).
 
@@ -109,7 +142,9 @@ def process_video(
     clips_dir = out_dir / cfg.clips_dirname
     thumbs_dir = out_dir / cfg.thumbnails_dirname
 
-    candidates = _collect_candidates(video, cfg, info, detector)
+    candidates = _collect_candidates(
+        video, cfg, info, detector, on_frame=on_frame, should_cancel=should_cancel
+    )
     events = aggregate_events(
         candidates, cfg, video_stem=video.stem, source_video=str(video)
     )
@@ -126,10 +161,23 @@ def process_folder(
     cfg: ReefScannerConfig,
     progress: bool = True,
     on_video: Optional[Callable[[VideoResult], None]] = None,
+    on_frame: Optional[Callable[[Path, int, int, float], None]] = None,
+    should_cancel: Optional[Callable[[], bool]] = None,
 ) -> BatchResult:
     """Process every video under ``cfg.input_folder`` into ``cfg.output_folder``.
 
     Resumable: videos already marked complete in the manifest are skipped.
+
+    Two optional hooks let a UI drive this:
+
+    * ``on_video(result)`` fires once per finished video — coarse but exact.
+    * ``on_frame(video, index, total, fraction)`` fires per *sampled frame*,
+      giving movement inside a single long video. ``index``/``total`` count
+      videos; ``fraction`` is progress through the current one. Callers should
+      expect this to be hot and throttle their own side.
+
+    ``should_cancel`` is polled between sampled frames; returning True stops the
+    run and leaves the batch partial (completed videos stay committed).
     """
     if not cfg.input_folder or not cfg.output_folder:
         raise ValueError("config.input_folder and config.output_folder are required")
@@ -165,8 +213,13 @@ def process_folder(
 
     batch = BatchResult(csv_path=csv_path, manifest_path=manifest_path)
 
-    for video in iterator:
+    for index, video in enumerate(iterator):
         result = VideoResult(video=video, info=None)
+
+        if should_cancel is not None and should_cancel():
+            batch.cancelled = True
+            logger.info("Run cancelled before %s", video.name)
+            break
 
         if manifest.is_complete(video):
             result.skipped = True
@@ -179,7 +232,15 @@ def process_folder(
         try:
             info = probe_video(video)
             result.info = info
-            events, rows = process_video(video, cfg, info, detector, ffmpeg)
+            frame_cb = None
+            if on_frame is not None:
+                frame_cb = lambda frac, _v=video, _i=index: on_frame(
+                    _v, _i, len(videos), frac
+                )
+            events, rows = process_video(
+                video, cfg, info, detector, ffmpeg,
+                on_frame=frame_cb, should_cancel=should_cancel,
+            )
 
             # Reconcile against any CSV rows from a prior torn run (SPEC §7).
             rows = [r for r in rows if r["event_id"] not in existing_ids]
@@ -192,6 +253,12 @@ def process_folder(
                 event_ids=[e.event_id for e in events],
             )
             result.events = events
+        except JobCancelled:
+            # Not an error: the partly-processed video is simply left unmarked
+            # in the manifest, so a later run redoes it from frame 0.
+            batch.cancelled = True
+            logger.info("Run cancelled during %s", video.name)
+            break
         except Exception as exc:  # keep going; an interrupted video reprocesses
             result.error = str(exc)
             logger.exception("Failed processing %s: %s", video, exc)

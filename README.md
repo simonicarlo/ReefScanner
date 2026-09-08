@@ -1,203 +1,167 @@
 # ReefScanner
 
-Recall-oriented **motion triage** for long underwater videos from a static,
-mounted camera (BRUV-style). ReefScanner scans hours of footage and flags
-candidate sightings of large marine megafauna (sharks, rays) for human review —
-turning hours of watching into minutes.
+A local desktop app for finding animals in long underwater video.
 
-> **v1 is deliberately motion-only (no ML).** It over-flags rather than misses:
-> a false positive costs ~10 seconds of attention, a missed animal is the
-> expensive failure. Every event it emits (clip + peak frame + motion bbox) is a
-> pre-labeled candidate that becomes training data for a future fine-tuned
-> detector. See [`SPEC.md`](SPEC.md).
+Point it at a folder of static-camera (BRUV-style) footage. It watches the
+whole thing, surfaces the moments worth a look, and gives you a review screen
+to mark each one true or false positive and tag the species. Hours of watching
+becomes minutes — and every verdict you record becomes labeled training data
+for a better detector later.
 
-## How it works
+Everything runs on your machine. No upload, no account, no cloud.
 
-```
-Discover videos → sample frames (1 fps) → motion gating (background
-subtraction + size/persistence filters) → [optional ML confirm] →
-aggregate into events → one padded clip + thumbnail + CSV row per event
-```
-
-Motion gating is the source of recall. The ML stage (§3 Step 4) is a pluggable
-*confirmer* that is **off by default** (`detector=none`) and needs no
-torch/CUDA.
+> **Status: v2 in progress.** The analysis engine and the local service are
+> done and tested; the React review UI and the native window are being built.
+> Until then the engine works headlessly via the CLI and the HTTP API.
 
 ## Install
 
 ```bash
-pip install git+https://github.com/simonicarlo/reefscanner.git
-# or, from a clone:
-pip install -e .
+git clone https://github.com/simonicarlo/reefscanner.git
+cd reefscanner
+python3 -m venv .venv && source .venv/bin/activate
+pip install -e '.[app]'
 ```
 
-Requires Python ≥ 3.9 and **ffmpeg** for clip extraction (preinstalled on
-Colab; otherwise `apt install ffmpeg`, or `pip install imageio-ffmpeg` for a
-bundled fallback). The v1 default (`detector=none`) needs **no** ML
-dependencies.
+Needs Python ≥ 3.10 and **ffmpeg** for clip extraction — `brew install ffmpeg`
+on macOS, `apt install ffmpeg` on Debian/Ubuntu, or `pip install
+imageio-ffmpeg` for a bundled fallback binary.
 
-## Usage
+Extras, all optional:
 
-### CLI
+| Extra | What it adds |
+|---|---|
+| `[app]` | The local service and review UI (FastAPI + SQLite) |
+| `[desktop]` | The native window (PyWebView) |
+| `[ml]` | YOLO detectors — torch, ultralytics, SAHI |
+| `[dev]` | Tests |
+
+`pip install reefscanner` with no extras still gives you a working CLI: the
+default motion-only mode needs no ML dependencies at all.
+
+## Running it
 
 ```bash
-reefscanner process <input_folder> --out <output_folder> [options]
+reefscanner serve            # http://127.0.0.1:8000  (API docs at /docs)
 ```
 
-Common options (all have recall-favoring defaults — see `reefscanner process -h`):
+There is no authentication, deliberately — it binds to localhost and is meant
+for one person on one machine. Don't put it on a network interface.
 
-| Flag | Meaning | Default |
-|------|---------|---------|
-| `--fps` | Sampled decode frame rate | `1.0` |
-| `--detect-downscale` | Downscale factor for detection | `0.5` |
-| `--warmup-frames` | Background-model burn-in to skip | `10` |
-| `--min-blob-area` | Min foreground blob area (reject baitfish) | `500` |
-| `--persistence-frames` | Frames a blob must persist | `2` |
-| `--merge-gap-seconds` | Merge candidates closer than this | `3.0` |
-| `--min-event-seconds` | Drop events shorter than this | `1.0` |
-| `--pad-seconds` | Padding before/after each clip | `2.0` |
-| `--reencode` | Re-encode clips (accurate cuts) vs. stream-copy | off |
-| `--detector` | `none` / `marine` / `generic` | `none` |
-| `--weights` | Detector weights `.pt` (`marine` auto-downloads SharkTrack if omitted) | — |
-| `--conf` | Detector confidence threshold (recall-first = low) | `0.2` |
-| `--target-classes` | Keep only these model classes (e.g. `elasmobranch shark ray`) | all |
-| `--sahi` | SAHI tiled inference (better recall on distant/small animals) | off |
-| `--motion-prefilter` | In detector mode, skip dead-static frames | off |
-
-Report the false-positive rate after a human fills the `label` column with
-`TP`/`FP` (acceptance criterion 6, the v2 go/no-go):
+Headless, no service required:
 
 ```bash
-reefscanner report <output_folder>
+reefscanner process ~/footage --out ~/results
+reefscanner report ~/results          # false-positive rate once you've labeled
 ```
 
-### Library / Colab
+## How it works
 
-```python
-from reefscanner import ReefScannerConfig, process_folder, fp_report
-
-cfg = ReefScannerConfig(
-    input_folder="/content/drive/MyDrive/ReefScanner/input",
-    output_folder="/content/drive/MyDrive/ReefScanner/output",
-    frame_sample_fps=1.0,
-    detector="none",
-)
-batch = process_folder(cfg)
-print(batch.n_events, "events ->", batch.csv_path)
+```
+discover videos
+  → sample frames (1 fps by default)
+  → find candidates: motion gating, or a YOLO detector scanning every frame
+  → merge nearby candidates into events
+  → one padded clip + thumbnail + database row per event
+  → you review each event and record a verdict
 ```
 
-The [`ReefScanner.ipynb`](ReefScanner.ipynb) notebook
-([open in Colab](https://colab.research.google.com/github/simonicarlo/ReefScanner/blob/main/ReefScanner.ipynb))
-drives the whole pipeline stage-by-stage from Google Drive.
+Two ways to generate candidates, chosen with `--detector`:
 
-## Detection modes
+**`none` (default) — motion only.** Background subtraction (MOG2/KNN) with
+size and persistence filters. No ML dependencies, runs fine on a laptop CPU.
+Tuned to over-flag rather than miss: a false positive costs you ten seconds, a
+missed animal costs you the observation.
 
-ReefScanner has two recall strategies, chosen by `detector`:
+**`marine` — SharkTrack.** A YOLOv8 model trained on real BRUVS footage,
+single `elasmobranch` class, MIT-licensed. The weights download automatically
+on first use. This is the better option if you have the ML extra installed.
 
-- **`none` (v1, default) — motion-only.** Background subtraction + size/persistence
-  gating is the recall source. No ML dependencies. Cheap and robust, but its size
-  filter can't separate a *near small fish* from a *far large shark* (in pixels
-  they're the same), so it over-flags close fish and can miss distant animals.
+**`generic`** runs a stock COCO YOLO as a crude objectness proposer. Mostly
+useful for experimenting.
 
-- **`marine` (v2) — detector scans frames.** A YOLO model runs on every sampled
-  frame, localizing *and* classifying animals — so a distant shark is found by
-  appearance, not motion size. Motion demotes to an optional cheap pre-skip
-  (`--motion-prefilter`). This is the recommended path for separating megafauna
-  from daytime fish.
+See [`docs/model-research.md`](docs/model-research.md) for how these were
+chosen and what the alternatives were.
 
-  ```bash
-  reefscanner process <in> --out <out> \
-      --detector marine --weights /path/to/sharktrack.pt \
-      --conf 0.2 --sahi --target-classes elasmobranch
-  ```
+> Ultralytics YOLO is AGPL-3.0. Fine for research and internal use; read the
+> license before distributing a product built on the `marine` or `generic`
+> detectors.
 
-  Recommended weights: **SharkTrack** (YOLOv8, single `elasmobranch` class,
-  trained on real BRUVS, MIT-licensed). The weights are a single ~6 MB file in
-  the SharkTrack repo — download it once:
+## Architecture
 
-  ```bash
-  curl -L -o sharktrack.pt \
-    https://raw.githubusercontent.com/filippovarini/sharktrack/master/models/sharktrack.pt
-  ```
+```
+src/reefscanner/
+├── engine/      the analysis core — no web dependencies, importable alone
+├── app/         FastAPI service + SQLite state store
+├── desktop/     PyWebView shell (in progress)
+└── cli.py       process | report | serve
+frontend/        React review UI (in progress)
+```
 
-  If you omit `--weights`, the `marine` detector **auto-downloads** the
-  SharkTrack weights to a local cache on first use (override the cache dir with
-  `REEFSCANNER_CACHE`); in Colab, prefer pointing `--weights` at a Drive path so
-  the file persists across sessions.
+The engine never imports from the app, which is what keeps `reefscanner
+process` usable with nothing but OpenCV installed.
 
-  See [`docs/model-research.md`](docs/model-research.md) for the model
-  evaluation and why it beats off-the-shelf/aquarium models. Any
-  Ultralytics-compatible `.pt` (e.g. a model fine-tuned on your own footage)
-  drops in via `--weights`. `--sahi` enables tiled inference, which markedly
-  improves recall on *distant/small* animals.
+Two separate pieces of state, on purpose:
 
-- **`generic` — experimental.** Stock COCO YOLO as a coarse objectness proposer.
-  COCO has no shark/ray classes and underwater domain shift is severe; expect it
-  to *hurt* recall. For experimentation only.
+- The **manifest** (`reefscanner_manifest.json`, in your output folder) tracks
+  which videos have finished processing. It's what makes an interrupted run
+  resumable, and it lives next to the clips so a results folder stays
+  self-describing even without the database.
+- The **database** (SQLite, in your OS's app-data directory) holds projects,
+  job history, and your labels.
 
-> **Licensing:** `detector=none` is dependency-free. `marine`/`generic` need the
-> `ml` extra (`pip install 'reefscanner[ml]'`), which pulls in **Ultralytics
-> YOLO (AGPL-3.0)** — a copyleft license with a network clause. Fine for internal
-> research; if you ever distribute or host this as a service, read
-> [`docs/model-research.md`](docs/model-research.md) first. SharkTrack's own code
-> is MIT.
+`reefscanner_results.csv` is still written, and is still the same column
+contract as v1 — but it's now an export format rather than the source of truth.
+An old results folder can be adopted into a project without re-running
+anything (`POST /api/jobs/{id}/import/csv`).
 
 ## Output
 
-All outputs land in `<output_folder>`:
-
 ```
-output/
-├── reefscanner_results.csv     # one row per event (see columns below)
-├── reefscanner_manifest.json   # resume checkpoint (source of truth for "done")
-├── clips/        <event_id>.<ext>   # one padded clip per event
-└── thumbnails/   <event_id>.jpg     # peak frame with the motion bbox drawn
+results/
+├── clips/                      one padded clip per event
+├── thumbnails/                 peak frame with the detection box drawn
+├── reefscanner_results.csv     one row per event
+└── reefscanner_manifest.json   which videos are finished
 ```
 
-CSV columns:
-`event_id, source_video, start_seconds, end_seconds, duration_s,
-start_timestamp, motion_score, ml_confidence, detected_class, clip_path,
-thumbnail_path, label, species, notes`. `detected_class` is the *model's*
-predicted class (detector mode; blank for motion-only). The last three
-(`label`, `species`, `notes`) are **reserved for the human labeling workflow**
-and left blank — fill them during triage.
+## Exports
+
+Once you've labeled events, confirmed ones can leave as training data:
+
+| Endpoint | Format |
+|---|---|
+| `/api/jobs/{id}/export/csv` | The v1 CSV, label columns filled in |
+| `/api/jobs/{id}/export/coco` | COCO detection JSON |
+| `/api/jobs/{id}/export/yolo` | YOLO label files + `classes.txt`, zipped |
+
+Only events marked **TP** are exported — an `unsure` verdict is not a box worth
+training on. Note that the exported images are the thumbnails, which have the
+detection box drawn onto them; re-extract clean frames before actually
+fine-tuning.
 
 ## Resumability
 
-Colab disconnects after idle/~12h. ReefScanner checkpoints **per video**: the
-manifest is the source of truth for what's complete, and a video is marked done
-only after its clips, thumbnails, and CSV rows are all flushed. Re-running skips
-completed videos. An interrupted video restarts from frame 0 (no mid-video
-resume — the background model's state is in memory, by design).
+Interrupt a run at any point and start it again — finished videos are skipped.
+A video that was mid-analysis is not marked complete, so it reprocesses from
+the beginning rather than resuming halfway and losing events at the seam.
 
-## Canonical smoke test
+Cancelling a job from the UI does the same thing: it stops between frames and
+leaves everything already committed intact.
 
-Acceptance criterion 1 asks for a documented canonical smoke-test file. Real
-footage lives on Drive, not in this repo (§1), so the canonical end-to-end
-smoke test is:
-
-- **Input video:** `MyDrive/ReefScanner/smoke/smoke_sample.mp4` (place one short
-  BRUV clip here on your Drive).
-- **Run:**
-  ```bash
-  reefscanner process /content/drive/MyDrive/ReefScanner/smoke \
-      --out /content/drive/MyDrive/ReefScanner/smoke_out --fps 1
-  ```
-- **Pass condition:** the run completes, writes `reefscanner_results.csv`, and
-  produces at least one clip + thumbnail under `smoke_out/`.
-
-For CI / offline development the test suite fabricates synthetic BRUV videos
-(no real footage needed):
+## Development
 
 ```bash
 pip install -e '.[dev]'
 pytest
+reefscanner serve --reload
 ```
 
-## Roadmap (v2 — earned by v1 data)
+Tests fabricate synthetic BRUV videos (a large slow "animal" plus flickery
+"baitfish" noise the size filter must reject), so no real footage is needed and
+none is committed.
 
-Adding ML is **gated on the v1 false-positive rate measured on real footage**.
-If motion-only triage is usable, ML may not be needed. If FPs (caustics, rig
-sway, baitfish swarms) make it tedious, a detector **fine-tuned on our own
-labeled footage** drops in behind the `marine` hook as a confirmer/suppressor —
-never as the recall source. See [`SPEC.md`](SPEC.md) §10.
+## License
+
+MIT — see [`LICENSE`](LICENSE). Note the AGPL caveat above if you enable the
+YOLO detectors.

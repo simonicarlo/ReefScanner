@@ -1,8 +1,8 @@
-# ReefScanner — v1 Specification
+# ReefScanner — Specification
 
-A triage tool that scans long underwater videos from a **static, mounted camera (BRUV-style)** and flags candidate sightings of large marine megafauna (sharks, rays) for human review. It is **recall-oriented**: it should over-flag rather than miss. It is not a classifier — it surfaces “worth a look” moments.
+A tool that scans long underwater videos from a **static, mounted camera (BRUV-style)** and flags candidate sightings of large marine megafauna (sharks, rays) for human review. It is **recall-oriented**: it should over-flag rather than miss. It is not a classifier — it surfaces "worth a look" moments, and a human decides.
 
-**v1 is deliberately motion-only (no ML).** The goal of v1 is to cut a human's watch time from hours to minutes by surfacing candidate clips, with a human in the loop on every output. A false positive costs ~10 seconds of attention; a missed animal is the expensive failure — so the design fails toward over-flagging. v1 is also a **labeling-data factory**: every event it emits (clip + peak frame + motion bbox) is a pre-labeled candidate that, once reviewed, becomes training data for a future fine-tuned detector. See §10.
+> **How to read this document.** §1–§10 are the v1 specification, written when ReefScanner was a Colab notebook driven from an iPad. They are kept because the *reasoning* still governs the engine — why recall beats precision here, why motion-only was the right first cut, why the CSV reserved label columns. Where they describe the *environment* (Colab, Google Drive, notebook execution) they are history: v2 is a local desktop app, specified in §11. Where the two conflict, §11 wins.
 
 -----
 
@@ -117,3 +117,58 @@ The decision to add ML is **gated on the v1 false-positive rate measured on real
 - **Class imbalance:** target animals are rare across hours of footage, so "empty/baitfish" will vastly outnumber "shark/ray." This favors the label-as-you-triage approach (label v1's candidates) over labeling raw video cold, and shapes how much footage must be reviewed before fine-tuning is worthwhile.
 
 **Path:** v1 motion-only → use it, humans label its output → once enough labeled frames exist, fine-tune a detector → drop in via `marine`, which can then suppress motion FPs *and* seed the species classification listed in §9.
+
+
+-----
+
+## 11. v2 — the desktop app
+
+v1 proved the engine and produced exactly the problem it predicted: candidate events pile up faster than a CSV and a folder of clips can be reviewed. §9 deferred a review UI and §10 said the labels are the point. v2 builds that.
+
+### 11.1 What changed and why
+
+| v1 | v2 | Why |
+|---|---|---|
+| Colab notebook, iPad browser | Local desktop app | The notebook was a vacation constraint, not a design choice. Footage is large and local; uploading it to review it is backwards. |
+| Google Drive I/O | Local folders | Same reason. No mount to lose, no session to reconnect. |
+| CSV is the source of truth | SQLite is; CSV is an export | A CSV cannot represent "which of these 900 events have I reviewed" without being rewritten in place, which is exactly what an append-only crash-safe writer is designed not to do. |
+| Labels typed into a spreadsheet | A review UI with keyboard shortcuts | Reviewing is the bottleneck. Its ergonomics are the product. |
+| `detector=none` default | `marine` (SharkTrack) available | Real BRUVS-trained weights exist and download on demand. Motion-only remains the zero-dependency default. |
+
+**Unchanged:** recall over precision, the engine's tunables and their defaults, per-video resumability via the manifest, and the CSV column contract.
+
+### 11.2 Shape
+
+A local FastAPI service with a SQLite store, a React review UI, and a PyWebView window wrapping both. One Python distribution; the native window is an optional extra.
+
+The engine stays a standalone, web-free package. `reefscanner process` must keep working with nothing installed but OpenCV — the app is a client of the engine, never the other way round.
+
+### 11.3 State
+
+Two stores, deliberately not merged:
+
+- **Manifest** — per-video processing completion, in the output folder. Owns resumability. A results folder must stay interpretable without the database.
+- **Database** — projects, jobs, events, labels, in the user's app-data directory. Owns everything the engine doesn't know about, above all the human verdicts.
+
+`Label` is one row per event, upserted. Verdicts are three-valued — `TP`, `FP`, `unsure` — and an unreviewed event has *no* label row, which is a different state from `unsure`. Only `TP` events are exported as training annotations.
+
+### 11.4 Jobs
+
+One worker thread per job, in-process. No broker: single-user app, queue depth ~1, and an external service is one more thing to install and keep alive.
+
+Two progress granularities, because per-video alone leaves the UI frozen for minutes on a long file:
+- `on_video` — exact, once per finished video.
+- `on_frame` — per sampled frame, throttled to a couple of writes a second before it reaches the database or the WebSocket.
+
+Cancellation is cooperative and checked between sampled frames. A cancelled video is not marked complete, so it reprocesses whole rather than resuming mid-file and dropping events at the seam. Jobs still marked running at startup are reconciled to failed — a thread does not survive a force-quit, and a stale `running` row would block the project forever.
+
+### 11.5 Security posture
+
+Single-user, localhost, no authentication — stated so it isn't mistaken for an oversight. Two rules follow from having no auth:
+
+- Media is addressed by **event id**, never by a client-supplied path, and every resolved path is checked to be inside the owning project's output folder. A `?path=` media endpoint on an unauthenticated local server is an arbitrary-file-read for anything else on the machine.
+- Binding to anything other than localhost warns loudly.
+
+### 11.6 Out of scope (still)
+
+Individual re-identification. Multi-user or shared projects. Remote GPU offload — the intended shape is a `reefscanner worker --queue <url>` pulling jobs, but not before the local path is in real use. Model re-research is worthwhile but deliberately off the critical path: the detector interface is model-agnostic, so a better model is a swap, not a rewrite.

@@ -21,7 +21,7 @@ def build_generic(cfg: ReefScannerConfig) -> UltralyticsYoloDetector:
     opts.pop("weights", None)
     return UltralyticsYoloDetector(
         name="generic",
-        weights=weights,  # auto-downloads in Colab on first use
+        weights=weights,  # Ultralytics auto-downloads this on first use
         conf=cfg.ml_confidence_threshold,
         target_classes=cfg.target_classes,  # None = keep all (objectness proposer)
         imgsz=opts.pop("imgsz", None),

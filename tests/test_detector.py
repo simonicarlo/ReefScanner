@@ -19,9 +19,9 @@ from reefscanner import (
     ReefScannerConfig,
     process_folder,
 )
-from reefscanner.config import ReefScannerConfig as Cfg
-from reefscanner.events import aggregate_events
-from reefscanner.results import CSV_COLUMNS
+from reefscanner.engine.config import ReefScannerConfig as Cfg
+from reefscanner.engine.events import aggregate_events
+from reefscanner.engine.results import CSV_COLUMNS
 
 from conftest import make_video
 
@@ -62,7 +62,7 @@ def _cfg(input_dir, output_dir, **over):
 
 
 def test_detector_mode_end_to_end(monkeypatch, input_dir, output_dir):
-    import reefscanner.pipeline as pipeline
+    import reefscanner.engine.pipeline as pipeline
 
     # Inject the stub instead of building a real YOLO detector.
     monkeypatch.setattr(pipeline, "get_detector", lambda cfg: StubSharkDetector())
@@ -85,7 +85,7 @@ def test_detector_mode_end_to_end(monkeypatch, input_dir, output_dir):
 
 def test_detector_mode_motion_prefilter(monkeypatch, input_dir, output_dir):
     """motion_prefilter must not drop the moving animal (recall-safe skip)."""
-    import reefscanner.pipeline as pipeline
+    import reefscanner.engine.pipeline as pipeline
 
     monkeypatch.setattr(pipeline, "get_detector", lambda cfg: StubSharkDetector())
     input_dir.mkdir()

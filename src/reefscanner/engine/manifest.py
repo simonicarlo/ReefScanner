@@ -6,7 +6,7 @@ interrupted video is not marked complete and is reprocessed from frame 0 on
 restart (no mid-video resume — SPEC §3, §7).
 
 A relative key (path relative to the input folder) identifies each video so the
-manifest stays valid if the Drive mount point changes between Colab sessions.
+manifest survives the footage folder being moved or mounted elsewhere.
 """
 
 from __future__ import annotations
