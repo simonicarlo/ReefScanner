@@ -20,17 +20,27 @@ Everything runs on your machine. No upload, no account, no cloud.
 git clone https://github.com/simonicarlo/reefscanner.git
 cd reefscanner
 
-uv venv
-uv pip install -e '.[desktop]'
+uv sync --extra desktop
 
 # Build the review UI. Needed once, and again whenever frontend/ changes —
 # the build is not committed to the repo.
 cd frontend && npm install && npm run build && cd ..
 ```
 
-Using [uv](https://docs.astral.sh/uv/); plain pip works the same way if you
-prefer it — `python3 -m venv .venv && source .venv/bin/activate && pip install
--e '.[desktop]'`.
+Use `uv sync`, not `uv pip install`, to pick extras. `uv run` re-syncs the
+environment against the lockfile every time, and it only keeps the extras
+`uv sync` recorded — install them any other way and the next `uv run` quietly
+removes them.
+
+Add extras as you need them, always listing every one you want kept:
+
+```bash
+uv sync --extra desktop --extra ml      # + the YOLO detectors
+uv sync --extra desktop --extra dev     # + the test suite
+```
+
+Plain pip works too, if you'd rather: `python3 -m venv .venv && source
+.venv/bin/activate && pip install -e '.[desktop]'`.
 
 Needs Python ≥ 3.10 and **ffmpeg** for clip extraction — `brew install ffmpeg`
 on macOS, `apt install ffmpeg` on Debian/Ubuntu, or `pip install
@@ -122,7 +132,7 @@ on first use (~6 MB, cached in `~/.cache/reefscanner`). Install the extra
 first:
 
 ```bash
-uv pip install -e '.[desktop,ml]'
+uv sync --extra desktop --extra ml
 ```
 
 That pulls torch and ultralytics — a few hundred MB. Then set **Detector →
@@ -204,7 +214,7 @@ leaves everything already committed intact.
 ## Development
 
 ```bash
-uv pip install -e '.[dev,desktop]'
+uv sync --extra desktop --extra dev
 uv run pytest
 
 # Two terminals: the API with reload, and Vite with hot module replacement.

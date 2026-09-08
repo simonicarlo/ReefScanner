@@ -3,6 +3,9 @@
 from __future__ import annotations
 
 import csv
+import subprocess
+import sys
+import textwrap
 from pathlib import Path
 
 import pytest
@@ -112,15 +115,42 @@ def test_report_fp_rate_from_labels(input_dir, output_dir):
 
 
 def test_detector_none_imports_no_torch(input_dir, output_dir):
-    """detector=none must not import torch/ultralytics (SPEC §8.5)."""
-    import sys
+    """detector=none must not import torch/ultralytics (SPEC §8.5).
 
+    Run in a subprocess deliberately. Checking ``sys.modules`` in-process only
+    proves that *this* test didn't import torch — any earlier test in the
+    session could have, and once the `ml` extra is installed one usually has.
+    A clean interpreter tests the actual guarantee: that the motion-only path
+    never reaches for the heavy dependencies, whether or not they exist.
+    """
     input_dir.mkdir()
     make_video(input_dir / "dive01.mp4", with_animal=True)
-    process_folder(_cfg(input_dir, output_dir, detector="none"), progress=False)
 
-    assert "torch" not in sys.modules
-    assert "ultralytics" not in sys.modules
+    script = textwrap.dedent(
+        f"""
+        import sys
+        from reefscanner import ReefScannerConfig, process_folder
+
+        cfg = ReefScannerConfig(
+            input_folder={str(input_dir)!r},
+            output_folder={str(output_dir)!r},
+            detector="none",
+            frame_sample_fps=2.0,
+            warmup_frames=3,
+            min_blob_area=300,
+        )
+        process_folder(cfg, progress=False)
+
+        leaked = [m for m in ("torch", "ultralytics") if m in sys.modules]
+        if leaked:
+            sys.exit("motion-only run imported: " + ", ".join(leaked))
+        """
+    )
+
+    result = subprocess.run(
+        [sys.executable, "-c", script], capture_output=True, text=True
+    )
+    assert result.returncode == 0, result.stdout + result.stderr
 
 
 def test_on_frame_reports_progress_within_a_video(input_dir, output_dir):

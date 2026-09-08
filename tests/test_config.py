@@ -55,8 +55,19 @@ def test_marine_without_weights_is_allowed():
 
 
 def test_marine_with_weights_needs_ultralytics():
-    # With weights set, building the marine detector tries to import ultralytics,
-    # which isn't installed in the v1 test env -> ImportError (graceful).
+    """Without the `ml` extra, asking for a YOLO detector must fail clearly.
+
+    Only meaningful when ultralytics is genuinely absent — with it installed
+    the call gets past the import and fails on the missing weights file
+    instead, which is a different code path.
+    """
+    try:
+        import ultralytics  # noqa: F401
+
+        pytest.skip("ultralytics is installed; the ImportError path can't be hit")
+    except ImportError:
+        pass
+
     cfg = ReefScannerConfig(detector="marine", detector_weights="sharktrack.pt")
     with pytest.raises(ImportError):
         get_detector(cfg)
