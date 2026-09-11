@@ -10,12 +10,8 @@ from __future__ import annotations
 
 import csv
 
-import cv2
-import numpy as np
-
 from reefscanner import (
     Candidate,
-    Detection,
     ReefScannerConfig,
     process_folder,
 )
@@ -23,27 +19,7 @@ from reefscanner.engine.config import ReefScannerConfig as Cfg
 from reefscanner.engine.events import aggregate_events
 from reefscanner.engine.results import CSV_COLUMNS
 
-from conftest import make_video
-
-
-class StubSharkDetector:
-    """Stand-in detector: flags large bright blobs as 'shark'."""
-
-    name = "stub"
-    class_names = ["shark"]
-
-    def detect(self, frame: np.ndarray) -> list[Detection]:
-        gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
-        _, th = cv2.threshold(gray, 200, 255, cv2.THRESH_BINARY)
-        contours, _ = cv2.findContours(th, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
-        out = []
-        for c in contours:
-            if cv2.contourArea(c) >= 1000:  # large blob = the "animal"
-                out.append(
-                    Detection(bbox=cv2.boundingRect(c), class_name="shark",
-                              confidence=0.9)
-                )
-        return out
+from conftest import StubDetector, make_video
 
 
 def _cfg(input_dir, output_dir, **over):
@@ -65,7 +41,7 @@ def test_detector_mode_end_to_end(monkeypatch, input_dir, output_dir):
     import reefscanner.engine.pipeline as pipeline
 
     # Inject the stub instead of building a real YOLO detector.
-    monkeypatch.setattr(pipeline, "get_detector", lambda cfg: StubSharkDetector())
+    monkeypatch.setattr(pipeline, "get_detector", lambda cfg: StubDetector())
 
     input_dir.mkdir()
     make_video(input_dir / "dive01.mp4", with_animal=True)
@@ -87,7 +63,7 @@ def test_detector_mode_motion_prefilter(monkeypatch, input_dir, output_dir):
     """motion_prefilter must not drop the moving animal (recall-safe skip)."""
     import reefscanner.engine.pipeline as pipeline
 
-    monkeypatch.setattr(pipeline, "get_detector", lambda cfg: StubSharkDetector())
+    monkeypatch.setattr(pipeline, "get_detector", lambda cfg: StubDetector())
     input_dir.mkdir()
     make_video(input_dir / "dive01.mp4", with_animal=True)
 

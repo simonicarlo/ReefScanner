@@ -79,3 +79,46 @@ def input_dir(tmp_path: Path) -> Path:
 @pytest.fixture
 def output_dir(tmp_path: Path) -> Path:
     return tmp_path / "out"
+
+
+class StubDetector:
+    """Stand-in detector: flags large bright blobs as 'shark'.
+
+    Lets pipeline tests exercise the real detector code path without model
+    weights, a download, or GPU time. The synthetic 'animal' is a bright
+    rectangle, so a brightness threshold plus an area floor finds exactly it.
+    """
+
+    name = "stub"
+    class_names = ["shark"]
+
+    def __init__(self, confidence: float = 0.9, min_area: int = 1000):
+        self.confidence = confidence
+        self.min_area = min_area
+
+    def detect(self, frame):
+        from reefscanner.engine.detection import Detection
+
+        gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
+        _, thresh = cv2.threshold(gray, 200, 255, cv2.THRESH_BINARY)
+        contours, _ = cv2.findContours(
+            thresh, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE
+        )
+        return [
+            Detection(
+                bbox=cv2.boundingRect(c),
+                class_name="shark",
+                confidence=self.confidence,
+            )
+            for c in contours
+            if cv2.contourArea(c) >= self.min_area
+        ]
+
+
+@pytest.fixture
+def stub_detector(monkeypatch):
+    """Patch the pipeline's detector factory to return the stub."""
+    import reefscanner.engine.pipeline as pipeline
+
+    monkeypatch.setattr(pipeline, "get_detector", lambda cfg: StubDetector())
+    return StubDetector()
