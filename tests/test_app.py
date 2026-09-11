@@ -358,3 +358,66 @@ def test_delete_project_cascades(client: TestClient, project_dirs) -> None:
     assert client.delete(f"/api/projects/{project_id}").status_code == 204
     assert client.get(f"/api/projects/{project_id}").status_code == 404
     assert client.get(f"/api/jobs/{job_id}").status_code == 404
+
+
+def _project_with_job(client: TestClient, in_dir, out_dir, name: str) -> int:
+    """Create a project, run one job to completion, return the job id."""
+    project_id = client.post(
+        "/api/projects",
+        json={
+            "name": name,
+            "input_folder": str(in_dir),
+            "output_folder": str(out_dir),
+            "config": TEST_CONFIG,
+        },
+    ).json()["id"]
+    job_id = client.post(f"/api/projects/{project_id}/jobs").json()["id"]
+    _wait_for_job(client, job_id)
+    return job_id
+
+
+def test_threshold_analysis(client: TestClient, project_dirs) -> None:
+    """Labels must turn into a confidence recommendation."""
+    in_dir, out_dir = project_dirs
+    job_id = _project_with_job(client, in_dir, out_dir, "thresholds")
+
+    events = client.get(f"/api/jobs/{job_id}/events").json()["items"]
+    assert events, "need at least one event to analyse"
+    client.put(f"/api/events/{events[0]['id']}/label", json={"verdict": "TP"})
+
+    body = client.get(f"/api/jobs/{job_id}/threshold-analysis").json()
+    assert body["confirmed"] == 1
+    assert body["reliable"] is False, "one label is not evidence"
+    assert body["scan_threshold"] == TEST_CONFIG["ml_confidence_threshold"]
+    # The stub detects at a fixed 0.9, so that is the only sweep point.
+    assert [p["threshold"] for p in body["points"]] == [0.9]
+    assert body["recommended"] == 0.9
+
+
+def test_threshold_analysis_without_labels(client: TestClient, project_dirs) -> None:
+    in_dir, out_dir = project_dirs
+    job_id = _project_with_job(client, in_dir, out_dir, "nolabels")
+
+    body = client.get(f"/api/jobs/{job_id}/threshold-analysis").json()
+    assert body["recommended"] is None
+    assert body["points"] == []
+    assert body["labeled"] == 0
+
+
+def test_threshold_analysis_excludes_unsure(client: TestClient, project_dirs) -> None:
+    """An undecided verdict must not be counted as evidence either way."""
+    in_dir, out_dir = project_dirs
+    job_id = _project_with_job(client, in_dir, out_dir, "unsure")
+
+    events = client.get(f"/api/jobs/{job_id}/events").json()["items"]
+    client.put(f"/api/events/{events[0]['id']}/label", json={"verdict": "unsure"})
+
+    body = client.get(f"/api/jobs/{job_id}/threshold-analysis").json()
+    assert body["undecided"] == 1
+    assert body["confirmed"] == 0
+    assert body["rejected"] == 0
+    assert body["recommended"] is None
+
+
+def test_threshold_analysis_unknown_job(client: TestClient) -> None:
+    assert client.get("/api/jobs/999/threshold-analysis").status_code == 404

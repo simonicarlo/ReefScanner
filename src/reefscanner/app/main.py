@@ -25,7 +25,7 @@ from .. import __version__
 from .db import Database
 from .jobs import JobRunner
 from .progress import ProgressHub
-from .routers import events, exports, jobs, media, projects, ws
+from .routers import analysis, events, exports, jobs, media, projects, ws
 
 logger = logging.getLogger("reefscanner.app")
 
@@ -76,6 +76,7 @@ def create_app(
             allow_headers=["*"],
         )
 
+    app.include_router(analysis.router)
     app.include_router(projects.router)
     app.include_router(jobs.router)
     app.include_router(events.router)

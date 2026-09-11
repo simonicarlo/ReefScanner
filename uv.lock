@@ -2522,6 +2522,7 @@ name = "reefscanner"
 version = "2.0.0.dev0"
 source = { editable = "." }
 dependencies = [
+    { name = "dill" },
     { name = "numpy", version = "2.2.6", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.11'" },
     { name = "numpy", version = "2.4.6", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version == '3.11.*'" },
     { name = "numpy", version = "2.5.3", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.12'" },
@@ -2529,7 +2530,10 @@ dependencies = [
     { name = "pandas", version = "2.3.3", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.11'" },
     { name = "pandas", version = "3.0.5", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.11'" },
     { name = "pyyaml" },
+    { name = "torch" },
     { name = "tqdm" },
+    { name = "ultralytics", version = "8.4.123", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.11' and sys_platform == 'darwin'" },
+    { name = "ultralytics", version = "8.4.143", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.11' or sys_platform != 'darwin'" },
 ]
 
 [package.optional-dependencies]
@@ -2559,16 +2563,12 @@ ffmpeg = [
     { name = "imageio-ffmpeg" },
 ]
 ml = [
-    { name = "dill" },
     { name = "sahi" },
-    { name = "torch" },
-    { name = "ultralytics", version = "8.4.123", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.11' and sys_platform == 'darwin'" },
-    { name = "ultralytics", version = "8.4.143", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.11' or sys_platform != 'darwin'" },
 ]
 
 [package.metadata]
 requires-dist = [
-    { name = "dill", marker = "extra == 'ml'", specifier = ">=0.3" },
+    { name = "dill", specifier = ">=0.3" },
     { name = "fastapi", marker = "extra == 'app'", specifier = ">=0.115,<1" },
     { name = "httpx", marker = "extra == 'dev'", specifier = ">=0.27" },
     { name = "imageio-ffmpeg", marker = "extra == 'dev'", specifier = ">=0.4.9" },
@@ -2584,9 +2584,9 @@ requires-dist = [
     { name = "reefscanner", extras = ["app"], marker = "extra == 'dev'" },
     { name = "sahi", marker = "extra == 'ml'", specifier = ">=0.11" },
     { name = "sqlmodel", marker = "extra == 'app'", specifier = ">=0.0.22,<0.1" },
-    { name = "torch", marker = "extra == 'ml'", specifier = ">=2.0" },
+    { name = "torch", specifier = ">=2.0" },
     { name = "tqdm", specifier = ">=4.65,<5" },
-    { name = "ultralytics", marker = "extra == 'ml'", specifier = ">=8.1,<9" },
+    { name = "ultralytics", specifier = ">=8.1,<9" },
     { name = "uvicorn", extras = ["standard"], marker = "extra == 'app'", specifier = ">=0.30,<1" },
 ]
 provides-extras = ["app", "desktop", "ml", "ffmpeg", "dev"]
