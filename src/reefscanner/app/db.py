@@ -12,6 +12,7 @@ both are set on every connection:
 
 from __future__ import annotations
 
+import logging
 import os
 import sys
 from collections.abc import Iterator
@@ -19,9 +20,12 @@ from contextlib import contextmanager
 from pathlib import Path
 
 from sqlalchemy import event as sa_event
+from sqlalchemy import inspect, text
 from sqlmodel import Session, SQLModel, create_engine
 
 from . import models as _models  # noqa: F401 — import registers the tables
+
+logger = logging.getLogger("reefscanner.app.db")
 
 #: Overrides the default location. Used by the tests and by `serve --db`.
 DB_PATH_ENV = "REEFSCANNER_DB"
@@ -65,13 +69,39 @@ class Database:
             cur.close()
 
     def create_all(self) -> None:
-        """Create any missing tables.
+        """Create missing tables, then add any missing nullable columns.
 
-        There is no migration framework yet — the schema is young and the app
-        is single-user. Adding a *column* to an existing table will need real
-        migrations (Alembic); adding a table works as-is.
+        Not a migration framework. It handles exactly one kind of change —
+        adding a nullable column — because that is what a young schema mostly
+        does, and the alternative is telling someone to delete a database full
+        of hand-made labels. Drops, renames and type changes still need Alembic;
+        this will not attempt them.
         """
         SQLModel.metadata.create_all(self.engine)
+        self._add_missing_columns()
+
+    def _add_missing_columns(self) -> None:
+        inspector = inspect(self.engine)
+        present_tables = set(inspector.get_table_names())
+
+        for table in SQLModel.metadata.sorted_tables:
+            if table.name not in present_tables:
+                continue  # create_all just made it, so it's already complete
+            existing = {col["name"] for col in inspector.get_columns(table.name)}
+            for column in table.columns:
+                # A NOT NULL column can't be added to rows that already exist
+                # without a default, so those are left for a real migration.
+                if column.name in existing or not column.nullable:
+                    continue
+                type_sql = column.type.compile(self.engine.dialect)
+                with self.engine.begin() as conn:
+                    conn.execute(
+                        text(
+                            f'ALTER TABLE "{table.name}" '
+                            f'ADD COLUMN "{column.name}" {type_sql}'
+                        )
+                    )
+                logger.info("Added column %s.%s", table.name, column.name)
 
     @contextmanager
     def session(self) -> Iterator[Session]:
