@@ -133,7 +133,7 @@ v1 proved the engine and produced exactly the problem it predicted: candidate ev
 | Google Drive I/O | Local folders | Same reason. No mount to lose, no session to reconnect. |
 | CSV is the source of truth | SQLite is; CSV is an export | A CSV cannot represent "which of these 900 events have I reviewed" without being rewritten in place, which is exactly what an append-only crash-safe writer is designed not to do. |
 | Labels typed into a spreadsheet | A review UI with keyboard shortcuts | Reviewing is the bottleneck. Its ergonomics are the product. |
-| `detector=none` default | `marine` (SharkTrack) available | Real BRUVS-trained weights exist and download on demand. Motion-only remains the zero-dependency default. |
+| Motion gate is the recall source | Detector is (`marine` default); motion is an optional pre-filter | Tested on real BRUV footage: motion cannot separate a small fish nearby from a large animal far away. Monocular video has no depth cue, so `min_blob_area` is a proxy for distance the data does not support. |
 
 **Unchanged:** recall over precision, the engine's tunables and their defaults, per-video resumability via the manifest, and the CSV column contract.
 

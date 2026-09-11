@@ -109,6 +109,20 @@ through a whole run without touching the mouse. Species you've already used
 are suggested as you type, which keeps one animal from becoming three
 spellings.
 
+## Choosing a confidence threshold
+
+Once you have labeled some events, the run page recommends a threshold measured
+on *your* footage: the highest value that keeps every animal you confirmed.
+Below it you review junk for nothing; above it you start missing real sightings.
+**Apply to project** writes it into the scan settings, and because changing a
+setting invalidates the manifest, the next scan genuinely reruns.
+
+The sweep is simulated from detections the scan actually emitted, so it tells
+you nothing about animals the detector missed below the threshold you scanned
+at. It reports recall relative to what that scan found, never absolute recall.
+With fewer than five labeled detections it says so and treats the number as a
+hint.
+
 ## How it works
 
 ```
@@ -174,8 +188,7 @@ anything (`POST /api/jobs/{id}/import/csv`).
 ```
 results/
 ├── clips/                      one padded clip per event
-├── thumbnails/                 peak frame with the detection box drawn
-├── reefscanner_results.csv     one row per event
+\1├── frames/                     the same peak frame, clean — for training\n├── reefscanner_results.csv     one row per event
 └── reefscanner_manifest.json   which videos are finished
 ```
 
@@ -190,9 +203,9 @@ Once you've labeled events, confirmed ones can leave as training data:
 | `/api/jobs/{id}/export/yolo` | YOLO label files + `classes.txt`, zipped |
 
 Only events marked **TP** are exported — an `unsure` verdict is not a box worth
-training on. Note that the exported images are the thumbnails, which have the
-detection box drawn onto them; re-extract clean frames before actually
-fine-tuning.
+training on. Annotations point at the clean frames in `frames/`, never the thumbnails —
+a model trained on those would learn the drawn box. The YOLO zip includes
+the images, so it is a usable dataset as downloaded.
 
 ## Resumability
 

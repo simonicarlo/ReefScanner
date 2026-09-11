@@ -309,3 +309,23 @@ registered with macOS as a foreground GUI app.
 - **Remote GPU offload** is explicitly deferred past the vertical slice. The
   intended shape is `reefscanner worker --queue <url>` pulling jobs, but don't
   build it until the local path is used and working.
+
+## 8. Detector-first triage (2026-09-11)
+
+Spec `docs/superpowers/specs/2026-09-11-detector-first-triage-design.md`, plan
+`docs/superpowers/plans/2026-09-11-detector-first-triage.md`. All ten tasks done.
+
+- Motion-only recall removed; `marine` is the default and torch/ultralytics are
+  core dependencies. `MotionGate` kept as the optional pre-filter.
+- Threshold sweep (`app/analysis.py`) + endpoint + run-page panel with Apply.
+  On the real Run #5 labels (6 confirmed, 1 rejected) it recommends 0.57,
+  which drops exactly the one junk detection.
+- Clean frames written beside annotated thumbnails; exports and the YOLO zip
+  use them.
+- `Database.create_all()` now adds missing *nullable* columns, so schema growth
+  no longer means deleting the database. Drops/renames/types still need Alembic.
+
+Open, deliberately not done:
+- **Motion-based tracking** of detected animals — the reason `MotionGate` stays.
+- **Fine-tuning** is unblocked (clean frames exist) but needs far more labels.
+- **Multi-class** (`marine-detect`: shark/ray/turtle) is AGPL; undecided.
