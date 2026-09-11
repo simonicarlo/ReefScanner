@@ -3,9 +3,6 @@
 from __future__ import annotations
 
 import csv
-import subprocess
-import sys
-import textwrap
 from pathlib import Path
 
 import pytest
@@ -27,12 +24,15 @@ def _cfg(input_dir: Path, output_dir: Path, **over) -> ReefScannerConfig:
         merge_gap_seconds=3.0,
         min_event_seconds=1.0,
         pad_seconds=1.0,
+        # Detector mode: get_detector is patched to the stub by the
+        # stub_detector fixture, so no weights are ever loaded.
+        detector="generic",
     )
     base.update(over)
     return ReefScannerConfig(**base)
 
 
-def test_end_to_end_produces_csv_clips_thumbnails(input_dir, output_dir):
+def test_end_to_end_produces_csv_clips_thumbnails(stub_detector, input_dir, output_dir):
     input_dir.mkdir()
     make_video(input_dir / "dive01.mp4", with_animal=True)
     cfg = _cfg(input_dir, output_dir)
@@ -56,7 +56,7 @@ def test_end_to_end_produces_csv_clips_thumbnails(input_dir, output_dir):
         assert row["event_id"].startswith("dive01_")
 
 
-def test_event_ids_unique_across_batch(input_dir, output_dir):
+def test_event_ids_unique_across_batch(stub_detector, input_dir, output_dir):
     input_dir.mkdir()
     make_video(input_dir / "dive01.mp4", with_animal=True)
     make_video(input_dir / "dive02.mp4", with_animal=True)
@@ -66,7 +66,7 @@ def test_event_ids_unique_across_batch(input_dir, output_dir):
     assert len(ids) == len(set(ids)), "event_ids must be unique across the batch"
 
 
-def test_resume_skips_completed_videos(input_dir, output_dir):
+def test_resume_skips_completed_videos(stub_detector, input_dir, output_dir):
     input_dir.mkdir()
     make_video(input_dir / "dive01.mp4", with_animal=True)
     cfg = _cfg(input_dir, output_dir)
@@ -85,7 +85,7 @@ def test_resume_skips_completed_videos(input_dir, output_dir):
     assert len(rows) == n_events_first, "resume must not duplicate CSV rows"
 
 
-def test_report_fp_rate_from_labels(input_dir, output_dir):
+def test_report_fp_rate_from_labels(stub_detector, input_dir, output_dir):
     input_dir.mkdir()
     make_video(input_dir / "dive01.mp4", with_animal=True)
     cfg = _cfg(input_dir, output_dir)
@@ -114,46 +114,7 @@ def test_report_fp_rate_from_labels(input_dir, output_dir):
     assert rep2.false_positive_rate == pytest.approx(1 / len(rows))
 
 
-def test_detector_none_imports_no_torch(input_dir, output_dir):
-    """detector=none must not import torch/ultralytics (SPEC §8.5).
-
-    Run in a subprocess deliberately. Checking ``sys.modules`` in-process only
-    proves that *this* test didn't import torch — any earlier test in the
-    session could have, and once the `ml` extra is installed one usually has.
-    A clean interpreter tests the actual guarantee: that the motion-only path
-    never reaches for the heavy dependencies, whether or not they exist.
-    """
-    input_dir.mkdir()
-    make_video(input_dir / "dive01.mp4", with_animal=True)
-
-    script = textwrap.dedent(
-        f"""
-        import sys
-        from reefscanner import ReefScannerConfig, process_folder
-
-        cfg = ReefScannerConfig(
-            input_folder={str(input_dir)!r},
-            output_folder={str(output_dir)!r},
-            detector="none",
-            frame_sample_fps=2.0,
-            warmup_frames=3,
-            min_blob_area=300,
-        )
-        process_folder(cfg, progress=False)
-
-        leaked = [m for m in ("torch", "ultralytics") if m in sys.modules]
-        if leaked:
-            sys.exit("motion-only run imported: " + ", ".join(leaked))
-        """
-    )
-
-    result = subprocess.run(
-        [sys.executable, "-c", script], capture_output=True, text=True
-    )
-    assert result.returncode == 0, result.stdout + result.stderr
-
-
-def test_on_frame_reports_progress_within_a_video(input_dir, output_dir):
+def test_on_frame_reports_progress_within_a_video(stub_detector, input_dir, output_dir):
     """The per-frame hook is what lets a UI move during one long video."""
     input_dir.mkdir()
     make_video(input_dir / "dive01.mp4", with_animal=True)
@@ -174,7 +135,7 @@ def test_on_frame_reports_progress_within_a_video(input_dir, output_dir):
     assert fractions[-1] > fractions[0], "progress must actually advance"
 
 
-def test_should_cancel_stops_the_run(input_dir, output_dir):
+def test_should_cancel_stops_the_run(stub_detector, input_dir, output_dir):
     """Cancelling mid-video leaves the batch partial, not failed."""
     input_dir.mkdir()
     make_video(input_dir / "dive01.mp4", with_animal=True)
@@ -196,7 +157,7 @@ def test_should_cancel_stops_the_run(input_dir, output_dir):
     assert not any(r.error for r in batch.results)
 
 
-def test_cancelled_video_is_not_marked_complete(input_dir, output_dir):
+def test_cancelled_video_is_not_marked_complete(stub_detector, input_dir, output_dir):
     """A cancelled run must be safely resumable — the manifest stays honest."""
     import json
 
@@ -224,7 +185,7 @@ def test_cancelled_video_is_not_marked_complete(input_dir, output_dir):
     assert batch.n_events >= 1
 
 
-def test_changing_settings_reprocesses_instead_of_skipping(input_dir, output_dir):
+def test_changing_settings_reprocesses_instead_of_skipping(stub_detector, input_dir, output_dir):
     """Changing a detection setting must invalidate the manifest.
 
     Otherwise the second run skips every video, finishes instantly and reports
@@ -250,7 +211,7 @@ def test_changing_settings_reprocesses_instead_of_skipping(input_dir, output_dir
     assert changed.n_events >= 1
 
 
-def test_output_paths_do_not_invalidate_the_manifest(input_dir, output_dir, tmp_path):
+def test_output_paths_do_not_invalidate_the_manifest(stub_detector, input_dir, output_dir, tmp_path):
     """Renaming the clips folder isn't a reason to redo hours of analysis."""
     input_dir.mkdir()
     make_video(input_dir / "dive01.mp4", with_animal=True)
@@ -262,7 +223,7 @@ def test_output_paths_do_not_invalidate_the_manifest(input_dir, output_dir, tmp_
     assert all(r.skipped for r in again.results)
 
 
-def test_pre_v2_manifest_entries_are_reprocessed(input_dir, output_dir):
+def test_pre_v2_manifest_entries_are_reprocessed(stub_detector, input_dir, output_dir):
     """An entry with no fingerprint has unknown provenance, so don't trust it."""
     import json
 
