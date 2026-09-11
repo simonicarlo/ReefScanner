@@ -292,12 +292,16 @@ class JobRunner:
             for ev in result.events:
                 if ev.event_id in existing:
                     continue
-                clip = thumb = None
+                clip = thumb = frame = None
                 if out_dir is not None:
                     suffix = Path(result.video).suffix or ".mp4"
                     clip = str(out_dir / cfg.clips_dirname / f"{ev.event_id}{suffix}")
                     thumb = str(
                         out_dir / cfg.thumbnails_dirname
+                        / f"{ev.event_id}{cfg.thumbnail_ext}"
+                    )
+                    frame = str(
+                        out_dir / cfg.frames_dirname
                         / f"{ev.event_id}{cfg.thumbnail_ext}"
                     )
                 session.add(
@@ -319,6 +323,7 @@ class JobRunner:
                         frame_height=info.height if info else None,
                         clip_path=clip,
                         thumbnail_path=thumb,
+                        frame_path=frame,
                     )
                 )
             session.commit()

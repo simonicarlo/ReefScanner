@@ -123,6 +123,9 @@ class Event(SQLModel, table=True):
     frame_height: Optional[int] = None
     clip_path: Optional[str] = None
     thumbnail_path: Optional[str] = None
+    #: Clean peak frame with no annotation — what the exporters reference.
+    #: Null for events scanned before clean frames existed.
+    frame_path: Optional[str] = None
 
     job: Optional[Job] = Relationship(back_populates="events")
     label: Optional["Label"] = Relationship(

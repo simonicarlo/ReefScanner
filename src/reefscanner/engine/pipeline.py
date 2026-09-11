@@ -15,7 +15,13 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Callable, Optional
 
-from .clips import extract_clip, resolve_ffmpeg, save_thumbnail
+from .clips import (
+    extract_clip,
+    read_peak_frame,
+    resolve_ffmpeg,
+    save_clean_frame,
+    save_thumbnail,
+)
 from .config import ReefScannerConfig
 from .detectors import get_detector
 from .discovery import discover_videos
@@ -134,6 +140,7 @@ def process_video(
     out_dir = Path(cfg.output_folder)
     clips_dir = out_dir / cfg.clips_dirname
     thumbs_dir = out_dir / cfg.thumbnails_dirname
+    frames_dir = out_dir / cfg.frames_dirname
 
     candidates = _collect_candidates(
         video, cfg, info, detector, on_frame=on_frame, should_cancel=should_cancel
@@ -145,7 +152,11 @@ def process_video(
     rows: list[dict] = []
     for event in events:
         clip_path = extract_clip(event, info, cfg, clips_dir, ffmpeg=ffmpeg)
-        thumb_path = save_thumbnail(event, info, cfg, thumbs_dir)
+        # One decode, two writes: the annotated thumbnail for triage and the
+        # clean frame for training exports.
+        peak = read_peak_frame(event, info)
+        thumb_path = save_thumbnail(event, info, cfg, thumbs_dir, frame=peak)
+        save_clean_frame(event, info, cfg, frames_dir, frame=peak)
         rows.append(event_to_row(event, info, str(clip_path), str(thumb_path)))
     return events, rows
 

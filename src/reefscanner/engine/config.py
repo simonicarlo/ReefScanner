@@ -121,6 +121,10 @@ class ReefScannerConfig:
     manifest_name: str = "reefscanner_manifest.json"
     clips_dirname: str = "clips"
     thumbnails_dirname: str = "thumbnails"
+    #: Clean peak frames, with no annotation drawn. These are the images the
+    #: annotation exporters reference — a model trained on the annotated
+    #: thumbnails would learn the red rectangle.
+    frames_dirname: str = "frames"
 
     def __post_init__(self) -> None:
         self.validate()
@@ -195,6 +199,7 @@ class ReefScannerConfig:
             "manifest_name",
             "clips_dirname",
             "thumbnails_dirname",
+            "frames_dirname",
         }
     )
 

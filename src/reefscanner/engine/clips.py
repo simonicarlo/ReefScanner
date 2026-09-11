@@ -80,20 +80,8 @@ def extract_clip(
     return clip_path
 
 
-def save_thumbnail(
-    event: Event,
-    info: VideoInfo,
-    cfg: ReefScannerConfig,
-    out_dir: Path,
-    draw_bbox: bool = True,
-) -> Path:
-    """Save the peak frame as a thumbnail, optionally with the motion bbox.
-
-    Doubles as a pre-labeled training frame later (SPEC §10).
-    """
-    out_dir.mkdir(parents=True, exist_ok=True)
-    thumb_path = out_dir / f"{event.event_id}{cfg.thumbnail_ext}"
-
+def read_peak_frame(event: Event, info: VideoInfo):
+    """Decode the event's peak frame once. Callers may write it many ways."""
     cap = cv2.VideoCapture(str(info.path))
     try:
         if info.fps > 0:
@@ -108,8 +96,49 @@ def save_thumbnail(
             raise RuntimeError(
                 f"Could not read peak frame for event {event.event_id}"
             )
+        return frame
     finally:
         cap.release()
+
+
+def save_clean_frame(
+    event: Event,
+    info: VideoInfo,
+    cfg: ReefScannerConfig,
+    out_dir: Path,
+    frame=None,
+) -> Path:
+    """Write the peak frame with nothing drawn on it — the training image.
+
+    The annotation exporters point at this rather than the thumbnail: a model
+    trained on the thumbnails would learn the red rectangle.
+    """
+    out_dir.mkdir(parents=True, exist_ok=True)
+    path = out_dir / f"{event.event_id}{cfg.thumbnail_ext}"
+    if frame is None:
+        frame = read_peak_frame(event, info)
+    if not cv2.imwrite(str(path), frame):
+        raise RuntimeError(f"Failed to write frame: {path}")
+    return path
+
+
+def save_thumbnail(
+    event: Event,
+    info: VideoInfo,
+    cfg: ReefScannerConfig,
+    out_dir: Path,
+    draw_bbox: bool = True,
+    frame=None,
+) -> Path:
+    """Save the peak frame with the detection box drawn, for human triage."""
+    out_dir.mkdir(parents=True, exist_ok=True)
+    thumb_path = out_dir / f"{event.event_id}{cfg.thumbnail_ext}"
+
+    if frame is None:
+        frame = read_peak_frame(event, info)
+    # Copy before drawing: cv2.rectangle mutates in place, and the caller is
+    # very likely holding this same array to write the clean frame.
+    frame = frame.copy()
 
     if draw_bbox and event.peak_bbox:
         x, y, w, h = event.peak_bbox

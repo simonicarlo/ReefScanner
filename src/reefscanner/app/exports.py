@@ -174,6 +174,16 @@ def _category_of(label: Optional[Label], event: Event) -> str:
     return "animal"
 
 
+def annotation_image(event: Event) -> Optional[str]:
+    """The image an annotation should point at.
+
+    The clean frame when we have one; the thumbnail otherwise, for events
+    scanned before clean frames existed. The thumbnail has the detection box
+    drawn on it, which is why it is the fallback and not the choice.
+    """
+    return event.frame_path or event.thumbnail_path
+
+
 def _frame_size(event: Event) -> Optional[tuple[int, int]]:
     """Resolution of the coordinate space ``peak_bbox`` lives in.
 
@@ -182,10 +192,11 @@ def _frame_size(event: Event) -> Optional[tuple[int, int]]:
     """
     if event.frame_width and event.frame_height:
         return event.frame_width, event.frame_height
-    if event.thumbnail_path and Path(event.thumbnail_path).exists():
+    image = annotation_image(event)
+    if image and Path(image).exists():
         import cv2  # local import: keep the exporter importable without OpenCV
 
-        img = cv2.imread(event.thumbnail_path)
+        img = cv2.imread(image)
         if img is not None:
             h, w = img.shape[:2]
             return int(w), int(h)
@@ -223,7 +234,7 @@ def export_coco(pairs: Sequence[tuple[Event, Optional[Label]]]) -> str:
         images.append(
             {
                 "id": i,
-                "file_name": Path(event.thumbnail_path or "").name,
+                "file_name": Path(annotation_image(event) or "").name,
                 "width": width,
                 "height": height,
             }

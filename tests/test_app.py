@@ -421,3 +421,43 @@ def test_threshold_analysis_excludes_unsure(client: TestClient, project_dirs) ->
 
 def test_threshold_analysis_unknown_job(client: TestClient) -> None:
     assert client.get("/api/jobs/999/threshold-analysis").status_code == 404
+
+
+def test_clean_frame_is_served(client: TestClient, project_dirs) -> None:
+    in_dir, out_dir = project_dirs
+    job_id = _project_with_job(client, in_dir, out_dir, "frames")
+
+    event = client.get(f"/api/jobs/{job_id}/events").json()["items"][0]
+    assert event["frame_url"], "new scans must record a clean frame"
+    resp = client.get(event["frame_url"])
+    assert resp.status_code == 200
+    assert resp.headers["content-type"].startswith("image/")
+
+
+def test_yolo_export_ships_clean_images(client: TestClient, project_dirs) -> None:
+    """A YOLO zip is only a dataset if it carries images — the clean ones."""
+    import io
+    import zipfile
+
+    import cv2
+    import numpy as np
+
+    in_dir, out_dir = project_dirs
+    job_id = _project_with_job(client, in_dir, out_dir, "yolo-images")
+    event = client.get(f"/api/jobs/{job_id}/events").json()["items"][0]
+    client.put(f"/api/events/{event['id']}/label", json={"verdict": "TP"})
+
+    archive = zipfile.ZipFile(
+        io.BytesIO(client.get(f"/api/jobs/{job_id}/export/yolo").content)
+    )
+    names = archive.namelist()
+    label = f"labels/{event['event_id']}.txt"
+    images = [n for n in names if n.startswith("images/")]
+    assert label in names
+    assert len(images) == 1, f"one image per label file, got {names}"
+    assert images[0].rsplit("/", 1)[1].rsplit(".", 1)[0] == event["event_id"]
+
+    # Same red-box test as the pipeline: the exported image must be clean.
+    img = cv2.imdecode(np.frombuffer(archive.read(images[0]), np.uint8), cv2.IMREAD_COLOR)
+    b, g, r = (img[:, :, i].astype(int) for i in range(3))
+    assert not np.any((r > 180) & (g < 80) & (b < 80)), "export shipped the annotated thumbnail"

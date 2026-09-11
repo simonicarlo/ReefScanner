@@ -141,6 +141,8 @@ class EventRead(BaseModel):
     #: need to know where on disk the output folder is.
     clip_url: Optional[str] = None
     thumbnail_url: Optional[str] = None
+    #: The clean frame, for anything that must not see the drawn box.
+    frame_url: Optional[str] = None
     label: Optional[LabelRead] = None
 
 

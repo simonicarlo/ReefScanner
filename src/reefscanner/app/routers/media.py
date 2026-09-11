@@ -26,7 +26,11 @@ def _resolve(session: Session, event_id: int, kind: str) -> Path:
     if event is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Event not found")
 
-    raw = event.clip_path if kind == "clip" else event.thumbnail_path
+    raw = {
+        "clip": event.clip_path,
+        "thumbnail": event.thumbnail_path,
+        "frame": event.frame_path,
+    }.get(kind)
     if not raw:
         raise HTTPException(status.HTTP_404_NOT_FOUND, f"Event has no {kind}")
 
@@ -63,4 +67,11 @@ def get_thumbnail(
     event_id: int, session: Session = Depends(get_session)
 ) -> FileResponse:
     path = _resolve(session, event_id, "thumbnail")
+    return FileResponse(path, filename=path.name)
+
+
+@router.get("/frame/{event_id}")
+def get_frame(event_id: int, session: Session = Depends(get_session)) -> FileResponse:
+    """The clean peak frame, without the detection box drawn on it."""
+    path = _resolve(session, event_id, "frame")
     return FileResponse(path, filename=path.name)

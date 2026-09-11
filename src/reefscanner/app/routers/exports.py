@@ -11,7 +11,13 @@ from fastapi.responses import Response
 from sqlmodel import Session, select
 
 from ..deps import get_session
-from ..exports import export_coco, export_csv, export_yolo, import_csv_events
+from ..exports import (
+    annotation_image,
+    export_coco,
+    export_csv,
+    export_yolo,
+    import_csv_events,
+)
 from ..models import Event, Job, Label, Project
 
 router = APIRouter(prefix="/api", tags=["exports"])
@@ -57,17 +63,31 @@ def export_job_coco(job_id: int, session: Session = Depends(get_session)) -> Res
 
 @router.get("/jobs/{job_id}/export/yolo")
 def export_job_yolo(job_id: int, session: Session = Depends(get_session)) -> Response:
-    """YOLO annotations as a zip.
+    """A YOLO dataset as a zip: labels, images, and the class order.
 
     A zip rather than loose files because YOLO's format is a *directory* — the
-    per-image label files are meaningless without the ``classes.txt`` that
-    fixes the class-index order.
+    per-image label files are meaningless without their images, or without the
+    ``classes.txt`` that fixes the class-index order.
+
+    Images are the clean frames, so the model never sees the drawn box. Events
+    scanned before clean frames existed fall back to their thumbnail, and an
+    image missing from disk is skipped rather than failing the whole export.
     """
-    files = export_yolo(_pairs(session, job_id))
+    pairs = _pairs(session, job_id)
+    files = export_yolo(pairs)
+    images = {event.event_id: annotation_image(event) for event, _ in pairs}
+
     buf = io.BytesIO()
     with zipfile.ZipFile(buf, "w", zipfile.ZIP_DEFLATED) as zf:
         for name, content in files.items():
             zf.writestr(name, content)
+            if not name.startswith("labels/"):
+                continue
+            # YOLO pairs a label with its image by filename stem.
+            stem = Path(name).stem
+            image = images.get(stem)
+            if image and Path(image).is_file():
+                zf.write(image, f"images/{stem}{Path(image).suffix}")
     return Response(
         content=buf.getvalue(),
         media_type="application/zip",

@@ -52,6 +52,7 @@ def _event_read(event: Event, label: Optional[Label]) -> EventRead:
         frame_height=event.frame_height,
         clip_url=f"/api/media/clip/{event.id}" if event.clip_path else None,
         thumbnail_url=f"/api/media/thumbnail/{event.id}" if event.thumbnail_path else None,
+        frame_url=f"/api/media/frame/{event.id}" if event.frame_path else None,
         label=_label_read(label),
     )
 

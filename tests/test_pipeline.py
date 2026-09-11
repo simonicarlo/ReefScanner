@@ -244,3 +244,34 @@ def test_pre_v2_manifest_entries_are_reprocessed(stub_detector, input_dir, outpu
 
     rerun = process_folder(cfg, progress=False)
     assert not any(r.skipped for r in rerun.results)
+
+
+def test_writes_clean_frame_beside_annotated_thumbnail(
+    stub_detector, input_dir, output_dir
+):
+    """Training images must not have the detection box burned into them."""
+    import cv2
+    import numpy as np
+
+    input_dir.mkdir()
+    make_video(input_dir / "dive01.mp4", with_animal=True)
+    cfg = _cfg(input_dir, output_dir)
+
+    batch = process_folder(cfg, progress=False)
+    assert batch.n_events >= 1
+    event_id = batch.results[0].events[0].event_id
+
+    thumb = output_dir / cfg.thumbnails_dirname / f"{event_id}{cfg.thumbnail_ext}"
+    frame = output_dir / cfg.frames_dirname / f"{event_id}{cfg.thumbnail_ext}"
+    assert thumb.exists(), "annotated thumbnail still needed for triage"
+    assert frame.exists(), "clean frame needed for training"
+
+    # The box is drawn in pure red (BGR 0,0,255); the synthetic footage is grey,
+    # so a strongly red pixel can only have come from the annotation.
+    def has_red(path):
+        img = cv2.imread(str(path)).astype(int)
+        b, g, r = img[:, :, 0], img[:, :, 1], img[:, :, 2]
+        return bool(np.any((r > 180) & (g < 80) & (b < 80)))
+
+    assert has_red(thumb), "thumbnail should carry the drawn box"
+    assert not has_red(frame), "clean frame must have no annotation"
