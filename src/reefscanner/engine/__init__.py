@@ -6,9 +6,10 @@ Everything in this subpackage is UI-agnostic: it reads video files, surfaces
 imports from them, so the CLI and the library API work with no web deps
 installed.
 
-Two recall sources, chosen by ``ReefScannerConfig.detector``:
-  * ``none`` — motion-only background subtraction (no ML deps).
-  * ``marine`` / ``generic`` — a YOLO detector scans every sampled frame.
+The detector (``marine`` or ``generic``) scans every sampled frame and is the
+recall source, chosen by ``ReefScannerConfig.detector``. Motion (``MotionGate``)
+survives only as an optional cheap pre-skip of dead-static frames
+(``motion_prefilter``), not as a recall source of its own.
 
 The public names are re-exported from the top-level ``reefscanner`` package, so
 ``from reefscanner import ReefScannerConfig, process_folder`` keeps working.
@@ -20,7 +21,6 @@ from .config import (
     DEFAULT_EXTENSIONS,
     DETECTOR_GENERIC,
     DETECTOR_MARINE,
-    DETECTOR_NONE,
     VALID_DETECTORS,
     ReefScannerConfig,
 )
@@ -43,7 +43,6 @@ from .videoio import VideoInfo, probe_video
 __all__ = [
     "ReefScannerConfig",
     "DEFAULT_EXTENSIONS",
-    "DETECTOR_NONE",
     "DETECTOR_GENERIC",
     "DETECTOR_MARINE",
     "VALID_DETECTORS",

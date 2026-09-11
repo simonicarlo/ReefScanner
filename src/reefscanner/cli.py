@@ -1,7 +1,7 @@
 """Command-line interface.
 
     reefscanner process <input_folder> --out <output_folder> [--fps 1.0]
-                        [--detector none] [...]
+                        [--detector marine] [...]
     reefscanner report  <output_folder>   # false-positive rate
     reefscanner serve   [--port 8000]     # the local service + review UI
     reefscanner desktop                   # the same thing in a native window
@@ -62,7 +62,7 @@ def _add_process_args(p: argparse.ArgumentParser) -> None:
 
     # Detector (stage 2 / v2 recall source)
     p.add_argument("--detector", choices=list(VALID_DETECTORS),
-                   help="none=motion-only, marine=YOLO (SharkTrack/fine-tuned), "
+                   help="marine=YOLO (SharkTrack/fine-tuned, the default), "
                         "generic=stock COCO (experimental).")
     p.add_argument("--weights", dest="detector_weights",
                    help="Detector weights .pt path (required for --detector marine).")

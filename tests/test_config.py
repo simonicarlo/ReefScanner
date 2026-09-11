@@ -5,15 +5,25 @@ from __future__ import annotations
 import pytest
 
 from reefscanner import ReefScannerConfig
-from reefscanner.engine.detectors import get_detector
 
 
 def test_defaults_are_recall_favoring():
     cfg = ReefScannerConfig()
-    assert cfg.detector == "none"          # v1 default (SPEC §4)
+    assert cfg.detector == "marine"        # detector-first default
     assert cfg.frame_sample_fps == 1.0
     assert cfg.detect_shadows is True
     assert cfg.reencode_clips is False     # stream-copy default
+
+
+def test_detector_defaults_to_marine():
+    """A detector-first tool must not default to something that finds nothing."""
+    assert ReefScannerConfig().detector == "marine"
+
+
+def test_none_detector_is_gone():
+    """Motion-only was removed; asking for it must fail loudly, not silently."""
+    with pytest.raises(ValueError, match="detector must be one of"):
+        ReefScannerConfig(detector="none")
 
 
 def test_invalid_detector_rejected():
@@ -32,18 +42,9 @@ def test_extensions_normalised():
 
 
 def test_roundtrip_dict():
-    cfg = ReefScannerConfig(min_blob_area=42, detector="none")
+    cfg = ReefScannerConfig(min_blob_area=42, detector="generic")
     cfg2 = ReefScannerConfig.from_dict(cfg.to_dict())
     assert cfg2.min_blob_area == 42
-
-
-def test_get_detector_none_finds_nothing():
-    import numpy as np
-
-    det = get_detector(ReefScannerConfig(detector="none"))
-    assert det.name == "none"
-    # No ML: the none detector finds nothing (pipeline uses motion mode).
-    assert det.detect(np.zeros((4, 4, 3), dtype=np.uint8)) == []
 
 
 def test_marine_without_weights_is_allowed():
@@ -52,22 +53,3 @@ def test_marine_without_weights_is_allowed():
     cfg = ReefScannerConfig(detector="marine")
     assert cfg.detector == "marine"
     assert cfg.detector_weights is None
-
-
-def test_marine_with_weights_needs_ultralytics():
-    """Without the `ml` extra, asking for a YOLO detector must fail clearly.
-
-    Only meaningful when ultralytics is genuinely absent — with it installed
-    the call gets past the import and fails on the missing weights file
-    instead, which is a different code path.
-    """
-    try:
-        import ultralytics  # noqa: F401
-
-        pytest.skip("ultralytics is installed; the ImportError path can't be hit")
-    except ImportError:
-        pass
-
-    cfg = ReefScannerConfig(detector="marine", detector_weights="sharktrack.pt")
-    with pytest.raises(ImportError):
-        get_detector(cfg)

@@ -1,18 +1,12 @@
-"""Detector factory (SPEC §3 Step 4).
+"""Detector factory.
 
-``get_detector`` maps a config detector name to an instance. Only the selected
-detector's dependencies are imported, so ``detector='none'`` never pulls in
-torch/ultralytics (SPEC §8.5).
+Only the selected detector's dependencies are imported, so building a config
+never costs a torch import until a detector is actually constructed.
 """
 
 from __future__ import annotations
 
-from ..config import (
-    DETECTOR_GENERIC,
-    DETECTOR_MARINE,
-    DETECTOR_NONE,
-    ReefScannerConfig,
-)
+from ..config import DETECTOR_GENERIC, DETECTOR_MARINE, ReefScannerConfig
 from .base import Detector
 
 __all__ = ["Detector", "get_detector"]
@@ -20,10 +14,6 @@ __all__ = ["Detector", "get_detector"]
 
 def get_detector(cfg: ReefScannerConfig) -> Detector:
     name = cfg.detector
-    if name == DETECTOR_NONE:
-        from .none_detector import NoneDetector
-
-        return NoneDetector(**cfg.detector_options)
     if name == DETECTOR_MARINE:
         from .marine_detector import build_marine
 

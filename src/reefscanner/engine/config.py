@@ -1,8 +1,8 @@
-"""Configuration for the ReefScanner v1 pipeline.
+"""Configuration for the ReefScanner pipeline.
 
-All tunables live here with recall-favoring defaults (SPEC §4). The pipeline
-is deliberately motion-only in v1; the ``detector`` field selects the (mostly
-stubbed) stage-2 confirmer interface (SPEC §3 Step 4).
+All tunables live here with recall-favoring defaults (SPEC §4). The
+``detector`` field selects the pluggable detector that scans every sampled
+frame and is the pipeline's recall source (SPEC §3 Step 4).
 """
 
 from __future__ import annotations
@@ -12,11 +12,15 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Mapping
 
-# Detector names recognised by the pluggable stage-2 interface (SPEC §3 Step 4).
-DETECTOR_NONE = "none"
+# Detector names recognised by the pluggable detector interface.
+#
+# Motion-only recall (the old ``none``) was removed: on real footage the motion
+# gate cannot separate a small fish close to the camera from a large animal far
+# away, because monocular video carries no depth cue. ``MotionGate`` survives as
+# an optional pre-filter, not as the thing that decides what matters.
 DETECTOR_GENERIC = "generic"
 DETECTOR_MARINE = "marine"
-VALID_DETECTORS = (DETECTOR_NONE, DETECTOR_GENERIC, DETECTOR_MARINE)
+VALID_DETECTORS = (DETECTOR_MARINE, DETECTOR_GENERIC)
 
 # Default video extensions to discover (lower-case, with leading dot).
 DEFAULT_EXTENSIONS = (".mp4", ".mov", ".avi", ".mkv", ".m4v", ".mpg", ".mpeg")
@@ -86,10 +90,10 @@ class ReefScannerConfig:
     #: imageio-ffmpeg fallback if installed).
     ffmpeg_path: str | None = None
 
-    # --- Step 4: detector / ML stage (pluggable; v1 default = none) --------
-    #: none = motion-only (no ML deps); marine = YOLO (SharkTrack / fine-tuned,
-    #: the v2 recall source); generic = stock COCO YOLO objectness (experimental).
-    detector: str = DETECTOR_NONE
+    # --- Step 4: detector / ML stage (pluggable; the recall source) --------
+    #: marine = SharkTrack YOLO (the default; trained on real BRUVS footage);
+    #: generic = stock COCO YOLO objectness (experimental).
+    detector: str = DETECTOR_MARINE
     #: Path/name of detector weights (e.g. a SharkTrack or fine-tuned `.pt`).
     #: Required for detector=marine; generic falls back to a stock COCO model.
     detector_weights: str | None = None

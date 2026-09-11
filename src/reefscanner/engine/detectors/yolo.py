@@ -48,8 +48,7 @@ class UltralyticsYoloDetector:
         except ImportError as exc:  # pragma: no cover - optional dep
             raise ImportError(
                 f"detector={name!r} requires the optional 'ml' extra: "
-                "pip install 'reefscanner[ml]' (or `pip install ultralytics`). "
-                "The v1 default detector='none' needs no ML dependencies."
+                "pip install 'reefscanner[ml]' (or `pip install ultralytics`)."
             ) from exc
 
         self.name = name

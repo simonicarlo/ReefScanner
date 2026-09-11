@@ -55,8 +55,9 @@ Extras, all optional:
 | `[ml]` | YOLO detectors — torch, ultralytics, SAHI |
 | `[dev]` | Tests |
 
-`pip install reefscanner` with no extras still gives you a working CLI: the
-default motion-only mode needs no ML dependencies at all.
+`pip install reefscanner` gives you a working CLI, but the default `marine`
+detector needs the `[ml]` extra (torch + ultralytics) — install it before your
+first run.
 
 ## Running it
 
@@ -113,31 +114,28 @@ spellings.
 ```
 discover videos
   → sample frames (1 fps by default)
-  → find candidates: motion gating, or a YOLO detector scanning every frame
+  → find candidates: a YOLO detector scanning every frame
   → merge nearby candidates into events
   → one padded clip + thumbnail + database row per event
   → you review each event and record a verdict
 ```
 
-Two ways to generate candidates, chosen with `--detector`:
+The detector is the recall source, chosen with `--detector`. (Motion gating
+survives only as an optional cheap pre-skip of dead-static frames —
+`--motion-prefilter` — not as a way of deciding what matters: on real footage
+it can't tell a small fish close to the camera from a large animal far away.)
 
-**`none` (default) — motion only.** Background subtraction (MOG2/KNN) with
-size and persistence filters. No ML dependencies, runs fine on a laptop CPU.
-Tuned to over-flag rather than miss: a false positive costs you ten seconds, a
-missed animal costs you the observation.
-
-**`marine` — SharkTrack.** A YOLOv8 model trained on real BRUVS footage,
-single `elasmobranch` class, MIT-licensed. The weights download automatically
-on first use (~6 MB, cached in `~/.cache/reefscanner`). Install the extra
-first:
+**`marine` (default) — SharkTrack.** A YOLOv8 model trained on real BRUVS
+footage, single `elasmobranch` class, MIT-licensed. The weights download
+automatically on first use (~6 MB, cached in `~/.cache/reefscanner`). Install
+the extra first:
 
 ```bash
 uv sync --extra desktop --extra ml
 ```
 
-That pulls torch and ultralytics — a few hundred MB. Then set **Detector →
-marine** in a project's scan settings, or pass `--detector marine` on the CLI.
-Expect it to be considerably slower than motion mode on a CPU.
+That pulls torch and ultralytics — a few hundred MB. Expect it to be
+considerably slower than a CPU-only approach.
 
 **`generic`** runs a stock COCO YOLO as a crude objectness proposer. Mostly
 useful for experimenting.

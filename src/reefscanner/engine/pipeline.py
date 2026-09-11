@@ -1,14 +1,11 @@
 """Pipeline orchestration (SPEC §3, §7).
 
-Discover -> per-video [sample -> (motion gate | detector scan) -> aggregate ->
-clips/thumbnails -> CSV] -> mark complete. Resumable per-video: completed videos
-are skipped on restart; an interrupted video reprocesses from frame 0.
+Discover -> per-video [sample -> detector scan -> aggregate -> clips/thumbnails
+-> CSV] -> mark complete. Resumable per-video: completed videos are skipped on
+restart; an interrupted video reprocesses from frame 0.
 
-Two modes (chosen by ``cfg.detector``):
-  * ``none`` — v1 motion-only: the motion gate is the recall source (no ML deps).
-  * ``marine`` / ``generic`` — v2 detector-scans-frames: the detector scans every
-    sampled frame and is the recall source; motion becomes an optional cheap
-    pre-skip (``motion_prefilter``).
+The detector scans every sampled frame and is the recall source; motion is an
+optional cheap pre-skip (``motion_prefilter``).
 """
 
 from __future__ import annotations
@@ -19,7 +16,7 @@ from pathlib import Path
 from typing import Callable, Optional
 
 from .clips import extract_clip, resolve_ffmpeg, save_thumbnail
-from .config import DETECTOR_NONE, ReefScannerConfig
+from .config import ReefScannerConfig
 from .detectors import get_detector
 from .discovery import discover_videos
 from .events import Candidate, Event, aggregate_events
@@ -80,7 +77,7 @@ def _collect_candidates(
     on_frame: Optional[Callable[[float], None]] = None,
     should_cancel: Optional[Callable[[], bool]] = None,
 ) -> list[Candidate]:
-    """Produce per-frame candidates via motion (v1) or the detector (v2).
+    """Produce per-frame candidates by running the detector on sampled frames.
 
     ``on_frame`` is called after each sampled frame with this video's progress
     as a 0..1 fraction (always 0.0 when the duration is unknown). It exists so a
@@ -97,17 +94,8 @@ def _collect_candidates(
 
     candidates: list[Candidate] = []
 
-    if cfg.detector == DETECTOR_NONE:
-        # v1 motion-only: the gate is the recall source.
-        gate = MotionGate(cfg)
-        for sample in iter_sampled_frames(info, cfg.frame_sample_fps):
-            cand = gate.process(sample)
-            if cand is not None:
-                candidates.append(cand)
-            _tick(sample)
-        return candidates
-
-    # v2 detector-scans-frames: the detector is the recall source.
+    # The detector is the recall source. Motion is only ever an optional cheap
+    # pre-skip of dead-static frames.
     prefilter = MotionGate(cfg) if cfg.motion_prefilter else None
     for sample in iter_sampled_frames(info, cfg.frame_sample_fps):
         if prefilter is not None and not prefilter.has_motion(sample):
