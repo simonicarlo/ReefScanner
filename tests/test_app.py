@@ -31,11 +31,23 @@ TEST_CONFIG = {
     "min_event_seconds": 1.0,
     "pad_seconds": 1.0,
     "reencode_clips": True,
+    # A real detector is the default now, so tests must name one explicitly and
+    # let the stub stand in for it. Otherwise the suite quietly downloads model
+    # weights and runs actual YOLO inference over synthetic footage — slow, and
+    # passing only for as long as the model keeps firing on noise.
+    "detector": "generic",
+    "ml_confidence_threshold": 0.2,
 }
 
 
 @pytest.fixture
-def client(tmp_path: Path) -> TestClient:
+def client(tmp_path: Path, stub_detector) -> TestClient:
+    """A service on a temporary database, with the detector stubbed out.
+
+    ``stub_detector`` patches the pipeline's factory, so the background job
+    thread builds the stub rather than loading real weights. It also makes
+    confidences deterministic (0.9), which the threshold tests depend on.
+    """
     app = create_app(db_path=tmp_path / "test.db")
     with TestClient(app) as c:
         yield c
