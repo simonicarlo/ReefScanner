@@ -124,16 +124,15 @@ def run(db_path: Optional[str | Path] = None, debug: bool = False) -> int:
     thread = threading.Thread(target=server.run, name="reefscanner-server", daemon=True)
     thread.start()
 
-    if not _wait_until_serving(url):
-        print(f"error: the ReefScanner service did not start on {url}")
-        return 1
-
-    logger.info("ReefScanner service ready on %s", url)
-
     bridge = Bridge()
+    # The window opens straight away on a "Starting…" page rather than once the
+    # server answers. A packaged app's first launch can take a while (macOS
+    # verifying a large unsigned bundle, then Python loading OpenCV and the web
+    # stack), and to someone new a double-click that shows nothing looks like it
+    # failed — so they click again.
     window = webview.create_window(
         "ReefScanner",
-        url,
+        html=STARTING_HTML,
         js_api=bridge,
         width=1440,
         height=920,
@@ -143,11 +142,50 @@ def run(db_path: Optional[str | Path] = None, debug: bool = False) -> int:
     )
     bridge.attach(window)
 
-    # Blocks until the window closes.
-    webview.start(debug=debug)
+    outcome = {"served": False}
+    # Blocks until the window closes. The callback runs on pywebview's worker
+    # thread once the window exists, and swaps in the app when it is ready.
+    webview.start(_load_when_ready, (window, url, outcome), debug=debug)
 
     # Closing the window means quitting, so bring the server down with it
     # rather than leaving a daemon thread mid-write on someone's footage.
     server.should_exit = True
     thread.join(timeout=10)
-    return 0
+    return 0 if outcome["served"] else 1
+
+
+def _load_when_ready(window, url: str, outcome: dict) -> None:
+    """Point the window at the app once the server answers, or explain why not."""
+    if _wait_until_serving(url):
+        logger.info("ReefScanner service ready on %s", url)
+        outcome["served"] = True
+        window.load_url(url)
+    else:
+        logger.error("ReefScanner service did not start on %s", url)
+        window.load_html(FAILED_HTML)
+
+
+_PAGE = """<!doctype html><html><head><meta charset="utf-8"><style>
+  html,body{{margin:0;height:100%;background:#060D11;color:#DBE9EE;
+    font:15px -apple-system,BlinkMacSystemFont,sans-serif}}
+  main{{height:100%;display:flex;flex-direction:column;align-items:center;
+    justify-content:center;gap:14px;text-align:center;padding:0 2rem}}
+  .dot{{width:12px;height:12px;border-radius:50%;background:{color};
+    animation:p 1.4s ease-in-out infinite}}
+  @keyframes p{{50%{{opacity:.25}}}}
+  small{{color:#8AA5B0;max-width:32rem;line-height:1.5}}
+</style></head><body><main><div class="dot"></div>
+<div>{title}</div><small>{body}</small></main></body></html>"""
+
+STARTING_HTML = _PAGE.format(
+    color="#33E1CF",
+    title="Starting ReefScanner…",
+    body="The first launch can take a little while.",
+)
+
+FAILED_HTML = _PAGE.format(
+    color="#FF6F5B",
+    title="ReefScanner couldn't start",
+    body="Quit and open it again. If it keeps happening, send the log file "
+    "from ~/Library/Logs/ReefScanner/reefscanner.log to whoever gave you the app.",
+)

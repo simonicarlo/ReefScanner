@@ -31,8 +31,31 @@ def cache_dir() -> Path:
     return d
 
 
+def bundled_weights(filename: str) -> Path | None:
+    """Weights shipped inside the packaged desktop app, if running from one.
+
+    PyInstaller marks a frozen app with ``sys.frozen`` and unpacks its data
+    under ``sys._MEIPASS``; the build puts the weights in a ``weights`` folder
+    there. Outside a packaged app this is always None.
+    """
+    import sys
+
+    if not getattr(sys, "frozen", False):
+        return None
+    candidate = Path(getattr(sys, "_MEIPASS", "")) / "weights" / filename
+    return candidate if candidate.is_file() else None
+
+
 def ensure_sharktrack_weights() -> str:
-    """Return a local path to SharkTrack weights, downloading once if needed."""
+    """Return a local path to SharkTrack weights, downloading once if needed.
+
+    Preference order: the copy bundled with the desktop app (so a first scan
+    works offline), then the download cache, then a download.
+    """
+    shipped = bundled_weights(SHARKTRACK_FILENAME)
+    if shipped is not None:
+        return str(shipped)
+
     dest = cache_dir() / SHARKTRACK_FILENAME
     if dest.exists() and dest.stat().st_size > 0:
         return str(dest)
