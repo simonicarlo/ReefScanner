@@ -18,9 +18,11 @@ def _cfg(input_dir: Path, output_dir: Path, **over) -> ReefScannerConfig:
         input_folder=str(input_dir),
         output_folder=str(output_dir),
         frame_sample_fps=2.0,
-        warmup_frames=3,
+        # Motion-gate setting, kept only because it participates in
+        # scan_fingerprint() and test_changing_settings_reprocesses_instead_of
+        # _skipping asserts on that. motion_prefilter is off, so it gates
+        # nothing here — the stub detector's own area floor decides what counts.
         min_blob_area=300,
-        persistence_frames=2,
         merge_gap_seconds=3.0,
         min_event_seconds=1.0,
         pad_seconds=1.0,
