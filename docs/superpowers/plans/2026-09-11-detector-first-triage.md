@@ -80,11 +80,18 @@ class StubDetector:
 
 @pytest.fixture
 def stub_detector(monkeypatch):
-    """Patch the pipeline's detector factory to return the stub."""
+    """Patch the pipeline's detector factory to return the stub.
+
+    The same instance is both patched in and returned, so a test can configure
+    it (confidence, min_area) and have the pipeline actually use those values.
+    Returning a second instance would make such a test pass while exercising
+    nothing.
+    """
     import reefscanner.engine.pipeline as pipeline
 
-    monkeypatch.setattr(pipeline, "get_detector", lambda cfg: StubDetector())
-    return StubDetector()
+    detector = StubDetector()
+    monkeypatch.setattr(pipeline, "get_detector", lambda cfg: detector)
+    return detector
 ```
 
 - [ ] **Step 2: Point test_detector.py at the shared stub**
