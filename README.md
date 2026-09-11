@@ -231,6 +231,18 @@ Fonts are bundled rather than loaded from a CDN — the app has to work with no
 internet. `npm run build` writes into `src/reefscanner/app/static/`, which is
 gitignored; the wheel picks it up from there.
 
+### Building the Mac app
+
+```bash
+scripts/build_app.sh        # → dist/ReefScanner.dmg (Apple Silicon)
+```
+
+Builds from a clean standalone Python, bundles the UI, the SharkTrack weights
+and ffmpeg, and wraps the result in a disk image. The app is unsigned, so the
+first launch needs a one-time "Open Anyway" — [`docs/INSTALL-mac.md`](docs/INSTALL-mac.md)
+walks a recipient through it. A running app logs to
+`~/Library/Logs/ReefScanner/reefscanner.log`.
+
 Tests fabricate synthetic BRUV videos (a large slow "animal" plus flickery
 "baitfish" noise the size filter must reject), so no real footage is needed and
 none is committed.
