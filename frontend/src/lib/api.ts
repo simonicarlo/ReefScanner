@@ -4,6 +4,7 @@ import type {
   Job,
   Project,
   ReefEvent,
+  ThresholdAnalysis,
   Verdict,
 } from "./types";
 
@@ -120,6 +121,9 @@ export const api = {
       `/api/jobs/${jobId}/import/csv`,
       { method: "POST" },
     ),
+
+  thresholdAnalysis: (jobId: number) =>
+    request<ThresholdAnalysis>(`/api/jobs/${jobId}/threshold-analysis`),
 
   exportUrl: (jobId: number, format: "csv" | "coco" | "yolo") =>
     `/api/jobs/${jobId}/export/${format}`,

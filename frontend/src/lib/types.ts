@@ -66,6 +66,7 @@ export interface ReefEvent {
   frame_height: number | null;
   clip_url: string | null;
   thumbnail_url: string | null;
+  frame_url: string | null;
   label: Label | null;
 }
 
@@ -99,4 +100,26 @@ export interface EventFilters {
   source_video?: string;
   limit?: number;
   offset?: number;
+}
+
+export interface ThresholdPoint {
+  threshold: number;
+  kept: number;
+  confirmed_kept: number;
+  rejected_kept: number;
+  confirmed_lost: number;
+  precision: number;
+}
+
+export interface ThresholdAnalysis {
+  labeled: number;
+  confirmed: number;
+  rejected: number;
+  undecided: number;
+  unscored: number;
+  reliable: boolean;
+  scan_threshold: number | null;
+  recommended: number | null;
+  recommendation: string;
+  points: ThresholdPoint[];
 }

@@ -23,17 +23,17 @@ const PRIMARY: { key: string; label: string; hint: string }[] = [
   {
     key: "detector",
     label: "Detector",
-    hint: "none = motion only, no ML. marine = SharkTrack, trained on real BRUVS footage.",
+    hint: "marine = SharkTrack, trained on real BRUVS footage. generic = stock COCO YOLO, experimental.",
+  },
+  {
+    key: "ml_confidence_threshold",
+    label: "Confidence threshold",
+    hint: "Detections below this are discarded. Review some events and the run page will recommend a value.",
   },
   {
     key: "frame_sample_fps",
     label: "Frames sampled per second",
     hint: "Lower is faster. 1/s is plenty for large slow animals.",
-  },
-  {
-    key: "min_blob_area",
-    label: "Minimum blob size (px)",
-    hint: "Motion mode. Raise it if baitfish are getting through.",
   },
   {
     key: "min_event_seconds",
@@ -52,8 +52,20 @@ const PRIMARY: { key: string; label: string; hint: string }[] = [
   },
 ];
 
+/** Motion-gate controls. Only meaningful when the pre-filter is switched on. */
+const MOTION_ONLY_KEYS = new Set([
+  "min_blob_area",
+  "persistence_frames",
+  "bg_subtractor",
+  "detect_shadows",
+  "bg_history",
+  "mog2_var_threshold",
+  "morph_kernel_size",
+  "warmup_frames",
+]);
+
 const CHOICES: Record<string, string[]> = {
-  detector: ["none", "marine", "generic"],
+  detector: ["marine", "generic"],
   bg_subtractor: ["MOG2", "KNN"],
 };
 
@@ -117,8 +129,11 @@ export function ProjectDetail() {
   const setValue = (key: string, value: unknown) =>
     setDraft({ ...values, [key]: value });
 
+  // Motion knobs are noise unless the pre-filter they tune is switched on.
+  const prefilterOn = Boolean(values["motion_prefilter"]);
   const otherKeys = Object.keys(effective)
     .filter((k) => !PRIMARY.some((f) => f.key === k))
+    .filter((k) => prefilterOn || !MOTION_ONLY_KEYS.has(k))
     .sort();
 
   return (

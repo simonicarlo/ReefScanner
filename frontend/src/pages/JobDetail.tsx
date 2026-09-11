@@ -2,10 +2,17 @@ import { useState } from "react";
 import { Link, useParams } from "react-router-dom";
 import { useMutation } from "@tanstack/react-query";
 import { api } from "../lib/api";
-import { useClasses, useEvents, useJob, useJobs } from "../lib/queries";
+import {
+  useClasses,
+  useEvents,
+  useJob,
+  useJobs,
+  useThresholdAnalysis,
+} from "../lib/queries";
 import type { EventFilters, Job, ReefEvent, Verdict } from "../lib/types";
 import { basename, duration, percent, score, timecode } from "../lib/format";
 import { Button, Empty, ErrorNote, Spinner, Tag, cx } from "../components/ui";
+import { ThresholdPanel } from "../components/ThresholdPanel";
 
 const PAGE = 120;
 
@@ -23,6 +30,7 @@ export function JobDetail() {
   const { data: job } = useJob(id);
   const { data: page, isLoading, error } = useEvents(id, filters);
   const { data: classes } = useClasses(id);
+  const { data: thresholds } = useThresholdAnalysis(id);
 
   const importCsv = useMutation({ mutationFn: () => api.importCsv(id) });
 
@@ -113,6 +121,8 @@ export function JobDetail() {
         </div>
       )}
 
+      {job && <ThresholdPanel jobId={id} projectId={job.project_id} />}
+
       {/* Filters */}
       <div className="flex flex-wrap items-center gap-2">
         <FilterGroup
@@ -164,6 +174,23 @@ export function JobDetail() {
           <span className="tabular w-8 text-xs text-dim">
             {(filters.min_confidence ?? 0).toFixed(2)}
           </span>
+          {(() => {
+            const at = filters.min_confidence ?? 0;
+            // The last sweep point at or below the slider describes what this
+            // position would keep; below every point, nothing is filtered out.
+            const point = [...(thresholds?.points ?? [])]
+              .reverse()
+              .find((p) => p.threshold <= at);
+            if (!point || at === 0) return null;
+            return (
+              <span className="legend">
+                keeps {point.kept} ·{" "}
+                <span className={point.confirmed_lost > 0 ? "text-reject" : ""}>
+                  loses {point.confirmed_lost} confirmed
+                </span>
+              </span>
+            );
+          })()}
         </label>
       </div>
 
@@ -248,7 +275,7 @@ function EmptyGrid({
       <p>
         {skippedEverything
           ? "Every video had already been scanned with these exact settings, so there was nothing to redo. Change a setting on the project page and run again to rescan."
-          : "No motion or detections passed the thresholds. If the clips are short, the motion gate's warm-up may cover all of them — lower 'warmup frames' and scan again."}
+          : "No detections passed the confidence threshold. Lowering it on the project page surfaces weaker detections, at the cost of more to review."}
       </p>
       {withEvents.length > 0 && (
         <p className="mt-3">

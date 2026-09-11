@@ -53,6 +53,14 @@ export const useClasses = (jobId: number) =>
 export const useSpecies = (jobId: number) =>
   useQuery({ queryKey: keys.species(jobId), queryFn: () => api.listSpecies(jobId) });
 
+export const thresholdKey = (jobId: number) => ["thresholds", jobId] as const;
+
+export const useThresholdAnalysis = (jobId: number) =>
+  useQuery({
+    queryKey: thresholdKey(jobId),
+    queryFn: () => api.thresholdAnalysis(jobId),
+  });
+
 export function useSaveLabel(jobId: number) {
   const qc = useQueryClient();
   return useMutation({
@@ -68,6 +76,8 @@ export function useSaveLabel(jobId: number) {
       // The grid's counts and the species suggestions both move on a save.
       qc.invalidateQueries({ queryKey: ["events", jobId] });
       qc.invalidateQueries({ queryKey: keys.species(jobId) });
+      // Every verdict moves the recommendation.
+      qc.invalidateQueries({ queryKey: thresholdKey(jobId) });
     },
   });
 }
