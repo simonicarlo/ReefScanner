@@ -35,7 +35,7 @@ removes them.
 Add extras as you need them, always listing every one you want kept:
 
 ```bash
-uv sync --extra desktop --extra ml      # + the YOLO detectors
+uv sync --extra desktop --extra ml      # + SAHI tiled inference
 uv sync --extra desktop --extra dev     # + the test suite
 ```
 
@@ -52,12 +52,12 @@ Extras, all optional:
 |---|---|
 | `[app]` | The local service and review UI (FastAPI + SQLite) |
 | `[desktop]` | The native window (PyWebView) |
-| `[ml]` | YOLO detectors — torch, ultralytics, SAHI |
+| `[ml]` | SAHI tiled inference for small/distant animals |
 | `[dev]` | Tests |
 
-`pip install reefscanner` gives you a working CLI, but the default `marine`
-detector needs the `[ml]` extra (torch + ultralytics) — install it before your
-first run.
+The YOLO detectors are core, not optional — motion-only triage was removed
+because it cannot tell a small fish nearby from a large one far away. A plain
+`pip install reefscanner` can scan footage out of the box.
 
 ## Running it
 
@@ -127,15 +127,9 @@ it can't tell a small fish close to the camera from a large animal far away.)
 
 **`marine` (default) — SharkTrack.** A YOLOv8 model trained on real BRUVS
 footage, single `elasmobranch` class, MIT-licensed. The weights download
-automatically on first use (~6 MB, cached in `~/.cache/reefscanner`). Install
-the extra first:
-
-```bash
-uv sync --extra desktop --extra ml
-```
-
-That pulls torch and ultralytics — a few hundred MB. Expect it to be
-considerably slower than a CPU-only approach.
+automatically on first use (~6 MB, cached in `~/.cache/reefscanner`). Nothing
+extra to install — the detector ships with the app. Expect scanning to be
+considerably slower on a CPU than on a GPU.
 
 **`generic`** runs a stock COCO YOLO as a crude objectness proposer. Mostly
 useful for experimenting.
