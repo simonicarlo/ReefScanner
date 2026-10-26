@@ -7,7 +7,6 @@ docs/specs/v3/features/2026-10-26-camtrap-dp-data-model-design.md.
 
 from __future__ import annotations
 
-from typing import Optional
 
 #: The Camtrap DP version every table and package targets.
 CAMTRAP_DP_VERSION = "1.0.2"
@@ -49,7 +48,7 @@ def verdict_tag(verdict: str) -> str:
     return f"{VERDICT_TAG_KEY}:{verdict}"
 
 
-def verdict_from_tags(tags: Optional[str]) -> Optional[str]:
+def verdict_from_tags(tags: str | None) -> str | None:
     """Read the verdict back out of pipe-separated ``observationTags``."""
     for tag in (tags or "").split("|"):
         key, _, value = tag.strip().partition(":")
@@ -67,6 +66,6 @@ DETECTOR_CLASS_TAXA = {
 }
 
 
-def taxon_for_class(class_name: str) -> Optional[str]:
+def taxon_for_class(class_name: str) -> str | None:
     """Scientific name for a detector class, or None if we have no mapping."""
     return DETECTOR_CLASS_TAXA.get(class_name.lower())

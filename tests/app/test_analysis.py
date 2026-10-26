@@ -5,7 +5,7 @@ from __future__ import annotations
 from reefscanner.app.analysis import analyse_thresholds
 
 
-def test_recommends_highest_threshold_that_keeps_every_confirmed():
+def test_recommends_highest_threshold_that_keeps_every_confirmed() -> None:
     """The rule: never lose a real animal to save review time."""
     result = analyse_thresholds(
         [(0.9, "TP"), (0.5, "TP"), (0.32, "TP"), (0.25, "FP"), (0.21, "FP")],
@@ -17,7 +17,7 @@ def test_recommends_highest_threshold_that_keeps_every_confirmed():
     assert result.rejected == 2
 
 
-def test_sweep_points_are_the_observed_confidences():
+def test_sweep_points_are_the_observed_confidences() -> None:
     """Only the values where the answer changes — no arbitrary bins."""
     result = analyse_thresholds(
         [(0.9, "TP"), (0.4, "FP")], scan_threshold=0.2, min_labeled=1
@@ -25,7 +25,7 @@ def test_sweep_points_are_the_observed_confidences():
     assert [p.threshold for p in result.points] == [0.4, 0.9]
 
 
-def test_point_counts_and_precision():
+def test_point_counts_and_precision() -> None:
     result = analyse_thresholds(
         [(0.8, "TP"), (0.6, "FP"), (0.4, "TP")], scan_threshold=0.2, min_labeled=1
     )
@@ -44,7 +44,7 @@ def test_point_counts_and_precision():
     assert at_highest.precision == 1.0
 
 
-def test_unsure_is_neither_confirmed_nor_rejected():
+def test_unsure_is_neither_confirmed_nor_rejected() -> None:
     """A verdict a human couldn't reach is not evidence either way."""
     result = analyse_thresholds(
         [(0.9, "TP"), (0.5, "unsure"), (0.3, "FP")],
@@ -58,7 +58,7 @@ def test_unsure_is_neither_confirmed_nor_rejected():
     assert [p.threshold for p in result.points] == [0.3, 0.9]
 
 
-def test_no_confirmed_events_gives_no_recommendation():
+def test_no_confirmed_events_gives_no_recommendation() -> None:
     """Otherwise the rule is vacuous and 'recommends' discarding everything."""
     result = analyse_thresholds(
         [(0.9, "FP"), (0.4, "FP")], scan_threshold=0.2, min_labeled=1
@@ -67,7 +67,7 @@ def test_no_confirmed_events_gives_no_recommendation():
     assert "No confirmed animals" in result.recommendation
 
 
-def test_events_without_confidence_are_counted_not_swept():
+def test_events_without_confidence_are_counted_not_swept() -> None:
     """Motion-era events have no confidence and can't be in a confidence sweep."""
     result = analyse_thresholds(
         [(None, "TP"), (None, "FP"), (0.7, "TP")],
@@ -79,13 +79,13 @@ def test_events_without_confidence_are_counted_not_swept():
     assert [p.threshold for p in result.points] == [0.7]
 
 
-def test_all_unscored_gives_no_recommendation():
+def test_all_unscored_gives_no_recommendation() -> None:
     result = analyse_thresholds([(None, "TP"), (None, "FP")], min_labeled=1)
     assert result.recommended is None
     assert "no confidence" in result.recommendation.lower()
 
 
-def test_no_labels_at_all():
+def test_no_labels_at_all() -> None:
     result = analyse_thresholds([])
     assert result.labeled == 0
     assert result.points == []
@@ -93,7 +93,7 @@ def test_no_labels_at_all():
     assert result.reliable is False
 
 
-def test_reliability_threshold():
+def test_reliability_threshold() -> None:
     """Few labels still compute, but must not masquerade as evidence."""
     sparse = analyse_thresholds([(0.9, "TP"), (0.3, "FP")], min_labeled=5)
     assert sparse.reliable is False

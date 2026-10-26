@@ -1,16 +1,19 @@
-"""Projects: a footage folder plus the config used to analyse it."""
+"""Projects: a folder of footage from one place, its deployment, and its config."""
 
 from __future__ import annotations
 
+import re
+import uuid
 from pathlib import Path
 
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlmodel import Session, func, select
 
+from reefscanner.core.camtrap import Deployment
 from reefscanner.core.config import ReefScannerConfig
 from ..deps import get_session
 from ..models import Job, Project
-from ..schemas import ProjectCreate, ProjectRead, ProjectUpdate
+from ..schemas import DeploymentRead, ProjectCreate, ProjectRead, ProjectUpdate
 
 router = APIRouter(prefix="/api/projects", tags=["projects"])
 
@@ -27,7 +30,29 @@ def _read(session: Session, project: Project) -> ProjectRead:
         config=project.config or {},
         created_at=project.created_at,
         job_count=count,
+        deployment=_deployment_read(session.get(Deployment, project.deployment_id)),
     )
+
+
+def _deployment_read(d: Deployment) -> DeploymentRead:
+    return DeploymentRead(
+        deployment_id=d.deploymentID,
+        latitude=d.latitude,
+        longitude=d.longitude,
+        location_name=d.locationName,
+        camera_depth=d.cameraDepth,
+        bait_use=d.baitUse,
+        comments=d.deploymentComments,
+        start=d.deploymentStart,
+        end=d.deploymentEnd,
+        timestamp_issues=bool(d.timestampIssues),
+    )
+
+
+def _deployment_id(name: str) -> str:
+    """Readable and unique: the project name, plus a short random suffix."""
+    slug = re.sub(r"[^a-z0-9]+", "-", name.lower()).strip("-")[:40] or "deployment"
+    return f"{slug}-{uuid.uuid4().hex[:6]}"
 
 
 def _get_or_404(session: Session, project_id: int) -> Project:
@@ -66,8 +91,21 @@ def create_project(
             status.HTTP_400_BAD_REQUEST,
             f"Input folder does not exist: {input_folder}",
         )
+    d = payload.deployment
+    deployment = Deployment(
+        deploymentID=_deployment_id(payload.name),
+        latitude=d.latitude,
+        longitude=d.longitude,
+        locationName=d.location_name or payload.name,
+        cameraDepth=d.camera_depth,
+        baitUse=d.bait_use,
+        deploymentComments=d.comments,
+    )
+    session.add(deployment)
+    session.flush()  # the project's foreign key needs the deployment first
     project = Project(
         name=payload.name,
+        deployment_id=deployment.deploymentID,
         input_folder=input_folder,
         output_folder=str(Path(payload.output_folder).expanduser()),
         config=payload.config,
@@ -112,12 +150,16 @@ def update_project(
 
 @router.delete("/{project_id}", status_code=status.HTTP_204_NO_CONTENT)
 def delete_project(project_id: int, session: Session = Depends(get_session)) -> None:
-    """Delete a project and its jobs, events and labels.
+    """Delete a project, its runs, and its deployment with every observation.
 
-    Only database rows: the clips and thumbnails on disk are left alone,
-    because deleting a project shouldn't silently destroy footage-derived
-    files the user may have referenced elsewhere.
+    Only database rows: the clips, frames and packages on disk are left alone,
+    because deleting a project shouldn't silently destroy files the user may
+    have copied or referenced elsewhere.
     """
     project = _get_or_404(session, project_id)
+    deployment = session.get(Deployment, project.deployment_id)
     session.delete(project)
+    session.flush()
+    # Media and observations go with it (ON DELETE CASCADE).
+    session.delete(deployment)
     session.commit()

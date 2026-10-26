@@ -2,9 +2,9 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { api } from "../lib/api";
-import { keys, useEvents, useSaveLabel, useSpecies } from "../lib/queries";
+import { keys, useEvents, useSaveReview, useSpecies } from "../lib/queries";
 import type { ReefEvent, Verdict } from "../lib/types";
-import { basename, duration, score, timecode } from "../lib/format";
+import { clockTime, duration, eventLabel, score, timecode } from "../lib/format";
 import { BboxOverlay } from "../components/BboxOverlay";
 import { Button, Empty, ErrorNote, Readout, Spinner, cx } from "../components/ui";
 
@@ -19,7 +19,12 @@ const VERDICT_STYLE: Record<
   },
   FP: {
     key: "F",
-    label: "Rejected",
+    label: "Nothing there",
+    classes: "border-reject/60 bg-reject/15 text-reject hover:bg-reject/25",
+  },
+  "FP-other": {
+    key: "O",
+    label: "Something else",
     classes: "border-reject/60 bg-reject/15 text-reject hover:bg-reject/25",
   },
   unsure: {
@@ -32,7 +37,8 @@ const VERDICT_STYLE: Record<
 export function EventReview() {
   const { jobId, eventId } = useParams();
   const jid = Number(jobId);
-  const eid = Number(eventId);
+  // React Router hands the param back decoded; event ids contain ":".
+  const eid = eventId ?? "";
   const navigate = useNavigate();
 
   // The whole job's events, so ← / → can move through them. One request beats
@@ -43,12 +49,12 @@ export function EventReview() {
     queryFn: () => api.getEvent(eid),
   });
   const { data: speciesOptions } = useSpecies(jid);
-  const saveLabel = useSaveLabel(jid);
+  const saveReview = useSaveReview(jid);
   const queryClient = useQueryClient();
 
   // Puts an event back in the review queue.
-  const clearLabel = useMutation({
-    mutationFn: () => api.deleteLabel(eid),
+  const clearReview = useMutation({
+    mutationFn: () => api.deleteReview(eid),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: keys.event(eid) });
       queryClient.invalidateQueries({ queryKey: ["events", jid] });
@@ -59,6 +65,9 @@ export function EventReview() {
   const [notes, setNotes] = useState("");
   const [showBox, setShowBox] = useState(true);
   const [view, setView] = useState<"clip" | "peak">("clip");
+  // The media's own shape, learned when it loads, so the overlay's
+  // percentages land on the picture rather than on letterbox bars.
+  const [aspect, setAspect] = useState("16 / 9");
 
   const videoRef = useRef<HTMLVideoElement>(null);
   const speciesRef = useRef<HTMLInputElement>(null);
@@ -73,21 +82,21 @@ export function EventReview() {
   const nextUnreviewed = useMemo(() => {
     if (index < 0) return null;
     return (
-      siblings.slice(index + 1).find((e) => !e.label) ??
-      siblings.find((e) => !e.label && e.id !== eid) ??
+      siblings.slice(index + 1).find((e) => !e.review) ??
+      siblings.find((e) => !e.review && e.id !== eid) ??
       null
     );
   }, [siblings, index, eid]);
 
   // Reset the form whenever the event changes, and prefill an existing verdict.
   useEffect(() => {
-    setSpecies(event?.label?.species ?? "");
-    setNotes(event?.label?.notes ?? "");
-  }, [event?.id, event?.label?.species, event?.label?.notes]);
+    setSpecies(event?.review?.scientific_name ?? "");
+    setNotes(event?.review?.notes ?? "");
+  }, [event?.id, event?.review?.scientific_name, event?.review?.notes]);
 
   const goTo = useCallback(
     (target: ReefEvent | null) => {
-      if (target) navigate(`/jobs/${jid}/events/${target.id}`);
+      if (target) navigate(`/jobs/${jid}/events/${encodeURIComponent(target.id)}`);
     },
     [navigate, jid],
   );
@@ -95,18 +104,20 @@ export function EventReview() {
   const record = useCallback(
     (verdict: Verdict, advance = true) => {
       if (!event) return;
-      saveLabel.mutate(
+      saveReview.mutate(
         {
           eventId: event.id,
           verdict,
-          species: species.trim() || null,
+          scientific_name: species.trim() || null,
           notes: notes.trim() || null,
-          tight_bbox: event.label?.tight_bbox ?? null,
+          // Keep a box a reviewer already settled; otherwise the server uses
+          // the detector's.
+          bbox: event.review?.bbox ?? null,
         },
         { onSuccess: () => advance && goTo(nextUnreviewed ?? next) },
       );
     },
-    [event, species, notes, saveLabel, goTo, nextUnreviewed, next],
+    [event, species, notes, saveReview, goTo, nextUnreviewed, next],
   );
 
   // Keyboard is the primary interface here: the mouse is for the odd correction,
@@ -120,11 +131,12 @@ export function EventReview() {
       if (typing) {
         // Escape leaves a field so the shortcuts come back.
         if (e.key === "Escape") target.blur();
-        // Enter in the species box means "done, save and move on".
+        // Enter in the species box means "done, save and move on": a TP,
+        // unless the name is what an FP-other turned out to be.
         if (e.key === "Enter" && target.tagName === "INPUT") {
           e.preventDefault();
           target.blur();
-          record("TP");
+          record(event?.review?.verdict === "FP-other" ? "FP-other" : "TP");
         }
         return;
       }
@@ -137,6 +149,10 @@ export function EventReview() {
         case "f":
           e.preventDefault();
           record("FP");
+          break;
+        case "o":
+          e.preventDefault();
+          record("FP-other");
           break;
         case "u":
           e.preventDefault();
@@ -169,12 +185,16 @@ export function EventReview() {
 
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [record, goTo, previous, next]);
+  }, [record, goTo, previous, next, event?.review?.verdict]);
 
   if (isLoading) return <Spinner label="Loading event" />;
   if (!event) return <Empty title="Event not found" />;
 
-  const verdict = event.label?.verdict;
+  const verdict = event.review?.verdict;
+  // Hedge-coloured when the reviewer's box differs from the detector's.
+  const reviewedBox = event.review?.bbox ?? null;
+  const corrected =
+    reviewedBox !== null && JSON.stringify(reviewedBox) !== JSON.stringify(event.bbox);
 
   return (
     <div className="rise space-y-5">
@@ -183,11 +203,11 @@ export function EventReview() {
           <Link to={`/jobs/${jid}`} className="legend hover:text-signal">
             ← Run #{jid}
           </Link>
-          <h1 className="tabular mt-1 truncate text-xl font-semibold">
-            {event.event_id}
+          <h1 className="tabular mt-1 truncate text-xl font-semibold" title={event.id}>
+            {eventLabel(event.id)}
           </h1>
           <p className="truncate font-mono text-xs text-faint" title={event.source_video}>
-            {basename(event.source_video)} @ {timecode(event.start_seconds)}
+            {event.source_video} @ {timecode(event.start_seconds)}
           </p>
         </div>
 
@@ -206,16 +226,13 @@ export function EventReview() {
 
       <div className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_20rem]">
         <div className="space-y-3">
-          {/* The media box is given the source video's aspect ratio, so the
+          {/* The media box takes the media's own aspect ratio, so the
               overlay's percentage coordinates land on the picture rather than
               on letterbox bars. */}
           <div
             className="panel relative mx-auto overflow-hidden bg-black"
             style={{
-              aspectRatio:
-                event.frame_width && event.frame_height
-                  ? `${event.frame_width} / ${event.frame_height}`
-                  : "16 / 9",
+              aspectRatio: aspect,
               // Sized from the height so a 4:3 clip can't fill the viewport and
               // push the verdict buttons below the fold. Width follows the
               // aspect ratio, and max-width keeps a very wide clip in its lane.
@@ -223,11 +240,15 @@ export function EventReview() {
               maxWidth: "100%",
             }}
           >
-            {view === "clip" && event.clip_url ? (
+            {view === "clip" ? (
               <video
                 ref={videoRef}
                 key={event.clip_url}
                 src={event.clip_url}
+                onLoadedMetadata={(e) => {
+                  const v = e.currentTarget;
+                  if (v.videoWidth && v.videoHeight) setAspect(`${v.videoWidth} / ${v.videoHeight}`);
+                }}
                 controls
                 autoPlay
                 loop
@@ -235,24 +256,22 @@ export function EventReview() {
                 playsInline
                 className="h-full w-full"
               />
-            ) : event.thumbnail_url ? (
+            ) : (
               <img
-                src={event.thumbnail_url}
-                alt={`Peak frame of ${event.event_id}`}
+                src={event.frame_url}
+                alt={`Peak frame of ${eventLabel(event.id)}`}
+                onLoad={(e) => {
+                  const img = e.currentTarget;
+                  if (img.naturalWidth) setAspect(`${img.naturalWidth} / ${img.naturalHeight}`);
+                }}
                 className="h-full w-full object-contain"
               />
-            ) : (
-              <div className="flex h-full items-center justify-center text-sm text-faint">
-                No media on disk for this event.
-              </div>
             )}
 
             <BboxOverlay
-              bbox={event.label?.tight_bbox ?? event.peak_bbox}
-              frameWidth={event.frame_width}
-              frameHeight={event.frame_height}
+              bbox={reviewedBox ?? event.bbox}
               visible={showBox}
-              tone={event.label?.tight_bbox ? "hedge" : "signal"}
+              tone={corrected ? "hedge" : "signal"}
             />
           </div>
 
@@ -293,20 +312,14 @@ export function EventReview() {
             <Readout label="Length" value={duration(event.duration_seconds)} />
             <Readout
               label="Confidence"
-              value={score(event.ml_confidence)}
-              tone={event.ml_confidence === null ? "dim" : "signal"}
+              value={score(event.confidence)}
+              tone={event.confidence === null ? "dim" : "signal"}
             />
-            <Readout label="Motion" value={score(event.motion_score, 0)} tone="dim" />
             {event.detected_class && (
               <Readout label="Class" value={event.detected_class} tone="signal" />
             )}
-            {event.start_timestamp && (
-              <Readout
-                label="Wall clock"
-                value={new Date(event.start_timestamp).toLocaleTimeString()}
-                tone="dim"
-              />
-            )}
+            {/* In the camera's timezone, never the viewer's. */}
+            <Readout label="Wall clock" value={clockTime(event.start_time)} tone="dim" />
           </div>
         </div>
 
@@ -324,7 +337,7 @@ export function EventReview() {
                       key={v}
                       type="button"
                       onClick={() => record(v)}
-                      disabled={saveLabel.isPending}
+                      disabled={saveReview.isPending}
                       className={cx(
                         "flex items-center justify-between rounded-[3px] border px-3 py-2 text-sm transition-colors",
                         active
@@ -345,14 +358,14 @@ export function EventReview() {
 
             <label className="block">
               <span className="legend mb-1.5 block">
-                Species <Kbd>S</Kbd>
+                {verdict === "FP-other" ? "What it was" : "Species"} <Kbd>S</Kbd>
               </span>
               <input
                 ref={speciesRef}
                 list="species-options"
                 value={species}
                 onChange={(e) => setSpecies(e.target.value)}
-                placeholder="e.g. grey reef shark"
+                placeholder="Scientific name, e.g. Carcharhinus amblyrhynchos"
                 className="w-full rounded-[3px] border border-rule bg-abyss/60 px-2.5 py-1.5 text-sm text-read placeholder:text-faint focus:border-signal/60 focus:outline-none"
               />
               <datalist id="species-options">
@@ -373,16 +386,17 @@ export function EventReview() {
               />
             </label>
 
-            <ErrorNote error={saveLabel.error} />
+            <ErrorNote error={saveReview.error} />
+            <ErrorNote error={clearReview.error} />
 
-            {event.label && (
+            {event.review && (
               <button
                 type="button"
-                onClick={() => clearLabel.mutate()}
-                disabled={clearLabel.isPending}
+                onClick={() => clearReview.mutate()}
+                disabled={clearReview.isPending}
                 className="legend hover:text-reject"
               >
-                {clearLabel.isPending ? "Clearing…" : "Clear verdict"}
+                {clearReview.isPending ? "Clearing…" : "Clear verdict"}
               </button>
             )}
           </div>
@@ -391,7 +405,9 @@ export function EventReview() {
             <div className="legend mb-2">Shortcuts</div>
             <dl className="space-y-1.5 text-xs text-faint">
               {[
-                ["T / F / U", "Confirm · reject · unsure"],
+                ["T", "Confirmed"],
+                ["F / O", "Nothing there · something else"],
+                ["U", "Unsure"],
                 ["← →", "Previous / next event"],
                 ["Space", "Play / pause"],
                 ["B", "Toggle detection box"],

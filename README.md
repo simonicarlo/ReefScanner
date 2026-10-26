@@ -21,7 +21,8 @@ You need three things installed:
 - **git**
 - **[uv](https://docs.astral.sh/uv/getting-started/installation/)**, which
   manages Python and every Python dependency, including a bundled ffmpeg. You
-  don't need to install Python yourself.
+  don't need to install Python yourself: uv fetches the version pinned in
+  `.python-version` (3.14; any 3.12+ works).
 - **[Node.js](https://nodejs.org/) 22 or newer**, only to build the review UI
   once.
 
@@ -39,7 +40,7 @@ uv sync
 #    the build is not committed to the repo.
 cd app/frontend && npm install && npm run build && cd ../..
 
-# 3. Check the install: should end with "120 passed"
+# 3. Check the install: should end with "134 passed"
 uv run pytest
 
 # 4. Some synthetic footage to try it on, if you have no dives at hand
@@ -105,7 +106,7 @@ against the lockfile every time and removes anything it didn't record.
 
 Plain pip works too, if you'd rather: `python3 -m venv .venv && source
 .venv/bin/activate && pip install -e './core[ffmpeg]' -e './app[desktop]'`.
-Python 3.10 or newer.
+Python 3.12 or newer.
 
 The detector is core, not optional — motion-only triage was removed because it
 cannot tell a small fish nearby from a large one far away. It runs on ONNX
@@ -123,16 +124,20 @@ timestamps are left blank rather than guessed.
 
 ## Reviewing
 
-Create a project pointing at a footage folder, press **Scan footage**, and
-watch progress live. When it finishes you get a grid of candidate events;
-click one to open the review screen.
+Create a project pointing at a footage folder, with where it was filmed
+(latitude, longitude, timezone), press **Scan footage**, and watch progress
+live. When it finishes you get a grid of candidate events; click one to open
+the review screen.
 
 Review is built for the keyboard, because the mouse is the bottleneck when
 there are six hundred events:
 
 | Key | Action |
 |---|---|
-| `T` / `F` / `U` | Confirm · reject · unsure |
+| `T` | Confirmed: the animal is there |
+| `F` | Rejected: nothing there |
+| `O` | Rejected: something else is there (name it in the species field) |
+| `U` | Unsure |
 | `←` `→` | Previous / next event |
 | `Space` | Play / pause the clip |
 | `B` | Toggle the detection box |
@@ -140,9 +145,10 @@ there are six hundred events:
 | `Enter` | Save from the species field |
 
 A verdict jumps straight to the next *unreviewed* event, so you can work
-through a whole run without touching the mouse. Species you've already used
-are suggested as you type, which keeps one animal from becoming three
-spellings.
+through a whole run without touching the mouse. Species are scientific names
+(*Carcharhinus amblyrhynchos*), as Camtrap DP wants them; names you've already
+used are suggested as you type, which keeps one animal from becoming three
+spellings. Wall-clock times are shown in the camera's timezone, not yours.
 
 ## Choosing a confidence threshold
 
@@ -165,8 +171,9 @@ discover videos
   → sample frames (1 fps by default)
   → find candidates: a YOLO detector scanning every frame
   → merge nearby candidates into events
-  → one padded clip + thumbnail + database row per event
-  → you review each event and record a verdict
+  → one padded clip + clean peak frame per event, as Camtrap DP rows
+  → you review each event; the verdict is a human observation
+  → the run exports as a Camtrap DP package
 ```
 
 The detector is the recall source, chosen with `--detector`. (Motion gating
@@ -223,46 +230,64 @@ Two separate pieces of state, on purpose:
   resumable, and it lives next to the clips so a results folder stays
   self-describing even without the database.
 - The **database** (SQLite, `reefscanner.db` in your OS's app-data
-  directory) holds projects, job history, and your labels. It migrates itself
-  on start.
-
-`reefscanner_results.csv` is still written, but only as an export; the
-database is the source of truth.
+  directory) holds projects and runs, and the [Camtrap DP](https://camtrap-dp.tdwg.org/)
+  tables: each project is a deployment, each event a machine observation, and
+  each verdict a human one. It migrates itself on start.
 
 ## Output
 
+Each scan run gets its own folder, so a rescan never overwrites an earlier
+run's files:
+
 ```
 results/
-├── clips/                      one padded clip per event
-├── thumbnails/                 peak frame with the detection box drawn
-├── frames/                     the same peak frame, clean — for training
-├── reefscanner_results.csv     one row per event
-└── reefscanner_manifest.json   which videos are finished
+└── scan-1/                        one run; after "Write Camtrap DP package", a package
+    ├── reefscanner_manifest.json  which videos this run has finished (for resuming)
+    ├── datapackage.json           Camtrap DP metadata
+    ├── deployments.csv            the deployment
+    ├── media.csv                  clips and frames
+    ├── observations.csv           machine and human observations
+    ├── reefscanner-*.csv          sidecar: source video, offsets, per-frame confidence
+    ├── clips/                     one padded clip per event
+    └── frames/                    the clean peak frame, as the box's image
 ```
+
+The command line (`reefscanner process`) writes clips, frames, annotated
+thumbnails and `reefscanner_results.csv` straight into the output folder.
 
 ## Exports
 
-Once you've labeled events, confirmed ones can leave as training data:
+**Write Camtrap DP package** on a run's page turns its folder into a complete
+[Camtrap DP 1.0.2](https://camtrap-dp.tdwg.org/) package, validated before it is
+written. Copying the folder is exporting it.
+
+Confirmed events can also leave as training data:
 
 | Endpoint | Format |
 |---|---|
-| `/api/jobs/{id}/export/csv` | The results CSV, label columns filled in |
+| `POST /api/jobs/{id}/package` | Camtrap DP package, written into the run folder |
 | `/api/jobs/{id}/export/coco` | COCO detection JSON |
-| `/api/jobs/{id}/export/yolo` | YOLO label files + `classes.txt`, zipped |
+| `/api/jobs/{id}/export/yolo` | YOLO label files + `classes.txt` + images, zipped |
 
-Only events marked **TP** are exported — an `unsure` verdict is not a box worth
-training on. Annotations point at the clean frames in `frames/`, never the thumbnails —
-a model trained on those would learn the drawn box. The YOLO zip includes
-the images, so it is a usable dataset as downloaded.
+Only events marked **TP** become training annotations — an `unsure` verdict is
+not a box worth training on. They use the clean peak frames, never anything
+with a box drawn on it.
 
 ## Resumability
 
-Interrupt a run at any point and start it again — finished videos are skipped.
-A video that was mid-analysis is not marked complete, so it reprocesses from
-the beginning rather than resuming halfway and losing events at the seam.
+A stopped run — cancelled, or failed because the laptop slept or crashed — can
+be **resumed** from the project page. It continues the same run in the same
+folder: videos it already finished are skipped, so its events and its package
+stay whole. A video that was mid-analysis is not marked complete, so it
+reprocesses from the beginning rather than resuming halfway and losing events
+at the seam.
 
-Cancelling a job from the UI does the same thing: it stops between frames and
-leaves everything already committed intact.
+A *new* run always scans every video. Runs don't share their "already scanned"
+record, because a run that skipped videos another run had finished would
+export a package silently missing them.
+
+On the command line, running `reefscanner process` again into the same output
+folder resumes the same way.
 
 ## Development
 

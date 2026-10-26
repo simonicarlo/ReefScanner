@@ -5,13 +5,14 @@ from __future__ import annotations
 from pathlib import Path
 
 from reefscanner.core import ReefScannerConfig, probe_video
+from reefscanner.core.events import Candidate as MotionCandidate
 from reefscanner.core.motion import MotionGate
 from reefscanner.core.videoio import iter_sampled_frames
 
 from conftest import make_video
 
 
-def _run_gate(video: Path, cfg: ReefScannerConfig):
+def _run_gate(video: Path, cfg: ReefScannerConfig) -> list[MotionCandidate]:
     info = probe_video(video)
     gate = MotionGate(cfg)
     return [
@@ -21,7 +22,7 @@ def _run_gate(video: Path, cfg: ReefScannerConfig):
     ]
 
 
-def test_large_animal_is_detected(tmp_path):
+def test_large_animal_is_detected(tmp_path) -> None:
     video = make_video(tmp_path / "a.mp4", with_animal=True, baitfish=True)
     cfg = ReefScannerConfig(frame_sample_fps=2.0, warmup_frames=3,
                             min_blob_area=300, persistence_frames=2)
@@ -31,7 +32,7 @@ def test_large_animal_is_detected(tmp_path):
     assert any(4.0 <= c.timestamp <= 8.5 for c in cands)
 
 
-def test_baitfish_only_is_rejected(tmp_path):
+def test_baitfish_only_is_rejected(tmp_path) -> None:
     # No animal: only tiny flickery specks. Size + persistence should reject all.
     video = make_video(tmp_path / "b.mp4", with_animal=False, baitfish=True)
     cfg = ReefScannerConfig(frame_sample_fps=2.0, warmup_frames=3,
@@ -40,7 +41,7 @@ def test_baitfish_only_is_rejected(tmp_path):
     assert cands == [], f"expected no candidates from baitfish noise, got {len(cands)}"
 
 
-def test_warmup_suppresses_early_frames(tmp_path):
+def test_warmup_suppresses_early_frames(tmp_path) -> None:
     video = make_video(tmp_path / "c.mp4", with_animal=True,
                        animal_start_s=0.0, animal_end_s=10.0, baitfish=False)
     cfg = ReefScannerConfig(frame_sample_fps=2.0, warmup_frames=6,
@@ -50,7 +51,7 @@ def test_warmup_suppresses_early_frames(tmp_path):
     assert all(c.sampled_index >= cfg.warmup_frames for c in cands)
 
 
-def test_bbox_scaled_to_original_resolution(tmp_path):
+def test_bbox_scaled_to_original_resolution(tmp_path) -> None:
     video = make_video(tmp_path / "d.mp4", width=320, height=240)
     cfg = ReefScannerConfig(frame_sample_fps=2.0, warmup_frames=3,
                             detect_downscale=0.5, min_blob_area=100,

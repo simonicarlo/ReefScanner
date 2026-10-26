@@ -13,7 +13,7 @@ recall — and the wording that says so is a correctness requirement, not copy.
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import Optional, Sequence
+from typing import Sequence
 
 #: Below this many scored, labeled events, a recommendation is a guess.
 DEFAULT_MIN_LABELED = 5
@@ -44,15 +44,15 @@ class ThresholdAnalysis:
     #: Labeled events with no confidence at all (scanned before detector mode).
     unscored: int = 0
     reliable: bool = False
-    scan_threshold: Optional[float] = None
-    recommended: Optional[float] = None
+    scan_threshold: float | None = None
+    recommended: float | None = None
     recommendation: str = ""
     points: list[ThresholdPoint] = field(default_factory=list)
 
 
 def analyse_thresholds(
-    labeled: Sequence[tuple[Optional[float], str]],
-    scan_threshold: Optional[float] = None,
+    labeled: Sequence[tuple[float | None, str]],
+    scan_threshold: float | None = None,
     min_labeled: int = DEFAULT_MIN_LABELED,
 ) -> ThresholdAnalysis:
     """Sweep every threshold worth considering over labeled events.

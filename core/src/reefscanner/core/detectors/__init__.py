@@ -6,10 +6,24 @@ never costs a torch import until a detector is actually constructed.
 
 from __future__ import annotations
 
-from ..config import DETECTOR_GENERIC, DETECTOR_MARINE, ReefScannerConfig
+from ..config import BACKEND_ONNX, DETECTOR_GENERIC, DETECTOR_MARINE, ReefScannerConfig
 from .base import Detector
 
-__all__ = ["Detector", "get_detector"]
+__all__ = ["Detector", "describe_model", "get_detector"]
+
+
+def describe_model(cfg: ReefScannerConfig) -> tuple[str, str]:
+    """(name, version) of the model a scan with ``cfg`` runs, for provenance."""
+    from pathlib import Path
+
+    weights = cfg.detector_weights or cfg.detector_options.get("weights")
+    if weights:
+        return Path(weights).stem, Path(weights).name
+    if cfg.detector == DETECTOR_MARINE:
+        # The ONNX export is the one published as the models-v1 release.
+        onnx = cfg.detector_backend == BACKEND_ONNX
+        return "SharkTrack", "models-v1" if onnx else "sharktrack.pt"
+    return "yolov8n", "yolov8n.pt"
 
 
 def get_detector(cfg: ReefScannerConfig) -> Detector:

@@ -55,7 +55,7 @@ def default_db_path() -> Path:
 class Database:
     """Owns one SQLAlchemy engine. Created once per process by the app factory."""
 
-    def __init__(self, path: str | Path | None = None):
+    def __init__(self, path: str | Path | None = None) -> None:
         self.path = Path(path).expanduser() if path else default_db_path()
         if self.path.parent and str(self.path) != ":memory:":
             self.path.parent.mkdir(parents=True, exist_ok=True)
@@ -65,7 +65,7 @@ class Database:
         )
 
         @sa_event.listens_for(self.engine, "connect")
-        def _set_sqlite_pragmas(dbapi_conn, _record):  # pragma: no cover - trivial
+        def _set_sqlite_pragmas(dbapi_conn, _record) -> None:  # pragma: no cover - trivial
             cur = dbapi_conn.cursor()
             cur.execute("PRAGMA journal_mode=WAL")
             cur.execute("PRAGMA foreign_keys=ON")

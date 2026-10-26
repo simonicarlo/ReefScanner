@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import datetime as dt
+from collections.abc import Iterator
 
 import pytest
 from pydantic import ValidationError
@@ -31,11 +32,11 @@ T0 = dt.datetime(2026, 11, 3, 9, 30, tzinfo=MOZ)
 
 
 @pytest.fixture
-def session():
+def session() -> Iterator[Session]:
     engine = create_engine("sqlite://")
 
     @sa_event.listens_for(engine, "connect")
-    def _fk(dbapi_conn, _record):
+    def _fk(dbapi_conn, _record) -> None:
         dbapi_conn.execute("PRAGMA foreign_keys=ON")
 
     SQLModel.metadata.create_all(
@@ -85,7 +86,7 @@ def make_event(session) -> None:
     session.commit()
 
 
-def test_rows_round_trip_with_their_timezone(session):
+def test_rows_round_trip_with_their_timezone(session) -> None:
     make_event(session)
     session.expire_all()
     obs = session.exec(select(Observation)).one()
@@ -95,7 +96,7 @@ def test_rows_round_trip_with_their_timezone(session):
     assert extra.detectorConfig == {"ml_confidence_threshold": 0.2}
 
 
-def test_naive_timestamps_are_refused(session):
+def test_naive_timestamps_are_refused(session) -> None:
     session.add(Deployment(
         deploymentID="x", latitude=0, longitude=0,
         deploymentStart=dt.datetime(2026, 11, 3, 9, 30),  # no timezone
@@ -104,7 +105,7 @@ def test_naive_timestamps_are_refused(session):
         session.commit()
 
 
-def test_deleting_a_deployment_deletes_everything_under_it(session):
+def test_deleting_a_deployment_deletes_everything_under_it(session) -> None:
     make_event(session)
     session.delete(session.get(Deployment, "tofo-1"))
     session.commit()
@@ -112,7 +113,7 @@ def test_deleting_a_deployment_deletes_everything_under_it(session):
         assert session.exec(select(model)).all() == [], model.__name__
 
 
-def test_constraints_are_checked_by_model_validate():
+def test_constraints_are_checked_by_model_validate() -> None:
     """Table classes skip validation in __init__; the writer validates instead."""
     with pytest.raises(ValidationError, match="latitude"):
         Deployment.model_validate({"deploymentID": "x", "latitude": 95, "longitude": 0})
@@ -124,7 +125,7 @@ def test_constraints_are_checked_by_model_validate():
         })
 
 
-def test_verdicts_map_to_observation_types():
+def test_verdicts_map_to_observation_types() -> None:
     assert VERDICT_OBSERVATION_TYPE == {
         VERDICT_TP: "animal",
         VERDICT_FP: "blank",
@@ -133,7 +134,7 @@ def test_verdicts_map_to_observation_types():
     }
 
 
-def test_verdict_tags_round_trip_among_other_tags():
+def test_verdict_tags_round_trip_among_other_tags() -> None:
     for verdict in (VERDICT_TP, VERDICT_FP, VERDICT_FP_OTHER, VERDICT_UNSURE):
         assert verdict_from_tags(f"reviewed:yes|{verdict_tag(verdict)}") == verdict
     assert verdict_from_tags(None) is None
@@ -142,7 +143,7 @@ def test_verdict_tags_round_trip_among_other_tags():
         verdict_tag("maybe")
 
 
-def test_detector_classes_map_to_scientific_names():
+def test_detector_classes_map_to_scientific_names() -> None:
     assert taxon_for_class("elasmobranch") == "Elasmobranchii"
     assert taxon_for_class("Elasmobranch") == "Elasmobranchii"
     assert taxon_for_class("car") is None

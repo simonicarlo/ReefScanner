@@ -1,62 +1,64 @@
-"""Export endpoints: CSV back out, and annotations for fine-tuning."""
+"""Export endpoints: a run's Camtrap DP package, and training sets."""
 
 from __future__ import annotations
 
 import io
 import zipfile
-from pathlib import Path
 
 from fastapi import APIRouter, Depends, HTTPException, status
 from fastapi.responses import Response
-from sqlmodel import Session, select
+from sqlmodel import Session
 
+from reefscanner.core.camtrap import PackageError, write_package
 from ..deps import get_session
-from ..exports import (
-    annotation_image,
-    export_coco,
-    export_csv,
-    export_yolo,
-)
-from ..models import Event, Job, Label
+from ..exports import build_package, confirmed_events, export_coco, export_yolo, yolo_stem
+from ..models import Job, Project, run_folder
 
 router = APIRouter(prefix="/api", tags=["exports"])
 
 
-def _pairs(session: Session, job_id: int) -> list[tuple[Event, Label | None]]:
-    if session.get(Job, job_id) is None:
+def _job_and_project(session: Session, job_id: int) -> tuple[Job, Project]:
+    job = session.get(Job, job_id)
+    if job is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Job not found")
-    return list(
-        session.exec(
-            select(Event, Label)
-            .join(Label, Label.event_id == Event.id, isouter=True)
-            .where(Event.job_id == job_id)
-            .order_by(Event.source_video, Event.start_seconds)
-        ).all()
-    )
+    project = session.get(Project, job.project_id)
+    if project is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Project not found")
+    return job, project
 
 
-@router.get("/jobs/{job_id}/export/csv")
-def export_job_csv(job_id: int, session: Session = Depends(get_session)) -> Response:
-    """The v1 results CSV, with the label columns now filled in."""
-    body = export_csv(_pairs(session, job_id))
-    return Response(
-        content=body,
-        media_type="text/csv",
-        headers={
-            "Content-Disposition": f'attachment; filename="reefscanner_job{job_id}.csv"'
-        },
-    )
+@router.post("/jobs/{job_id}/package", response_model=dict)
+def write_job_package(job_id: int, session: Session = Depends(get_session)) -> dict:
+    """Write the run as a Camtrap DP package into its run folder.
+
+    The clips and frames are already there, so the folder becomes a complete,
+    self-contained package: copying it is exporting it.
+    """
+    job, project = _job_and_project(session, job_id)
+    package = build_package(session, project, job)
+    try:
+        path = write_package(run_folder(project, job.id), package)
+    except PackageError as exc:
+        # The problems describe the package's content, not internals.
+        raise HTTPException(
+            status.HTTP_422_UNPROCESSABLE_ENTITY,
+            {"message": "The run isn't a valid Camtrap DP package yet",
+             "problems": exc.problems},
+        ) from exc
+    return {
+        "path": str(path.parent),
+        "observations": len(package.observations),
+        "media": len(package.media),
+    }
 
 
 @router.get("/jobs/{job_id}/export/coco")
 def export_job_coco(job_id: int, session: Session = Depends(get_session)) -> Response:
-    body = export_coco(_pairs(session, job_id))
+    job, project = _job_and_project(session, job_id)
     return Response(
-        content=body,
+        export_coco(confirmed_events(session, project, job)),
         media_type="application/json",
-        headers={
-            "Content-Disposition": f'attachment; filename="coco_job{job_id}.json"'
-        },
+        headers={"Content-Disposition": f'attachment; filename="coco_scan{job_id}.json"'},
     )
 
 
@@ -66,30 +68,19 @@ def export_job_yolo(job_id: int, session: Session = Depends(get_session)) -> Res
 
     A zip rather than loose files because YOLO's format is a *directory* — the
     per-image label files are meaningless without their images, or without the
-    ``classes.txt`` that fixes the class-index order.
-
-    Images are the clean frames, so the model never sees the drawn box. An
-    image missing from disk is skipped rather than failing the whole export.
+    ``classes.txt`` that fixes the class-index order. An image missing from
+    disk is skipped rather than failing the whole export.
     """
-    pairs = _pairs(session, job_id)
-    files = export_yolo(pairs)
-    images = {event.event_id: annotation_image(event) for event, _ in pairs}
-
+    job, project = _job_and_project(session, job_id)
+    confirmed = [c for c in confirmed_events(session, project, job) if c.image.is_file()]
     buf = io.BytesIO()
     with zipfile.ZipFile(buf, "w", zipfile.ZIP_DEFLATED) as zf:
-        for name, content in files.items():
+        for name, content in export_yolo(confirmed).items():
             zf.writestr(name, content)
-            if not name.startswith("labels/"):
-                continue
-            # YOLO pairs a label with its image by filename stem.
-            stem = Path(name).stem
-            image = images.get(stem)
-            if image and Path(image).is_file():
-                zf.write(image, f"images/{stem}{Path(image).suffix}")
+        for item in confirmed:
+            zf.write(item.image, f"images/{yolo_stem(item)}{item.image.suffix}")
     return Response(
-        content=buf.getvalue(),
+        buf.getvalue(),
         media_type="application/zip",
-        headers={
-            "Content-Disposition": f'attachment; filename="yolo_job{job_id}.zip"'
-        },
+        headers={"Content-Disposition": f'attachment; filename="yolo_scan{job_id}.zip"'},
     )

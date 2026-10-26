@@ -14,7 +14,7 @@ from __future__ import annotations
 
 import datetime as _dt
 from dataclasses import dataclass, field
-from typing import Optional, Sequence
+from typing import Sequence
 
 
 @dataclass
@@ -32,9 +32,9 @@ class Candidate:
     timestamp: float
     bbox: tuple[int, int, int, int]
     score: float
-    class_name: Optional[str] = None
-    ml_confidence: Optional[float] = None
-    motion_score: Optional[float] = None
+    class_name: str | None = None
+    ml_confidence: float | None = None
+    motion_score: float | None = None
 
 
 @dataclass
@@ -51,13 +51,16 @@ class Event:
     peak_score: float
     #: bbox at the peak frame, original-resolution (x, y, w, h).
     peak_bbox: tuple[int, int, int, int]
-    peak_motion_score: Optional[float]
-    peak_ml_confidence: Optional[float]
+    peak_motion_score: float | None
+    peak_ml_confidence: float | None
     #: Model class of the peak candidate (None in motion-only mode).
-    peak_class: Optional[str]
+    peak_class: str | None
     #: All distinct model classes seen in the event (empty in motion-only mode).
     classes: tuple[str, ...]
     n_candidates: int
+    #: Every per-frame hit in the event, in time order — the confidence series
+    #: behind the single peak value.
+    members: tuple[Candidate, ...] = ()
 
     @property
     def duration_seconds(self) -> float:
@@ -124,18 +127,30 @@ def aggregate_events(
                 peak_class=peak.class_name,
                 classes=classes,
                 n_candidates=len(members),
+                members=tuple(members),
             )
         )
     return events
 
 
 def derive_timestamp(
-    creation_time: Optional[_dt.datetime],
+    creation_time: _dt.datetime | None,
     start_seconds: float,
-    camera_timezone: Optional[str],
+    camera_timezone: str | None,
     camera_clock: str = "local",
 ) -> str:
-    """Wall-clock ISO timestamp for an event start, or '' if it can't be known.
+    """``wall_clock`` as an ISO string, or '' if it can't be known."""
+    when = wall_clock(creation_time, start_seconds, camera_timezone, camera_clock)
+    return when.isoformat() if when is not None else ""
+
+
+def wall_clock(
+    creation_time: _dt.datetime | None,
+    start_seconds: float,
+    camera_timezone: str | None,
+    camera_clock: str = "local",
+) -> _dt.datetime | None:
+    """When ``start_seconds`` into a video happened, or None if it can't be known.
 
     Files can't be trusted about their own timezone, and cameras disagree:
 
@@ -149,7 +164,7 @@ def derive_timestamp(
     timestamp is better than one that is silently hours off.
     """
     if creation_time is None or camera_timezone is None:
-        return ""
+        return None
     from zoneinfo import ZoneInfo
 
     zone = ZoneInfo(camera_timezone)
@@ -157,6 +172,6 @@ def derive_timestamp(
     if camera_clock == "utc":
         utc = creation_time.replace(tzinfo=_dt.timezone.utc) if creation_time.tzinfo is None \
             else creation_time.astimezone(_dt.timezone.utc)
-        return (utc + offset).astimezone(zone).isoformat()
+        return (utc + offset).astimezone(zone)
     clock = creation_time.replace(tzinfo=None) + offset
-    return clock.replace(tzinfo=zone).isoformat()
+    return clock.replace(tzinfo=zone)

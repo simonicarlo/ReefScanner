@@ -8,18 +8,14 @@ in the repo.
 
 from __future__ import annotations
 
-import copy
 import csv
 import datetime as dt
 import gzip
 import json
 from pathlib import Path
 
-import frictionless
 import jsonschema
 import pytest
-from referencing import Registry, Resource
-from referencing.jsonschema import DRAFT4
 
 from reefscanner.core.camtrap import (
     Deployment,
@@ -33,9 +29,9 @@ from reefscanner.core.camtrap import (
     verdict_tag,
     write_package,
 )
-from reefscanner.core.camtrap.package import SCHEMA_DIR, field_names, table_schema_url
+from reefscanner.core.camtrap.package import field_names, table_schema_url
 
-FIXTURES = Path(__file__).parent.parent / "fixtures"
+from camtrap_check import assert_valid_camtrap
 MOZ = dt.timezone(dt.timedelta(hours=2))
 T0 = dt.datetime(2026, 11, 3, 9, 30, tzinfo=MOZ)
 
@@ -97,45 +93,12 @@ def sample_package() -> Package:
     )
 
 
-def assert_valid_camtrap(folder: Path) -> None:
-    """Validate a written package the way an outside tool would, offline."""
-    descriptor = json.loads((folder / "datapackage.json").read_text())
-
-    # 1. The descriptor against the Camtrap DP profile. It refers to the
-    #    Frictionless data-package profile and to GeoJSON by URL; both are
-    #    served here from copies (the schemastore GeoJSON URL just points on
-    #    to geojson.org's schema, so one copy answers both).
-    profile = json.loads((SCHEMA_DIR / "camtrap-dp-profile.json").read_text())
-    base = json.loads((FIXTURES / "frictionless" / "data-package.json").read_text())
-    geojson = Resource.from_contents(
-        json.loads((FIXTURES / "frictionless" / "geojson.json").read_text())
-    )
-    registry = Registry().with_resources([
-        ("https://specs.frictionlessdata.io/schemas/data-package.json",
-         Resource.from_contents(base, default_specification=DRAFT4)),
-        ("http://json.schemastore.org/geojson.json", geojson),
-        ("https://geojson.org/schema/GeoJSON.json", geojson),
-    ])
-    jsonschema.Draft4Validator(profile, registry=registry).validate(descriptor)
-
-    # 2. Every table against its Table Schema, with the remote schema URLs
-    #    swapped for the local copies.
-    local = copy.deepcopy(descriptor)
-    local.pop("profile")  # checked above; Frictionless would fetch it
-    for resource in local["resources"]:
-        if isinstance(resource["schema"], str):
-            name = resource["schema"].rsplit("/", 1)[1]
-            resource["schema"] = json.loads((SCHEMA_DIR / name).read_text())
-    report = frictionless.Package(local, basepath=str(folder)).validate()
-    assert report.valid, report.flatten(["rowNumber", "fieldName", "type", "note"])
-
-
-def test_written_package_is_valid_camtrap_dp(tmp_path):
+def test_written_package_is_valid_camtrap_dp(tmp_path) -> None:
     write_package(tmp_path, sample_package())
     assert_valid_camtrap(tmp_path)
 
 
-def test_package_round_trips(tmp_path):
+def test_package_round_trips(tmp_path) -> None:
     original = sample_package()
     write_package(tmp_path, original)
     back = read_package(tmp_path)
@@ -153,7 +116,7 @@ def test_package_round_trips(tmp_path):
     assert back.metadata["project"]["title"] == "Tofo reef megafauna"
 
 
-def test_derived_metadata(tmp_path):
+def test_derived_metadata(tmp_path) -> None:
     write_package(tmp_path, sample_package())
     meta = json.loads((tmp_path / "datapackage.json").read_text())
     assert meta["profile"].endswith("/1.0.2/camtrap-dp-profile.json")
@@ -173,7 +136,7 @@ def test_derived_metadata(tmp_path):
     assert meta["resources"][0]["schema"] == table_schema_url("deployments")
 
 
-def test_several_deployments_span_a_polygon(tmp_path):
+def test_several_deployments_span_a_polygon(tmp_path) -> None:
     package = sample_package()
     second = package.deployments[0].model_copy(
         update={"deploymentID": "tofo-2", "latitude": -23.9, "longitude": 35.6}
@@ -186,14 +149,14 @@ def test_several_deployments_span_a_polygon(tmp_path):
     assert_valid_camtrap(tmp_path)
 
 
-def test_csv_columns_follow_the_standard(tmp_path):
+def test_csv_columns_follow_the_standard(tmp_path) -> None:
     write_package(tmp_path, sample_package())
     for table in ("deployments", "media", "observations"):
         with open(tmp_path / f"{table}.csv", newline="") as fh:
             assert next(csv.reader(fh)) == field_names(table)
 
 
-def test_timestamps_are_written_with_offset_and_whole_seconds(tmp_path):
+def test_timestamps_are_written_with_offset_and_whole_seconds(tmp_path) -> None:
     package = sample_package()
     package.media[0].timestamp = T0 + dt.timedelta(microseconds=250_000)
     write_package(tmp_path, package)
@@ -202,7 +165,7 @@ def test_timestamps_are_written_with_offset_and_whole_seconds(tmp_path):
     assert row["timestamp"] == "2026-11-03T09:30:00+02:00"
 
 
-def test_empty_sidecars_are_left_out(tmp_path):
+def test_empty_sidecars_are_left_out(tmp_path) -> None:
     package = sample_package()
     package.observation_extras.clear()
     package.detections.clear()
@@ -235,7 +198,7 @@ def test_empty_sidecars_are_left_out(tmp_path):
     (lambda p: setattr(p.media[0], "timestamp", dt.datetime(2026, 11, 3, 9, 30)),
      "timestamp has no timezone"),
 ])
-def test_invalid_packages_are_refused_before_writing(tmp_path, break_it, expected):
+def test_invalid_packages_are_refused_before_writing(tmp_path, break_it, expected) -> None:
     package = sample_package()
     break_it(package)
     with pytest.raises(PackageError, match="problem") as info:
@@ -244,7 +207,7 @@ def test_invalid_packages_are_refused_before_writing(tmp_path, break_it, expecte
     assert not (tmp_path / "datapackage.json").exists()
 
 
-def test_every_problem_is_reported_at_once(tmp_path):
+def test_every_problem_is_reported_at_once(tmp_path) -> None:
     package = sample_package()
     package.deployments[0].deploymentEnd = None
     package.observations[0].observationType = "fish"
@@ -253,7 +216,7 @@ def test_every_problem_is_reported_at_once(tmp_path):
     assert len(info.value.problems) >= 2
 
 
-def test_reader_refuses_another_version(tmp_path):
+def test_reader_refuses_another_version(tmp_path) -> None:
     write_package(tmp_path, sample_package())
     path = tmp_path / "datapackage.json"
     meta = json.loads(path.read_text())
@@ -263,7 +226,7 @@ def test_reader_refuses_another_version(tmp_path):
         read_package(tmp_path)
 
 
-def test_reader_handles_gzipped_tables(tmp_path):
+def test_reader_handles_gzipped_tables(tmp_path) -> None:
     """The standard allows large tables as .csv.gz."""
     write_package(tmp_path, sample_package())
     src = tmp_path / "reefscanner-detections.csv"
@@ -279,7 +242,7 @@ def test_reader_handles_gzipped_tables(tmp_path):
     assert len(read_package(tmp_path).detections) == 3
 
 
-def test_reader_reports_bad_rows(tmp_path):
+def test_reader_reports_bad_rows(tmp_path) -> None:
     write_package(tmp_path, sample_package())
     path = tmp_path / "media.csv"
     path.write_text(path.read_text().replace("2026-11-03T09:30:00+02:00", "2026-11-03T09:30:00"))
@@ -287,7 +250,7 @@ def test_reader_reports_bad_rows(tmp_path):
         read_package(tmp_path)
 
 
-def test_the_validators_catch_a_broken_package(tmp_path):
+def test_the_validators_catch_a_broken_package(tmp_path) -> None:
     """Guards the guard: the outside validators must fail on bad data."""
     write_package(tmp_path, sample_package())
     obs = tmp_path / "observations.csv"

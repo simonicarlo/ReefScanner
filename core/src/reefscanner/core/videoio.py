@@ -12,7 +12,7 @@ import shutil
 import subprocess
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Iterator, Optional
+from typing import Iterator
 
 import cv2
 
@@ -29,7 +29,7 @@ class VideoInfo:
     #: Duration in seconds (from frame_count / fps when available).
     duration_seconds: float
     #: Wall-clock creation time from container metadata, if discoverable.
-    creation_time: Optional[_dt.datetime] = None
+    creation_time: _dt.datetime | None = None
 
 
 def probe_video(path: str | Path) -> VideoInfo:
@@ -128,11 +128,11 @@ def iter_sampled_frames(
 
 
 # --- ffprobe helpers (optional; degrade gracefully if absent) -------------
-def _ffprobe_path() -> Optional[str]:
+def _ffprobe_path() -> str | None:
     return shutil.which("ffprobe")
 
 
-def _ffprobe_fps(path: Path) -> Optional[float]:
+def _ffprobe_fps(path: Path) -> float | None:
     exe = _ffprobe_path()
     if not exe:
         return None
@@ -153,7 +153,7 @@ def _ffprobe_fps(path: Path) -> Optional[float]:
         return None
 
 
-def _ffprobe_creation_time(path: Path) -> Optional[_dt.datetime]:
+def _ffprobe_creation_time(path: Path) -> _dt.datetime | None:
     exe = _ffprobe_path()
     if not exe:
         return None

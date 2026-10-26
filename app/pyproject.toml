@@ -6,7 +6,7 @@ build-backend = "hatchling.build"
 name = "reefscanner-app"
 version = "3.0.0.dev0"
 description = "ReefScanner's field app: local service, review UI and desktop shell."
-requires-python = ">=3.10"
+requires-python = ">=3.12"
 license = "MIT"
 authors = [{ name = "ReefScanner contributors" }]
 dependencies = [

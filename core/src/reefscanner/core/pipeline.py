@@ -13,7 +13,7 @@ from __future__ import annotations
 import logging
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Callable, Optional
+from typing import Callable
 
 from .clips import (
     extract_clip,
@@ -47,10 +47,10 @@ class JobCancelled(Exception):
 @dataclass
 class VideoResult:
     video: Path
-    info: Optional[VideoInfo]
+    info: VideoInfo | None
     events: list[Event] = field(default_factory=list)
     skipped: bool = False
-    error: Optional[str] = None
+    error: str | None = None
 
 
 @dataclass
@@ -80,8 +80,8 @@ def _collect_candidates(
     cfg: ReefScannerConfig,
     info: VideoInfo,
     detector,
-    on_frame: Optional[Callable[[float], None]] = None,
-    should_cancel: Optional[Callable[[], bool]] = None,
+    on_frame: Callable[[float], None] | None = None,
+    should_cancel: Callable[[], bool] | None = None,
 ) -> list[Candidate]:
     """Produce per-frame candidates by running the detector on sampled frames.
 
@@ -129,8 +129,8 @@ def process_video(
     info: VideoInfo,
     detector,
     ffmpeg: str,
-    on_frame: Optional[Callable[[float], None]] = None,
-    should_cancel: Optional[Callable[[], bool]] = None,
+    on_frame: Callable[[float], None] | None = None,
+    should_cancel: Callable[[], bool] | None = None,
 ) -> tuple[list[Event], list[dict]]:
     """Run the per-video pipeline. Returns (events, csv_rows).
 
@@ -167,9 +167,9 @@ def process_video(
 def process_folder(
     cfg: ReefScannerConfig,
     progress: bool = True,
-    on_video: Optional[Callable[[VideoResult], None]] = None,
-    on_frame: Optional[Callable[[Path, int, int, float], None]] = None,
-    should_cancel: Optional[Callable[[], bool]] = None,
+    on_video: Callable[[VideoResult], None] | None = None,
+    on_frame: Callable[[Path, int, int, float], None] | None = None,
+    should_cancel: Callable[[], bool] | None = None,
 ) -> BatchResult:
     """Process every video under ``cfg.input_folder`` into ``cfg.output_folder``.
 

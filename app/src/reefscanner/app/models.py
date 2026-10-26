@@ -1,37 +1,35 @@
-"""SQLModel tables — the app's state store.
+"""SQLModel tables for the app's own state: projects and scan runs.
 
-Division of responsibility with the engine (deliberate, don't collapse it):
+What a scan finds and what a reviewer decides live in the Camtrap DP tables
+(``reefscanner.core.camtrap.models``), in this same database: media, machine
+and human observations, and the sidecar. These tables only add what the app
+needs around them.
 
-* The engine's ``Manifest`` remains the resume mechanism for *video processing*
-  — "have I finished analysing this file?". It lives in the output folder next
-  to the clips it describes, so a results folder stays self-describing even if
-  the database is thrown away.
-* This database owns *app* state — projects, job history, and above all the
-  human labels, which the engine knows nothing about.
+* A **project** is one Camtrap deployment — a folder of footage from one place
+  — plus the config it is scanned with.
+* A **job** is one scan run. Its observations carry its id as ``scanID``, and
+  its files live in ``<output folder>/scan-<id>/``, which is also where its
+  Camtrap DP package is written.
 
-``reefscanner_results.csv`` is not the source of truth here, only an export
-format (``exports.py``).
+The engine's ``Manifest`` remains the resume mechanism for video processing:
+"have I finished analysing this file under these settings?".
 """
 
 # NOTE: no ``from __future__ import annotations`` here on purpose. SQLModel
 # resolves Relationship targets by evaluating the field annotation at class
 # creation, and postponed evaluation turns those into unresolvable strings
 # ("expression \"relationship(...)\" seems to be using a generic class").
-# Python >= 3.10 is required anyway, so builtin generics work unquoted.
+# Python >= 3.12 is required anyway, so builtin generics work unquoted.
 
 import datetime as _dt
-from typing import Any, List, Optional
+from pathlib import Path
+from typing import Any
 
-from sqlalchemy import Column, Text, UniqueConstraint
+from sqlalchemy import Column, Text
 from sqlmodel import JSON, Field, Relationship, SQLModel
 
-# Label verdicts. Deliberately three-valued: an event nobody has looked at yet
-# has *no* Label row at all, which is different from one a human looked at and
-# couldn't call (``unsure``).
-VERDICT_TP = "TP"
-VERDICT_FP = "FP"
-VERDICT_UNSURE = "unsure"
-VALID_VERDICTS = (VERDICT_TP, VERDICT_FP, VERDICT_UNSURE)
+# The Camtrap tables must be registered on the same metadata.
+from reefscanner.core.camtrap import models as _camtrap  # noqa: F401
 
 # Job lifecycle.
 JOB_PENDING = "pending"
@@ -47,10 +45,12 @@ def _utcnow() -> _dt.datetime:
 
 
 class Project(SQLModel, table=True):
-    """A folder of footage plus the config used to analyse it."""
+    """A folder of footage from one place, its deployment, and its config."""
 
-    id: Optional[int] = Field(default=None, primary_key=True)
+    id: int | None = Field(default=None, primary_key=True)
     name: str = Field(index=True)
+    #: The Camtrap deployment this project is. Deleted with the project.
+    deployment_id: str = Field(foreign_key="deployments.deploymentID", unique=True)
     input_folder: str
     output_folder: str
     #: A full ``ReefScannerConfig.to_dict()``. Stored whole rather than as
@@ -58,16 +58,16 @@ class Project(SQLModel, table=True):
     config: dict[str, Any] = Field(default_factory=dict, sa_column=Column(JSON))
     created_at: _dt.datetime = Field(default_factory=_utcnow)
 
-    jobs: List["Job"] = Relationship(
+    jobs: list["Job"] = Relationship(
         back_populates="project",
         sa_relationship_kwargs={"cascade": "all, delete-orphan"},
     )
 
 
 class Job(SQLModel, table=True):
-    """One run of the engine over a project's input folder."""
+    """One scan run over a project's input folder."""
 
-    id: Optional[int] = Field(default=None, primary_key=True)
+    id: int | None = Field(default=None, primary_key=True)
     project_id: int = Field(foreign_key="project.id", index=True)
     status: str = Field(default=JOB_PENDING, index=True)
     #: 0.0–1.0. Videos are the unit; a long single video moves in fractions of
@@ -78,77 +78,18 @@ class Job(SQLModel, table=True):
     videos_total: int = 0
     videos_done: int = 0
     events_found: int = 0
-    started_at: Optional[_dt.datetime] = None
-    finished_at: Optional[_dt.datetime] = None
-    error: Optional[str] = Field(default=None, sa_column=Column(Text))
+    started_at: _dt.datetime | None = None
+    finished_at: _dt.datetime | None = None
+    error: str | None = Field(default=None, sa_column=Column(Text))
 
-    project: Optional[Project] = Relationship(back_populates="jobs")
-    events: List["Event"] = Relationship(
-        back_populates="job",
-        sa_relationship_kwargs={"cascade": "all, delete-orphan"},
-    )
+    project: Project | None = Relationship(back_populates="jobs")
 
 
-class Event(SQLModel, table=True):
-    """A detected moment — mirrors ``core.events.Event`` plus output paths.
-
-    ``event_id`` is the engine's own id (``<video-stem>_<seq>``), unique only
-    within a job, hence the composite constraint rather than a primary key.
-    """
-
-    __table_args__ = (UniqueConstraint("job_id", "event_id", name="uq_event_job_eid"),)
-
-    id: Optional[int] = Field(default=None, primary_key=True)
-    job_id: int = Field(foreign_key="job.id", index=True)
-    event_id: str = Field(index=True)
-    source_video: str
-    start_seconds: float
-    end_seconds: float
-    duration_seconds: float = 0.0
-    peak_timestamp: float = 0.0
-    peak_score: float = 0.0
-    #: ``[x, y, w, h]`` at the peak frame, in original video resolution.
-    peak_bbox: Optional[list[int]] = Field(default=None, sa_column=Column(JSON))
-    motion_score: Optional[float] = None
-    ml_confidence: Optional[float] = None
-    detected_class: Optional[str] = Field(default=None, index=True)
-    #: Wall-clock ISO time of the event start, "" when the video has no
-    #: creation-time metadata.
-    start_timestamp: str = ""
-    #: Source video resolution — the coordinate space ``peak_bbox`` lives in.
-    #: Recorded at ingest so the annotation exporters don't have to reopen
-    #: media just to normalise a box. Null only if the video couldn't be probed.
-    frame_width: Optional[int] = None
-    frame_height: Optional[int] = None
-    clip_path: Optional[str] = None
-    thumbnail_path: Optional[str] = None
-    #: Clean peak frame with no annotation — what the exporters reference.
-    frame_path: Optional[str] = None
-
-    job: Optional[Job] = Relationship(back_populates="events")
-    label: Optional["Label"] = Relationship(
-        back_populates="event",
-        sa_relationship_kwargs={"cascade": "all, delete-orphan", "uselist": False},
-    )
+def scan_id(job_id: int) -> str:
+    """The ``scanID`` a job's observations carry."""
+    return f"scan-{job_id}"
 
 
-class Label(SQLModel, table=True):
-    """A human's verdict on an event — the point of the whole app.
-
-    One row per event (upserted, not appended): the current opinion is what
-    matters, and an audit trail of a solo researcher changing their mind isn't
-    worth the complexity. ``tight_bbox`` is optional and only set when someone
-    corrects the engine's box, which is what makes these rows usable as
-    fine-tuning data later.
-    """
-
-    id: Optional[int] = Field(default=None, primary_key=True)
-    event_id: int = Field(foreign_key="event.id", unique=True, index=True)
-    verdict: str = Field(index=True)
-    species: Optional[str] = Field(default=None, index=True)
-    notes: Optional[str] = Field(default=None, sa_column=Column(Text))
-    #: ``[x, y, w, h]`` — a human-corrected box, original resolution.
-    tight_bbox: Optional[list[int]] = Field(default=None, sa_column=Column(JSON))
-    updated_at: _dt.datetime = Field(default_factory=_utcnow)
-
-    event: Optional[Event] = Relationship(back_populates="label")
+def run_folder(project: Project, job_id: int) -> Path:
+    """Where a run's files and its Camtrap DP package live."""
+    return Path(project.output_folder).expanduser() / scan_id(job_id)

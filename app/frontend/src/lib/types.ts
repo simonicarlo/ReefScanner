@@ -2,9 +2,10 @@
 // from the OpenAPI doc: the surface is small, and a generator would be one
 // more build step between an endpoint changing and the type changing.
 
-export type Verdict = "TP" | "FP" | "unsure";
+/** TP; FP with nothing there; FP with something else there; unsure. */
+export const VERDICTS = ["TP", "FP", "FP-other", "unsure"] as const;
 
-export const VERDICTS: Verdict[] = ["TP", "FP", "unsure"];
+export type Verdict = (typeof VERDICTS)[number];
 
 export type JobStatus =
   | "pending"
@@ -15,6 +16,24 @@ export type JobStatus =
 
 export const TERMINAL: JobStatus[] = ["done", "failed", "cancelled"];
 
+/** The Camtrap DP deployment a project is: where and how it was filmed. */
+export interface DeploymentWrite {
+  latitude: number;
+  longitude: number;
+  location_name?: string | null;
+  camera_depth?: number | null;
+  bait_use?: boolean | null;
+  comments?: string | null;
+}
+
+export interface Deployment extends DeploymentWrite {
+  deployment_id: string;
+  start: string | null;
+  end: string | null;
+  /** Some video's start time had to be guessed from the file. */
+  timestamp_issues: boolean;
+}
+
 export interface Project {
   id: number;
   name: string;
@@ -23,6 +42,7 @@ export interface Project {
   config: Record<string, unknown>;
   created_at: string;
   job_count: number;
+  deployment: Deployment;
 }
 
 export interface Job {
@@ -39,35 +59,35 @@ export interface Job {
   error: string | null;
 }
 
-export interface Label {
+export interface Review {
   verdict: Verdict;
-  species: string | null;
+  /** The species for a TP; what it was instead for an FP-other. */
+  scientific_name: string | null;
   notes: string | null;
-  tight_bbox: number[] | null;
-  updated_at: string;
+  /** [x, y, width, height] as fractions of the frame, each 0 to 1. */
+  bbox: number[] | null;
+  reviewed_at: string | null;
 }
 
 export interface ReefEvent {
-  id: number;
+  /** The Camtrap eventID. Contains ":", so encode it in URLs. */
+  id: string;
   job_id: number;
-  event_id: string;
   source_video: string;
   start_seconds: number;
   end_seconds: number;
   duration_seconds: number;
-  peak_timestamp: number;
-  peak_score: number;
-  peak_bbox: number[] | null;
-  motion_score: number | null;
-  ml_confidence: number | null;
+  peak_seconds: number;
+  /** Wall-clock start, with the camera timezone's offset. */
+  start_time: string;
+  confidence: number | null;
   detected_class: string | null;
-  start_timestamp: string;
-  frame_width: number | null;
-  frame_height: number | null;
-  clip_url: string | null;
-  thumbnail_url: string | null;
-  frame_url: string | null;
-  label: Label | null;
+  scientific_name: string | null;
+  /** [x, y, width, height] as fractions of the frame, each 0 to 1. */
+  bbox: number[] | null;
+  clip_url: string;
+  frame_url: string;
+  review: Review | null;
 }
 
 export interface EventPage {

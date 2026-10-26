@@ -20,7 +20,7 @@ import argparse
 import logging
 import sys
 from pathlib import Path
-from typing import Optional, Sequence
+from typing import Sequence
 
 from . import __version__
 from .config import VALID_BACKENDS, VALID_DETECTORS, ReefScannerConfig
@@ -120,7 +120,7 @@ def _config_from_args(args: argparse.Namespace) -> ReefScannerConfig:
     return ReefScannerConfig.from_dict(data)
 
 
-def main(argv: Optional[Sequence[str]] = None) -> int:
+def main(argv: Sequence[str] | None = None) -> int:
     parser = argparse.ArgumentParser(
         prog="reefscanner",
         description="Triage static-camera underwater video for marine megafauna.",

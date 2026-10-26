@@ -20,9 +20,9 @@ VERSION="$(sed -n 's/^version = "\(.*\)"/\1/p' pyproject.toml)"
 
 step() { printf '\n==> %s\n' "$*"; }
 
-step "Build environment (standalone Python 3.11)"
+step "Build environment (standalone Python from .python-version)"
 if [ ! -x "$PY" ]; then
-  uv venv --managed-python --python 3.11 "$VENV"
+  uv venv --managed-python --python "$(cat "$ROOT/../.python-version")" "$VENV"
 fi
 uv pip install --python "$PY" -e ../core -e ".[desktop]" imageio-ffmpeg pyinstaller
 

@@ -26,7 +26,7 @@ from __future__ import annotations
 
 import ast
 import logging
-from typing import Optional, Sequence
+from typing import Sequence
 
 import cv2
 import numpy as np
@@ -165,10 +165,10 @@ class OnnxYoloDetector:
         name: str,
         weights: str,
         conf: float = 0.25,
-        target_classes: Optional[Sequence[str]] = None,
+        target_classes: Sequence[str] | None = None,
         iou: float = DEFAULT_IOU,
         max_det: int = DEFAULT_MAX_DET,
-        providers: Optional[Sequence[str]] = None,
+        providers: Sequence[str] | None = None,
         session=None,
         **_options,
     ) -> None:

@@ -9,6 +9,7 @@ events -> clips/CSV with detected_class — independent of any real model.
 from __future__ import annotations
 
 import csv
+from pathlib import Path
 
 from reefscanner.core import (
     Candidate,
@@ -22,7 +23,7 @@ from reefscanner.core.results import CSV_COLUMNS
 from conftest import StubDetector, make_video
 
 
-def _cfg(input_dir, output_dir, **over):
+def _cfg(input_dir: Path, output_dir: Path, **over: object) -> Cfg:
     base = dict(
         input_folder=str(input_dir),
         output_folder=str(output_dir),
@@ -37,7 +38,7 @@ def _cfg(input_dir, output_dir, **over):
     return ReefScannerConfig(**base)
 
 
-def test_detector_mode_end_to_end(monkeypatch, input_dir, output_dir):
+def test_detector_mode_end_to_end(monkeypatch, input_dir, output_dir) -> None:
     import reefscanner.core.pipeline as pipeline
 
     # Inject the stub instead of building a real YOLO detector.
@@ -59,7 +60,7 @@ def test_detector_mode_end_to_end(monkeypatch, input_dir, output_dir):
     assert row["species"] == ""                  # human-reserved, still blank
 
 
-def test_detector_mode_motion_prefilter(monkeypatch, input_dir, output_dir):
+def test_detector_mode_motion_prefilter(monkeypatch, input_dir, output_dir) -> None:
     """motion_prefilter must not drop the moving animal (recall-safe skip)."""
     import reefscanner.core.pipeline as pipeline
 
@@ -74,7 +75,7 @@ def test_detector_mode_motion_prefilter(monkeypatch, input_dir, output_dir):
     assert batch.n_events >= 1  # the moving shark still gets through
 
 
-def test_aggregate_events_records_class_and_confidence():
+def test_aggregate_events_records_class_and_confidence() -> None:
     cfg = Cfg(merge_gap_seconds=3.0, min_event_seconds=0.0)
     cands = [
         Candidate(0, 0, 0.0, (0, 0, 10, 10), score=0.5, class_name="ray",

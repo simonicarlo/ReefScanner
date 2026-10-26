@@ -27,6 +27,9 @@ holds. Feature specs and plans for any item go in [`features/`](features/).
   migrated: no results CSVs, databases or manifests.
 - **Database:** start fresh. Tables mirror Camtrap DP
   through the ORM (SQLModel, as in v2), with Alembic migrations from day one.
+- **Python:** 3.12+ supported (`requires-python`), developed and shipped on
+  the version in `.python-version` (3.14). Move the pin to 3.15 once
+  onnxruntime publishes 3.15 wheels (torch and onnx too, for model export).
 - **Hardware:** development targets a laptop; specific boards come later and
   only by benchmark.
 - **No test bench yet.** Build the prototype as well as we can, then test and
@@ -73,8 +76,12 @@ Gate: replayed footage gives the same events as the v2 desktop scan.
       annotated thumbnail, Camtrap DP rows
 - [ ] Replay simulator: run the whole agent on a laptop against the baseline
       footage, write a package, and diff its events against the v2 reference
-- [ ] Field app reads Camtrap DP packages and feeds them into the existing review
-      flow; verdicts written back as human observations
+- [x] Field app on Camtrap DP: scans write media and machine observations,
+      reviews write human observations, a run exports as a package
+      ([design](features/2026-10-26-app-on-camtrap-design.md))
+- [ ] Field app imports Camtrap DP packages (from the rig) into the review flow
+- [ ] Contributors and project metadata for packages (a settings page); today
+      the contributor is the local user name
 
 ## Phase 1 · Bench prototype
 

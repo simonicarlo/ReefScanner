@@ -20,7 +20,6 @@ import datetime as _dt
 import json
 import os
 from pathlib import Path
-from typing import Optional
 
 
 class Manifest:
@@ -32,7 +31,7 @@ class Manifest:
         manifest_path: str | Path,
         input_root: str | Path,
         scan_key: str,
-    ):
+    ) -> None:
         self.manifest_path = Path(manifest_path)
         self.input_root = Path(input_root)
         #: Fingerprint of the config for *this* run.
@@ -74,7 +73,7 @@ class Manifest:
         self,
         video_path: str | Path,
         n_events: int,
-        event_ids: Optional[list[str]] = None,
+        event_ids: list[str] | None = None,
     ) -> None:
         self._data["videos"][self._key(video_path)] = {
             "status": "complete",

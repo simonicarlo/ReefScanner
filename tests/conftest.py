@@ -14,6 +14,8 @@ import cv2
 import numpy as np
 import pytest
 
+from reefscanner.core.detection import Detection
+
 
 def make_video(
     path: Path,
@@ -92,11 +94,11 @@ class StubDetector:
     name = "stub"
     class_names = ["shark"]
 
-    def __init__(self, confidence: float = 0.9, min_area: int = 1000):
+    def __init__(self, confidence: float = 0.9, min_area: int = 1000) -> None:
         self.confidence = confidence
         self.min_area = min_area
 
-    def detect(self, frame):
+    def detect(self, frame: np.ndarray) -> list[Detection]:
         from reefscanner.core.detection import Detection
 
         gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
@@ -116,7 +118,7 @@ class StubDetector:
 
 
 @pytest.fixture
-def stub_detector(monkeypatch):
+def stub_detector(monkeypatch: pytest.MonkeyPatch) -> StubDetector:
     """Patch the pipeline's detector factory to return the stub.
 
     The same instance is both patched in and returned, so a test can configure

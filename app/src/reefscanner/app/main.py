@@ -12,9 +12,9 @@ from __future__ import annotations
 
 import asyncio
 import logging
+from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 from pathlib import Path
-from typing import Optional
 
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
@@ -39,7 +39,7 @@ DEV_ORIGINS = ["http://localhost:5173", "http://127.0.0.1:5173"]
 
 
 def create_app(
-    db_path: Optional[str | Path] = None,
+    db_path: str | Path | None = None,
     allow_dev_origins: bool = True,
 ) -> FastAPI:
     database = Database(db_path)
@@ -48,7 +48,7 @@ def create_app(
     runner = JobRunner(database, on_update=hub.publish)
 
     @asynccontextmanager
-    async def lifespan(app: FastAPI):
+    async def lifespan(app: FastAPI) -> AsyncIterator[None]:
         hub.bind_loop(asyncio.get_running_loop())
         _reconcile_orphaned_jobs(database)
         yield

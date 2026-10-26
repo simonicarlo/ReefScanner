@@ -14,11 +14,15 @@ const TONE = {
 export function JobRow({
   job,
   onCancel,
+  onResume,
 }: {
   job: Job;
   onCancel?: (id: number) => void;
+  onResume?: (id: number) => void;
 }) {
   const live = job.status === "running" || job.status === "pending";
+  // A stopped run picks up where it left off, keeping its events whole.
+  const resumable = job.status === "cancelled" || job.status === "failed";
   const hasEvents = job.events_found > 0;
 
   return (
@@ -76,6 +80,14 @@ export function JobRow({
             onClick={() => onCancel(job.id)}
           >
             Stop
+          </Button>
+        ) : resumable && onResume ? (
+          <Button
+            size="sm"
+            className="relative z-10"
+            onClick={() => onResume(job.id)}
+          >
+            Resume
           </Button>
         ) : (
           <span

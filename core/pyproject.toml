@@ -6,7 +6,7 @@ build-backend = "hatchling.build"
 name = "reefscanner-core"
 version = "3.0.0.dev0"
 description = "ReefScanner's detection engine: scans static-camera (BRUV) video for marine megafauna."
-requires-python = ">=3.10"
+requires-python = ">=3.12"
 license = "MIT"
 authors = [{ name = "ReefScanner contributors" }]
 keywords = ["marine", "bruv", "video", "triage", "opencv", "yolo"]

@@ -34,7 +34,7 @@ def _cfg(input_dir: Path, output_dir: Path, **over) -> ReefScannerConfig:
     return ReefScannerConfig(**base)
 
 
-def test_end_to_end_produces_csv_clips_thumbnails(stub_detector, input_dir, output_dir):
+def test_end_to_end_produces_csv_clips_thumbnails(stub_detector, input_dir, output_dir) -> None:
     input_dir.mkdir()
     make_video(input_dir / "dive01.mp4", with_animal=True)
     cfg = _cfg(input_dir, output_dir)
@@ -58,7 +58,7 @@ def test_end_to_end_produces_csv_clips_thumbnails(stub_detector, input_dir, outp
         assert row["event_id"].startswith("dive01_")
 
 
-def test_event_ids_unique_across_batch(stub_detector, input_dir, output_dir):
+def test_event_ids_unique_across_batch(stub_detector, input_dir, output_dir) -> None:
     input_dir.mkdir()
     make_video(input_dir / "dive01.mp4", with_animal=True)
     make_video(input_dir / "dive02.mp4", with_animal=True)
@@ -68,7 +68,7 @@ def test_event_ids_unique_across_batch(stub_detector, input_dir, output_dir):
     assert len(ids) == len(set(ids)), "event_ids must be unique across the batch"
 
 
-def test_resume_skips_completed_videos(stub_detector, input_dir, output_dir):
+def test_resume_skips_completed_videos(stub_detector, input_dir, output_dir) -> None:
     input_dir.mkdir()
     make_video(input_dir / "dive01.mp4", with_animal=True)
     cfg = _cfg(input_dir, output_dir)
@@ -87,14 +87,14 @@ def test_resume_skips_completed_videos(stub_detector, input_dir, output_dir):
     assert len(rows) == n_events_first, "resume must not duplicate CSV rows"
 
 
-def test_on_frame_reports_progress_within_a_video(stub_detector, input_dir, output_dir):
+def test_on_frame_reports_progress_within_a_video(stub_detector, input_dir, output_dir) -> None:
     """The per-frame hook is what lets a UI move during one long video."""
     input_dir.mkdir()
     make_video(input_dir / "dive01.mp4", with_animal=True)
 
     seen = []
 
-    def on_frame(video, index, total, fraction):
+    def on_frame(video, index, total, fraction) -> None:
         seen.append((video.name, index, total, fraction))
 
     process_folder(_cfg(input_dir, output_dir), progress=False, on_frame=on_frame)
@@ -108,7 +108,7 @@ def test_on_frame_reports_progress_within_a_video(stub_detector, input_dir, outp
     assert fractions[-1] > fractions[0], "progress must actually advance"
 
 
-def test_should_cancel_stops_the_run(stub_detector, input_dir, output_dir):
+def test_should_cancel_stops_the_run(stub_detector, input_dir, output_dir) -> None:
     """Cancelling mid-video leaves the batch partial, not failed."""
     input_dir.mkdir()
     make_video(input_dir / "dive01.mp4", with_animal=True)
@@ -116,7 +116,7 @@ def test_should_cancel_stops_the_run(stub_detector, input_dir, output_dir):
 
     calls = {"n": 0}
 
-    def should_cancel():
+    def should_cancel() -> bool:
         calls["n"] += 1
         return calls["n"] > 3  # bail a few frames into the first video
 
@@ -130,7 +130,7 @@ def test_should_cancel_stops_the_run(stub_detector, input_dir, output_dir):
     assert not any(r.error for r in batch.results)
 
 
-def test_cancelled_video_is_not_marked_complete(stub_detector, input_dir, output_dir):
+def test_cancelled_video_is_not_marked_complete(stub_detector, input_dir, output_dir) -> None:
     """A cancelled run must be safely resumable — the manifest stays honest."""
     import json
 
@@ -158,7 +158,7 @@ def test_cancelled_video_is_not_marked_complete(stub_detector, input_dir, output
     assert batch.n_events >= 1
 
 
-def test_changing_settings_reprocesses_instead_of_skipping(stub_detector, input_dir, output_dir):
+def test_changing_settings_reprocesses_instead_of_skipping(stub_detector, input_dir, output_dir) -> None:
     """Changing a detection setting must invalidate the manifest.
 
     Otherwise the second run skips every video, finishes instantly and reports
@@ -184,7 +184,7 @@ def test_changing_settings_reprocesses_instead_of_skipping(stub_detector, input_
     assert changed.n_events >= 1
 
 
-def test_output_paths_do_not_invalidate_the_manifest(stub_detector, input_dir, output_dir, tmp_path):
+def test_output_paths_do_not_invalidate_the_manifest(stub_detector, input_dir, output_dir, tmp_path) -> None:
     """Renaming the clips folder isn't a reason to redo hours of analysis."""
     input_dir.mkdir()
     make_video(input_dir / "dive01.mp4", with_animal=True)
@@ -198,7 +198,7 @@ def test_output_paths_do_not_invalidate_the_manifest(stub_detector, input_dir, o
 
 def test_writes_clean_frame_beside_annotated_thumbnail(
     stub_detector, input_dir, output_dir
-):
+) -> None:
     """Training images must not have the detection box burned into them."""
     import cv2
     import numpy as np
@@ -218,7 +218,7 @@ def test_writes_clean_frame_beside_annotated_thumbnail(
 
     # The box is drawn in pure red (BGR 0,0,255); the synthetic footage is grey,
     # so a strongly red pixel can only have come from the annotation.
-    def has_red(path):
+    def has_red(path: Path) -> bool:
         img = cv2.imread(str(path)).astype(int)
         b, g, r = img[:, :, 0], img[:, :, 1], img[:, :, 2]
         return bool(np.any((r > 180) & (g < 80) & (b < 80)))

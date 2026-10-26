@@ -18,14 +18,19 @@ export const keys = {
     ["events", jobId, filters] as const,
   classes: (jobId: number) => ["classes", jobId] as const,
   species: (jobId: number) => ["species", jobId] as const,
-  event: (id: number) => ["event", id] as const,
+  event: (id: string) => ["event", id] as const,
 };
 
 export const useProjects = () =>
   useQuery({ queryKey: keys.projects, queryFn: api.listProjects });
 
 export const useProject = (id: number) =>
-  useQuery({ queryKey: keys.project(id), queryFn: () => api.getProject(id) });
+  useQuery({
+    queryKey: keys.project(id),
+    queryFn: () => api.getProject(id),
+    // Pages that learn the project from a job pass 0 until the job loads.
+    enabled: id > 0,
+  });
 
 export const useConfigDefaults = () =>
   useQuery({
@@ -61,16 +66,16 @@ export const useThresholdAnalysis = (jobId: number) =>
     queryFn: () => api.thresholdAnalysis(jobId),
   });
 
-export function useSaveLabel(jobId: number) {
+export function useSaveReview(jobId: number) {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: (args: {
-      eventId: number;
+    mutationFn: ({ eventId, ...body }: {
+      eventId: string;
       verdict: Verdict;
-      species?: string | null;
+      scientific_name?: string | null;
       notes?: string | null;
-      tight_bbox?: number[] | null;
-    }) => api.saveLabel(args.eventId, args),
+      bbox?: number[] | null;
+    }) => api.saveReview(eventId, body),
     onSuccess: (updated) => {
       qc.setQueryData(keys.event(updated.id), updated);
       // The grid's counts and the species suggestions both move on a save.
@@ -90,6 +95,14 @@ export function useStartJob(projectId: number) {
       qc.invalidateQueries({ queryKey: keys.jobs(projectId) });
       qc.invalidateQueries({ queryKey: keys.project(projectId) });
     },
+  });
+}
+
+export function useResumeJob(projectId: number) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (jobId: number) => api.resumeJob(jobId),
+    onSuccess: () => qc.invalidateQueries({ queryKey: keys.jobs(projectId) }),
   });
 }
 

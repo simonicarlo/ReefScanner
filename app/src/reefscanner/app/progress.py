@@ -15,7 +15,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
-from typing import Any, Optional
+from typing import Any
 
 from fastapi import WebSocket
 
@@ -24,7 +24,7 @@ logger = logging.getLogger("reefscanner.app.progress")
 
 class ProgressHub:
     def __init__(self) -> None:
-        self._loop: Optional[asyncio.AbstractEventLoop] = None
+        self._loop: asyncio.AbstractEventLoop | None = None
         self._clients: set[WebSocket] = set()
         self._latest: dict[int, dict[str, Any]] = {}
 
@@ -32,7 +32,7 @@ class ProgressHub:
         """Called at startup, from the loop's own thread."""
         self._loop = loop
 
-    def latest(self, job_id: int) -> Optional[dict[str, Any]]:
+    def latest(self, job_id: int) -> dict[str, Any] | None:
         return self._latest.get(job_id)
 
     def snapshot(self) -> list[dict[str, Any]]:

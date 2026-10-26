@@ -105,6 +105,10 @@ function NewProjectForm({ onDone }: { onDone: () => void }) {
   const [outputFolder, setOutputFolder] = useState("");
   const [cameraTimezone, setCameraTimezone] = useState(LOCAL_TIMEZONE);
   const [cameraClock, setCameraClock] = useState<"local" | "utc">("local");
+  const [latitude, setLatitude] = useState("");
+  const [longitude, setLongitude] = useState("");
+  const [depth, setDepth] = useState("");
+  const [baited, setBaited] = useState(true);
 
   const create = useMutation({
     mutationFn: () =>
@@ -116,6 +120,12 @@ function NewProjectForm({ onDone }: { onDone: () => void }) {
         output_folder:
           outputFolder.trim() || `${inputFolder.trim().replace(/\/+$/, "")}_results`,
         config: { camera_timezone: cameraTimezone.trim(), camera_clock: cameraClock },
+        deployment: {
+          latitude: Number(latitude),
+          longitude: Number(longitude),
+          camera_depth: depth.trim() ? Number(depth) : null,
+          bait_use: baited,
+        },
       }),
     onSuccess: (project) => {
       queryClient.invalidateQueries({ queryKey: keys.projects });
@@ -158,7 +168,7 @@ function NewProjectForm({ onDone }: { onDone: () => void }) {
 
       <Field
         label="Results folder"
-        hint="Optional — defaults to the footage folder with '_results' appended. Clips, thumbnails and the CSV go here."
+        hint="Optional — defaults to the footage folder with '_results' appended. Each scan gets a folder here with its clips, frames and Camtrap DP package."
       >
         <Input
           className="font-mono text-xs"
@@ -169,6 +179,57 @@ function NewProjectForm({ onDone }: { onDone: () => void }) {
           }
         />
       </Field>
+
+      <div className="grid gap-4 md:grid-cols-4">
+        <Field label="Latitude" hint="Decimal degrees, south negative.">
+          <Input
+            className="font-mono text-xs"
+            type="number"
+            step="any"
+            min={-90}
+            max={90}
+            value={latitude}
+            onChange={(e) => setLatitude(e.target.value)}
+            placeholder="-23.8500"
+            required
+          />
+        </Field>
+        <Field label="Longitude" hint="Decimal degrees, west negative.">
+          <Input
+            className="font-mono text-xs"
+            type="number"
+            step="any"
+            min={-180}
+            max={180}
+            value={longitude}
+            onChange={(e) => setLongitude(e.target.value)}
+            placeholder="35.5500"
+            required
+          />
+        </Field>
+        <Field label="Depth (m)" hint="Optional. Water depth of the rig.">
+          <Input
+            className="font-mono text-xs"
+            type="number"
+            step="any"
+            min={0}
+            value={depth}
+            onChange={(e) => setDepth(e.target.value)}
+            placeholder="18"
+          />
+        </Field>
+        <Field label="Bait" hint="Was the rig baited?">
+          <label className="flex items-center gap-2 py-1.5 text-sm text-read">
+            <input
+              type="checkbox"
+              checked={baited}
+              onChange={(e) => setBaited(e.target.checked)}
+              className="accent-[var(--color-signal)]"
+            />
+            Baited (BRUV)
+          </label>
+        </Field>
+      </div>
 
       <div className="grid gap-4 md:grid-cols-2">
       <Field

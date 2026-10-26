@@ -1,8 +1,8 @@
 """Request/response models for the HTTP API.
 
-Separate from the SQLModel tables on purpose: the wire format shouldn't move
-every time a column does, and the read models flatten a Label onto its Event
-because that's how the review UI wants it (one card = one decision).
+Separate from the tables on purpose: the wire format shouldn't move every time
+a column does, and an "event" here flattens a machine observation, its sidecar
+and the human review into one card, because that's how the review UI wants it.
 
 Config is validated by round-tripping through ``ReefScannerConfig`` rather than
 being redeclared here — ``from_dict`` already rejects unknown keys and
@@ -13,12 +13,12 @@ they drift apart.
 from __future__ import annotations
 
 import datetime as _dt
-from typing import Any, Optional
+from typing import Any
 
 from pydantic import BaseModel, Field, field_validator
 
 from reefscanner.core.config import ReefScannerConfig
-from .models import VALID_VERDICTS
+from reefscanner.core.camtrap import VERDICTS
 
 
 def validated_config(data: dict[str, Any]) -> dict[str, Any]:
@@ -40,10 +40,31 @@ def _require_camera_timezone(v: dict[str, Any]) -> None:
         )
 
 
+class DeploymentWrite(BaseModel):
+    """Where and how the footage was filmed. Becomes the Camtrap deployment."""
+
+    latitude: float = Field(ge=-90, le=90)
+    longitude: float = Field(ge=-180, le=180)
+    location_name: str | None = None
+    #: Water depth of the rig, in metres.
+    camera_depth: float | None = Field(default=None, ge=0)
+    bait_use: bool | None = None
+    comments: str | None = None
+
+
+class DeploymentRead(DeploymentWrite):
+    deployment_id: str
+    start: _dt.datetime | None = None
+    end: _dt.datetime | None = None
+    #: True when some video's start time had to be guessed from the file.
+    timestamp_issues: bool = False
+
+
 class ProjectCreate(BaseModel):
     name: str = Field(min_length=1, max_length=200)
     input_folder: str = Field(min_length=1)
     output_folder: str = Field(min_length=1)
+    deployment: DeploymentWrite
     #: Partial or full engine config; unset keys take the engine's defaults,
     #: except camera_timezone, which has to be given.
     config: dict[str, Any]
@@ -60,14 +81,14 @@ class ProjectCreate(BaseModel):
 
 
 class ProjectUpdate(BaseModel):
-    name: Optional[str] = Field(default=None, min_length=1, max_length=200)
-    input_folder: Optional[str] = None
-    output_folder: Optional[str] = None
-    config: Optional[dict[str, Any]] = None
+    name: str | None = Field(default=None, min_length=1, max_length=200)
+    input_folder: str | None = None
+    output_folder: str | None = None
+    config: dict[str, Any] | None = None
 
     @field_validator("config")
     @classmethod
-    def _check_config(cls, v: Optional[dict[str, Any]]) -> Optional[dict[str, Any]]:
+    def _check_config(cls, v: dict[str, Any] | None) -> dict[str, Any] | None:
         if v is None:
             return v
         v = {k: val for k, val in v.items() if k not in ("input_folder", "output_folder")}
@@ -85,6 +106,7 @@ class ProjectRead(BaseModel):
     config: dict[str, Any]
     created_at: _dt.datetime
     job_count: int = 0
+    deployment: DeploymentRead
 
 
 class JobRead(BaseModel):
@@ -96,72 +118,78 @@ class JobRead(BaseModel):
     videos_total: int
     videos_done: int
     events_found: int
-    started_at: Optional[_dt.datetime] = None
-    finished_at: Optional[_dt.datetime] = None
-    error: Optional[str] = None
+    started_at: _dt.datetime | None = None
+    finished_at: _dt.datetime | None = None
+    error: str | None = None
 
 
-class LabelWrite(BaseModel):
-    """A human verdict. Upserted — posting twice updates, never duplicates."""
+def _check_relative_bbox(v: list[float] | None) -> list[float] | None:
+    if v is None:
+        return v
+    if len(v) != 4:
+        raise ValueError("bbox must be [x, y, width, height]")
+    x, y, w, h = v
+    if not (0 <= x <= 1 and 0 <= y <= 1 and 0 < w <= 1 and 0 < h <= 1):
+        raise ValueError("bbox values are fractions of the frame, from 0 to 1")
+    return v
+
+
+class ReviewWrite(BaseModel):
+    """A human verdict on an event. Posting again revises it, never duplicates.
+
+    ``scientific_name`` is the species for a TP, and what it was instead for an
+    FP-other; ``bbox`` is a corrected box, relative to the frame.
+    """
 
     verdict: str
-    species: Optional[str] = None
-    notes: Optional[str] = None
-    tight_bbox: Optional[list[int]] = None
+    scientific_name: str | None = None
+    notes: str | None = None
+    bbox: list[float] | None = None
 
     @field_validator("verdict")
     @classmethod
     def _check_verdict(cls, v: str) -> str:
-        if v not in VALID_VERDICTS:
-            raise ValueError(f"verdict must be one of {VALID_VERDICTS}")
+        if v not in VERDICTS:
+            raise ValueError(f"verdict must be one of {VERDICTS}")
         return v
 
-    @field_validator("tight_bbox")
+    @field_validator("bbox")
     @classmethod
-    def _check_bbox(cls, v: Optional[list[int]]) -> Optional[list[int]]:
-        if v is None:
-            return v
-        if len(v) != 4:
-            raise ValueError("tight_bbox must be [x, y, w, h]")
-        if v[2] <= 0 or v[3] <= 0:
-            raise ValueError("tight_bbox width and height must be > 0")
-        return v
+    def _check_bbox(cls, v: list[float] | None) -> list[float] | None:
+        return _check_relative_bbox(v)
 
 
-class LabelRead(BaseModel):
+class ReviewRead(BaseModel):
     verdict: str
-    species: Optional[str] = None
-    notes: Optional[str] = None
-    tight_bbox: Optional[list[int]] = None
-    updated_at: _dt.datetime
+    scientific_name: str | None = None
+    notes: str | None = None
+    bbox: list[float] | None = None
+    reviewed_at: _dt.datetime | None = None
 
 
 class EventRead(BaseModel):
-    """One reviewable event, with its label flattened in when there is one."""
+    """One reviewable event: the machine observation, its context, its review."""
 
-    id: int
+    #: The Camtrap ``eventID``. Contains ``:``, never ``/``.
+    id: str
     job_id: int
-    event_id: str
     source_video: str
     start_seconds: float
     end_seconds: float
     duration_seconds: float
-    peak_timestamp: float
-    peak_score: float
-    peak_bbox: Optional[list[int]] = None
-    motion_score: Optional[float] = None
-    ml_confidence: Optional[float] = None
-    detected_class: Optional[str] = None
-    start_timestamp: str = ""
-    frame_width: Optional[int] = None
-    frame_height: Optional[int] = None
+    peak_seconds: float
+    #: Wall-clock start, in the camera's timezone.
+    start_time: _dt.datetime
+    confidence: float | None = None
+    detected_class: str | None = None
+    scientific_name: str | None = None
+    #: The detector's box at the peak frame, relative to the frame (0 to 1).
+    bbox: list[float] | None = None
     #: URLs served by the media router, not filesystem paths — the UI must not
     #: need to know where on disk the output folder is.
-    clip_url: Optional[str] = None
-    thumbnail_url: Optional[str] = None
-    #: The clean frame, for anything that must not see the drawn box.
-    frame_url: Optional[str] = None
-    label: Optional[LabelRead] = None
+    clip_url: str
+    frame_url: str
+    review: ReviewRead | None = None
 
 
 class EventPage(BaseModel):
@@ -173,4 +201,5 @@ class EventPage(BaseModel):
     offset: int
     n_labeled: int
     n_tp: int
+    #: False positives of either kind (nothing there, or something else).
     n_fp: int

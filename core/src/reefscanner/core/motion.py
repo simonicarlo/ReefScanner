@@ -14,7 +14,6 @@ rescaling from the downscaled detection frame back to original resolution.
 
 from __future__ import annotations
 
-from typing import Optional
 
 import cv2
 import numpy as np
@@ -24,7 +23,7 @@ from .events import Candidate
 from .videoio import SampledFrame
 
 
-def _make_subtractor(cfg: ReefScannerConfig):
+def _make_subtractor(cfg: ReefScannerConfig) -> cv2.BackgroundSubtractor:
     if cfg.bg_subtractor.upper() == "KNN":
         return cv2.createBackgroundSubtractorKNN(
             history=cfg.bg_history, detectShadows=cfg.detect_shadows
@@ -44,7 +43,7 @@ class MotionGate:
     (SPEC §3, §7). Construct a fresh gate per video.
     """
 
-    def __init__(self, cfg: ReefScannerConfig):
+    def __init__(self, cfg: ReefScannerConfig) -> None:
         self.cfg = cfg
         self._sub = _make_subtractor(cfg)
         k = max(1, cfg.morph_kernel_size)
@@ -69,7 +68,7 @@ class MotionGate:
         fg = cv2.morphologyEx(fg, cv2.MORPH_CLOSE, self._kernel)
         return fg
 
-    def _largest_blob(self, fg: np.ndarray):
+    def _largest_blob(self, fg: np.ndarray) -> tuple[float, tuple[int, int, int, int]] | None:
         """Return (area, bbox) of the largest blob clearing the size filter, or None."""
         contours, _ = cv2.findContours(
             fg, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE
@@ -94,7 +93,7 @@ class MotionGate:
         )
         return bbox, area * inv * inv  # area scales with the square
 
-    def process(self, sample: SampledFrame) -> Optional[Candidate]:
+    def process(self, sample: SampledFrame) -> Candidate | None:
         """Update the background model and return a motion Candidate, or None.
 
         Returns None during warm-up, when no blob clears the size filter, or

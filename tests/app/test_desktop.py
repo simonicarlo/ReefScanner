@@ -13,6 +13,7 @@ import socket
 import sys
 import types
 import urllib.request
+from pathlib import Path
 
 import pytest
 
@@ -20,35 +21,35 @@ from reefscanner.desktop import main as desktop
 
 
 @pytest.fixture
-def fake_webview(monkeypatch):
+def fake_webview(monkeypatch: pytest.MonkeyPatch) -> dict:
     """A stand-in for the ``webview`` module that records what it was asked."""
     calls: dict = {"windows": [], "started": False, "dialog": None}
 
     class FakeWindow:
-        def __init__(self, title, url=None, **kwargs):
+        def __init__(self, title, url=None, **kwargs) -> None:
             self.title = title
             self.url = url
             self.html = kwargs.pop("html", None)
             self.kwargs = kwargs
 
-        def load_url(self, url):
+        def load_url(self, url) -> None:
             self.url = url
 
-        def load_html(self, html):
+        def load_html(self, html) -> None:
             self.html = html
 
-        def create_file_dialog(self, _kind):
+        def create_file_dialog(self, _kind: str) -> list[str] | None:
             return calls["dialog"]
 
     module = types.ModuleType("webview")
     module.FOLDER_DIALOG = "folder"
 
-    def create_window(title, url=None, **kwargs):
+    def create_window(title: str, url: str | None = None, **kwargs: object) -> FakeWindow:
         window = FakeWindow(title, url, **kwargs)
         calls["windows"].append(window)
         return window
 
-    def start(func=None, args=(), **_kwargs):
+    def start(func=None, args=(), **_kwargs) -> None:
         # The real call shows the window, then runs func on a worker thread.
         window = calls["windows"][-1]
         calls["first_html"] = window.html
@@ -67,7 +68,7 @@ def fake_webview(monkeypatch):
 
 
 @pytest.fixture
-def fake_frontend(monkeypatch, tmp_path):
+def fake_frontend(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> Path:
     """Pretend a frontend build exists — the shell refuses to open without one."""
     static = tmp_path / "static"
     static.mkdir()

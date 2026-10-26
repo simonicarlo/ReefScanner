@@ -10,9 +10,9 @@ from __future__ import annotations
 import shutil
 import subprocess
 from pathlib import Path
-from typing import Optional
 
 import cv2
+import numpy as np
 
 from .config import ReefScannerConfig
 from .events import Event
@@ -43,7 +43,7 @@ def extract_clip(
     info: VideoInfo,
     cfg: ReefScannerConfig,
     out_dir: Path,
-    ffmpeg: Optional[str] = None,
+    ffmpeg: str | None = None,
 ) -> Path:
     """Extract one padded clip for ``event``; returns the clip path.
 
@@ -80,7 +80,7 @@ def extract_clip(
     return clip_path
 
 
-def read_peak_frame(event: Event, info: VideoInfo):
+def read_peak_frame(event: Event, info: VideoInfo) -> np.ndarray | None:
     """Decode the event's peak frame once. Callers may write it many ways."""
     cap = cv2.VideoCapture(str(info.path))
     try:

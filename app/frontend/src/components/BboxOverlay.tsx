@@ -1,28 +1,22 @@
 import { useEffect, useRef, useState } from "react";
 
 /**
- * Draws the engine's detection box over a video or image.
+ * Draws a detection box over a video or image.
  *
- * The box is in *source video* pixel coordinates while the element is laid out
- * at whatever size the panel gives it, so everything is converted to
- * percentages against the source resolution. That keeps the box glued to the
+ * Boxes are fractions of the frame, as Camtrap DP stores them, so they map
+ * straight onto percentages of the element. That keeps the box glued to the
  * animal as the window resizes, which is the only behaviour that matters here.
  */
 export function BboxOverlay({
   bbox,
-  frameWidth,
-  frameHeight,
   visible = true,
   tone = "signal",
 }: {
   bbox: number[] | null;
-  frameWidth: number | null;
-  frameHeight: number | null;
   visible?: boolean;
   tone?: "signal" | "hedge";
 }) {
   if (!visible || !bbox || bbox.length !== 4) return null;
-  if (!frameWidth || !frameHeight) return null;
 
   const [x, y, w, h] = bbox;
   const color = tone === "signal" ? "var(--color-signal)" : "var(--color-hedge)";
@@ -32,12 +26,13 @@ export function BboxOverlay({
       <div
         className="absolute border-2"
         style={{
-          left: `${(x / frameWidth) * 100}%`,
-          top: `${(y / frameHeight) * 100}%`,
-          width: `${(w / frameWidth) * 100}%`,
-          height: `${(h / frameHeight) * 100}%`,
+          left: `${x * 100}%`,
+          top: `${y * 100}%`,
+          width: `${w * 100}%`,
+          height: `${h * 100}%`,
           borderColor: color,
-          boxShadow: `0 0 0 1px #0008, 0 0 18px -2px ${color}`,
+          // A dark hairline keeps the box readable on bright water.
+          boxShadow: `0 0 0 1px color-mix(in srgb, var(--color-abyss) 55%, transparent), 0 0 18px -2px ${color}`,
         }}
       >
         {/* Corner ticks: reads as an instrument reticle rather than a

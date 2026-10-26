@@ -8,6 +8,7 @@ import {
   useConfigDefaults,
   useJobs,
   useProject,
+  useResumeJob,
   useStartJob,
 } from "../lib/queries";
 import { JobRow } from "../components/JobRow";
@@ -92,6 +93,7 @@ export function ProjectDetail() {
   const { data: jobs } = useJobs(id);
   const startJob = useStartJob(id);
   const cancelJob = useCancelJob(id);
+  const resumeJob = useResumeJob(id);
 
   const [draft, setDraft] = useState<Record<string, unknown> | null>(null);
   const [showAll, setShowAll] = useState(false);
@@ -181,6 +183,9 @@ export function ProjectDetail() {
       </div>
 
       <ErrorNote error={startJob.error} />
+      <ErrorNote error={cancelJob.error} />
+      <ErrorNote error={resumeJob.error} />
+      <ErrorNote error={remove.error} />
 
       <section>
         <div className="mb-3 flex items-center justify-between">
@@ -198,7 +203,12 @@ export function ProjectDetail() {
         ) : (
           <div className="space-y-2">
             {jobs.map((job) => (
-              <JobRow key={job.id} job={job} onCancel={(jid) => cancelJob.mutate(jid)} />
+              <JobRow
+                key={job.id}
+                job={job}
+                onCancel={(jid) => cancelJob.mutate(jid)}
+                onResume={(jid) => resumeJob.mutate(jid)}
+              />
             ))}
           </div>
         )}

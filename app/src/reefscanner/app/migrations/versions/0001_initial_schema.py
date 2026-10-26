@@ -1,8 +1,8 @@
-"""Initial schema: the app tables plus Camtrap DP and its sidecar.
+"""Initial schema: projects and runs, plus Camtrap DP and its sidecar.
 
 Revision ID: 0001
 Revises: 
-Create Date: 2026-10-26 15:46:36.602480
+Create Date: 2026-10-26 16:44:10.413416
 """
 
 from typing import Sequence, Union
@@ -49,14 +49,35 @@ def upgrade() -> None:
     sa.Column('deploymentComments', sa.Text(), nullable=True),
     sa.PrimaryKeyConstraint('deploymentID')
     )
+    op.create_table('media',
+    sa.Column('mediaID', sqlmodel.sql.sqltypes.AutoString(), nullable=False),
+    sa.Column('deploymentID', sqlmodel.sql.sqltypes.AutoString(), nullable=False),
+    sa.Column('captureMethod', sqlmodel.sql.sqltypes.AutoString(), nullable=True),
+    sa.Column('timestamp', TZDateTime(), nullable=False),
+    sa.Column('filePath', sqlmodel.sql.sqltypes.AutoString(), nullable=False),
+    sa.Column('filePublic', sa.Boolean(), nullable=False),
+    sa.Column('fileName', sqlmodel.sql.sqltypes.AutoString(), nullable=True),
+    sa.Column('fileMediatype', sqlmodel.sql.sqltypes.AutoString(), nullable=False),
+    sa.Column('exifData', sa.JSON(), nullable=True),
+    sa.Column('favorite', sa.Boolean(), nullable=True),
+    sa.Column('mediaComments', sa.Text(), nullable=True),
+    sa.ForeignKeyConstraint(['deploymentID'], ['deployments.deploymentID'], ondelete='CASCADE'),
+    sa.PrimaryKeyConstraint('mediaID')
+    )
+    with op.batch_alter_table('media', schema=None) as batch_op:
+        batch_op.create_index(batch_op.f('ix_media_deploymentID'), ['deploymentID'], unique=False)
+
     op.create_table('project',
     sa.Column('id', sa.Integer(), nullable=False),
     sa.Column('name', sqlmodel.sql.sqltypes.AutoString(), nullable=False),
+    sa.Column('deployment_id', sqlmodel.sql.sqltypes.AutoString(), nullable=False),
     sa.Column('input_folder', sqlmodel.sql.sqltypes.AutoString(), nullable=False),
     sa.Column('output_folder', sqlmodel.sql.sqltypes.AutoString(), nullable=False),
     sa.Column('config', sa.JSON(), nullable=True),
     sa.Column('created_at', sa.DateTime(), nullable=False),
-    sa.PrimaryKeyConstraint('id')
+    sa.ForeignKeyConstraint(['deployment_id'], ['deployments.deploymentID'], ),
+    sa.PrimaryKeyConstraint('id'),
+    sa.UniqueConstraint('deployment_id')
     )
     with op.batch_alter_table('project', schema=None) as batch_op:
         batch_op.create_index(batch_op.f('ix_project_name'), ['name'], unique=False)
@@ -79,53 +100,6 @@ def upgrade() -> None:
     with op.batch_alter_table('job', schema=None) as batch_op:
         batch_op.create_index(batch_op.f('ix_job_project_id'), ['project_id'], unique=False)
         batch_op.create_index(batch_op.f('ix_job_status'), ['status'], unique=False)
-
-    op.create_table('media',
-    sa.Column('mediaID', sqlmodel.sql.sqltypes.AutoString(), nullable=False),
-    sa.Column('deploymentID', sqlmodel.sql.sqltypes.AutoString(), nullable=False),
-    sa.Column('captureMethod', sqlmodel.sql.sqltypes.AutoString(), nullable=True),
-    sa.Column('timestamp', TZDateTime(), nullable=False),
-    sa.Column('filePath', sqlmodel.sql.sqltypes.AutoString(), nullable=False),
-    sa.Column('filePublic', sa.Boolean(), nullable=False),
-    sa.Column('fileName', sqlmodel.sql.sqltypes.AutoString(), nullable=True),
-    sa.Column('fileMediatype', sqlmodel.sql.sqltypes.AutoString(), nullable=False),
-    sa.Column('exifData', sa.JSON(), nullable=True),
-    sa.Column('favorite', sa.Boolean(), nullable=True),
-    sa.Column('mediaComments', sa.Text(), nullable=True),
-    sa.ForeignKeyConstraint(['deploymentID'], ['deployments.deploymentID'], ondelete='CASCADE'),
-    sa.PrimaryKeyConstraint('mediaID')
-    )
-    with op.batch_alter_table('media', schema=None) as batch_op:
-        batch_op.create_index(batch_op.f('ix_media_deploymentID'), ['deploymentID'], unique=False)
-
-    op.create_table('event',
-    sa.Column('id', sa.Integer(), nullable=False),
-    sa.Column('job_id', sa.Integer(), nullable=False),
-    sa.Column('event_id', sqlmodel.sql.sqltypes.AutoString(), nullable=False),
-    sa.Column('source_video', sqlmodel.sql.sqltypes.AutoString(), nullable=False),
-    sa.Column('start_seconds', sa.Float(), nullable=False),
-    sa.Column('end_seconds', sa.Float(), nullable=False),
-    sa.Column('duration_seconds', sa.Float(), nullable=False),
-    sa.Column('peak_timestamp', sa.Float(), nullable=False),
-    sa.Column('peak_score', sa.Float(), nullable=False),
-    sa.Column('peak_bbox', sa.JSON(), nullable=True),
-    sa.Column('motion_score', sa.Float(), nullable=True),
-    sa.Column('ml_confidence', sa.Float(), nullable=True),
-    sa.Column('detected_class', sqlmodel.sql.sqltypes.AutoString(), nullable=True),
-    sa.Column('start_timestamp', sqlmodel.sql.sqltypes.AutoString(), nullable=False),
-    sa.Column('frame_width', sa.Integer(), nullable=True),
-    sa.Column('frame_height', sa.Integer(), nullable=True),
-    sa.Column('clip_path', sqlmodel.sql.sqltypes.AutoString(), nullable=True),
-    sa.Column('thumbnail_path', sqlmodel.sql.sqltypes.AutoString(), nullable=True),
-    sa.Column('frame_path', sqlmodel.sql.sqltypes.AutoString(), nullable=True),
-    sa.ForeignKeyConstraint(['job_id'], ['job.id'], ),
-    sa.PrimaryKeyConstraint('id'),
-    sa.UniqueConstraint('job_id', 'event_id', name='uq_event_job_eid')
-    )
-    with op.batch_alter_table('event', schema=None) as batch_op:
-        batch_op.create_index(batch_op.f('ix_event_detected_class'), ['detected_class'], unique=False)
-        batch_op.create_index(batch_op.f('ix_event_event_id'), ['event_id'], unique=False)
-        batch_op.create_index(batch_op.f('ix_event_job_id'), ['job_id'], unique=False)
 
     op.create_table('observations',
     sa.Column('observationID', sqlmodel.sql.sqltypes.AutoString(), nullable=False),
@@ -168,22 +142,6 @@ def upgrade() -> None:
         batch_op.create_index(batch_op.f('ix_observations_observationType'), ['observationType'], unique=False)
         batch_op.create_index(batch_op.f('ix_observations_scientificName'), ['scientificName'], unique=False)
 
-    op.create_table('label',
-    sa.Column('id', sa.Integer(), nullable=False),
-    sa.Column('event_id', sa.Integer(), nullable=False),
-    sa.Column('verdict', sqlmodel.sql.sqltypes.AutoString(), nullable=False),
-    sa.Column('species', sqlmodel.sql.sqltypes.AutoString(), nullable=True),
-    sa.Column('notes', sa.Text(), nullable=True),
-    sa.Column('tight_bbox', sa.JSON(), nullable=True),
-    sa.Column('updated_at', sa.DateTime(), nullable=False),
-    sa.ForeignKeyConstraint(['event_id'], ['event.id'], ),
-    sa.PrimaryKeyConstraint('id')
-    )
-    with op.batch_alter_table('label', schema=None) as batch_op:
-        batch_op.create_index(batch_op.f('ix_label_event_id'), ['event_id'], unique=True)
-        batch_op.create_index(batch_op.f('ix_label_species'), ['species'], unique=False)
-        batch_op.create_index(batch_op.f('ix_label_verdict'), ['verdict'], unique=False)
-
     op.create_table('reefscanner_detections',
     sa.Column('id', sa.Integer(), nullable=False),
     sa.Column('observationID', sqlmodel.sql.sqltypes.AutoString(), nullable=False),
@@ -201,7 +159,13 @@ def upgrade() -> None:
 
     op.create_table('reefscanner_observations',
     sa.Column('observationID', sqlmodel.sql.sqltypes.AutoString(), nullable=False),
+    sa.Column('scanID', sqlmodel.sql.sqltypes.AutoString(), nullable=True),
     sa.Column('trackID', sqlmodel.sql.sqltypes.AutoString(), nullable=True),
+    sa.Column('sourceVideo', sqlmodel.sql.sqltypes.AutoString(), nullable=True),
+    sa.Column('videoStartSeconds', sa.Float(), nullable=True),
+    sa.Column('videoEndSeconds', sa.Float(), nullable=True),
+    sa.Column('peakSeconds', sa.Float(), nullable=True),
+    sa.Column('detectorClass', sqlmodel.sql.sqltypes.AutoString(), nullable=True),
     sa.Column('modelName', sqlmodel.sql.sqltypes.AutoString(), nullable=True),
     sa.Column('modelVersion', sqlmodel.sql.sqltypes.AutoString(), nullable=True),
     sa.Column('detectorBackend', sqlmodel.sql.sqltypes.AutoString(), nullable=True),
@@ -209,22 +173,22 @@ def upgrade() -> None:
     sa.ForeignKeyConstraint(['observationID'], ['observations.observationID'], ondelete='CASCADE'),
     sa.PrimaryKeyConstraint('observationID')
     )
+    with op.batch_alter_table('reefscanner_observations', schema=None) as batch_op:
+        batch_op.create_index(batch_op.f('ix_reefscanner_observations_scanID'), ['scanID'], unique=False)
+
     # ### end Alembic commands ###
 
 
 def downgrade() -> None:
     # ### commands auto generated by Alembic - please adjust! ###
+    with op.batch_alter_table('reefscanner_observations', schema=None) as batch_op:
+        batch_op.drop_index(batch_op.f('ix_reefscanner_observations_scanID'))
+
     op.drop_table('reefscanner_observations')
     with op.batch_alter_table('reefscanner_detections', schema=None) as batch_op:
         batch_op.drop_index(batch_op.f('ix_reefscanner_detections_observationID'))
 
     op.drop_table('reefscanner_detections')
-    with op.batch_alter_table('label', schema=None) as batch_op:
-        batch_op.drop_index(batch_op.f('ix_label_verdict'))
-        batch_op.drop_index(batch_op.f('ix_label_species'))
-        batch_op.drop_index(batch_op.f('ix_label_event_id'))
-
-    op.drop_table('label')
     with op.batch_alter_table('observations', schema=None) as batch_op:
         batch_op.drop_index(batch_op.f('ix_observations_scientificName'))
         batch_op.drop_index(batch_op.f('ix_observations_observationType'))
@@ -234,16 +198,6 @@ def downgrade() -> None:
         batch_op.drop_index(batch_op.f('ix_observations_classificationMethod'))
 
     op.drop_table('observations')
-    with op.batch_alter_table('event', schema=None) as batch_op:
-        batch_op.drop_index(batch_op.f('ix_event_job_id'))
-        batch_op.drop_index(batch_op.f('ix_event_event_id'))
-        batch_op.drop_index(batch_op.f('ix_event_detected_class'))
-
-    op.drop_table('event')
-    with op.batch_alter_table('media', schema=None) as batch_op:
-        batch_op.drop_index(batch_op.f('ix_media_deploymentID'))
-
-    op.drop_table('media')
     with op.batch_alter_table('job', schema=None) as batch_op:
         batch_op.drop_index(batch_op.f('ix_job_status'))
         batch_op.drop_index(batch_op.f('ix_job_project_id'))
@@ -253,5 +207,9 @@ def downgrade() -> None:
         batch_op.drop_index(batch_op.f('ix_project_name'))
 
     op.drop_table('project')
+    with op.batch_alter_table('media', schema=None) as batch_op:
+        batch_op.drop_index(batch_op.f('ix_media_deploymentID'))
+
+    op.drop_table('media')
     op.drop_table('deployments')
     # ### end Alembic commands ###

@@ -1,15 +1,18 @@
 import { useState } from "react";
 import { Link, useParams } from "react-router-dom";
+import { useMutation } from "@tanstack/react-query";
 import { api } from "../lib/api";
 import {
   useClasses,
   useEvents,
   useJob,
   useJobs,
+  useProject,
   useThresholdAnalysis,
 } from "../lib/queries";
 import type { EventFilters, Job, ReefEvent, Verdict } from "../lib/types";
-import { basename, duration, percent, score, timecode } from "../lib/format";
+import { duration, percent, score, timecode } from "../lib/format";
+import { BboxOverlay } from "../components/BboxOverlay";
 import { Button, Empty, ErrorNote, Spinner, Tag, cx } from "../components/ui";
 import { ThresholdPanel } from "../components/ThresholdPanel";
 
@@ -18,7 +21,16 @@ const PAGE = 120;
 const VERDICT_TONE: Record<Verdict, "signal" | "reject" | "hedge"> = {
   TP: "signal",
   FP: "reject",
+  "FP-other": "reject",
   unsure: "hedge",
+};
+
+/** Short tag text; "FP-other" is too long for a card corner. */
+const VERDICT_TAG: Record<Verdict, string> = {
+  TP: "TP",
+  FP: "FP",
+  "FP-other": "FP · other",
+  unsure: "unsure",
 };
 
 export function JobDetail() {
@@ -30,6 +42,8 @@ export function JobDetail() {
   const { data: page, isLoading, error } = useEvents(id, filters);
   const { data: classes } = useClasses(id);
   const { data: thresholds } = useThresholdAnalysis(id);
+  const { data: project } = useProject(job?.project_id ?? 0);
+  const writePackage = useMutation({ mutationFn: () => api.writePackage(id) });
 
   const patch = (next: Partial<EventFilters>) =>
     setFilters((prev) => ({ ...prev, ...next, offset: 0 }));
@@ -59,7 +73,14 @@ export function JobDetail() {
         </div>
 
         <div className="flex flex-wrap items-center gap-2">
-          {(["csv", "coco", "yolo"] as const).map((format) => (
+          <Button
+            size="sm"
+            onClick={() => writePackage.mutate()}
+            disabled={writePackage.isPending}
+          >
+            {writePackage.isPending ? "Writing…" : "Write Camtrap DP package"}
+          </Button>
+          {(["coco", "yolo"] as const).map((format) => (
             <a key={format} href={api.exportUrl(id, format)} download>
               <Button size="sm" variant="ghost">
                 Export {format.toUpperCase()}
@@ -68,6 +89,23 @@ export function JobDetail() {
           ))}
         </div>
       </div>
+
+      {writePackage.data && (
+        <div className="rounded-[3px] border border-signal/40 bg-signal/10 px-3 py-2 text-sm text-signal">
+          Package written to <span className="font-mono">{writePackage.data.path}</span>{" "}
+          ({writePackage.data.observations} observations, {writePackage.data.media} media
+          files). The folder is the package: copy it to share it.
+        </div>
+      )}
+      <ErrorNote error={writePackage.error} />
+
+      {project?.deployment.timestamp_issues && (
+        <div className="rounded-[3px] border border-hedge/40 bg-hedge/10 px-3 py-2 text-sm text-hedge">
+          Some videos had no recorded start time, so their times were guessed from
+          the files' modification dates and may be off. The package marks this
+          deployment's timestamps as having issues.
+        </div>
+      )}
 
       {/* Review progress. The one number that says how much work is left. */}
       {page && page.total > 0 && (
@@ -126,7 +164,8 @@ export function JobDetail() {
           options={[
             { label: "Any verdict", value: undefined },
             { label: "TP", value: "TP" },
-            { label: "FP", value: "FP" },
+            { label: "Nothing there", value: "FP" },
+            { label: "Something else", value: "FP-other" },
             { label: "Unsure", value: "unsure" },
           ]}
           active={filters.verdict}
@@ -255,14 +294,11 @@ function EmptyGrid({
     return <Empty title="No events match">Try relaxing the filters above.</Empty>;
   }
 
-  const skippedEverything = (job?.message ?? "").startsWith("Nothing to do");
-
   return (
-    <Empty title={skippedEverything ? "Nothing was scanned" : "This run found nothing"}>
+    <Empty title="This run found nothing">
       <p>
-        {skippedEverything
-          ? "Every video had already been scanned with these exact settings, so there was nothing to redo. Change a setting on the project page and run again to rescan."
-          : "No detections passed the confidence threshold. Lowering it on the project page surfaces weaker detections, at the cost of more to review."}
+        No detections passed the confidence threshold. Lowering it on the
+        project page surfaces weaker detections, at the cost of more to review.
       </p>
       {withEvents.length > 0 && (
         <p className="mt-3">
@@ -341,27 +377,26 @@ function EventCard({
 }) {
   return (
     <Link
-      to={`/jobs/${jobId}/events/${event.id}`}
+      to={`/jobs/${jobId}/events/${encodeURIComponent(event.id)}`}
       style={{ animationDelay: `${delay}ms` }}
       className="panel rise group overflow-hidden transition-colors hover:border-signal/50"
     >
       <div className="relative aspect-video bg-abyss">
-        {event.thumbnail_url ? (
-          <img
-            src={event.thumbnail_url}
-            alt=""
-            loading="lazy"
-            className="h-full w-full object-cover opacity-90 transition-opacity group-hover:opacity-100"
-          />
-        ) : (
-          <div className="flex h-full items-center justify-center text-xs text-faint">
-            no thumbnail
-          </div>
-        )}
+        {/* The clean frame with the box drawn over it. Stretched to the card
+            rather than cropped, so the box stays on the animal. */}
+        <img
+          src={event.frame_url}
+          alt=""
+          loading="lazy"
+          className="h-full w-full object-fill opacity-90 transition-opacity group-hover:opacity-100"
+        />
+        <BboxOverlay bbox={event.review?.bbox ?? event.bbox} />
 
-        {event.label && (
+        {event.review && (
           <div className="absolute left-1.5 top-1.5">
-            <Tag tone={VERDICT_TONE[event.label.verdict]}>{event.label.verdict}</Tag>
+            <Tag tone={VERDICT_TONE[event.review.verdict]}>
+              {VERDICT_TAG[event.review.verdict]}
+            </Tag>
           </div>
         )}
 
@@ -377,21 +412,19 @@ function EventCard({
           className="truncate text-xs text-dim"
           title={event.source_video}
         >
-          {basename(event.source_video)}
+          {event.source_video}
         </div>
         <div className="flex items-center justify-between gap-2">
           <span className="tabular text-[11px] text-faint">
             {duration(event.duration_seconds)}
           </span>
           <span className="tabular text-[11px] text-faint">
-            {event.ml_confidence !== null
-              ? `conf ${score(event.ml_confidence)}`
-              : `motion ${score(event.motion_score, 0)}`}
+            conf {score(event.confidence)}
           </span>
         </div>
-        {event.label?.species && (
-          <div className="truncate text-[11px] text-signal">
-            {event.label.species}
+        {event.review?.scientific_name && (
+          <div className="truncate text-[11px] italic text-signal">
+            {event.review.scientific_name}
           </div>
         )}
       </div>

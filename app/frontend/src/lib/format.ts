@@ -42,6 +42,24 @@ export function score(value: number | null | undefined, digits = 2): string {
   return value === null || value === undefined ? "—" : value.toFixed(digits);
 }
 
+/**
+ * The clock time an ISO timestamp states, with its offset: "17:12:56 UTC+02:00".
+ *
+ * Deliberately not converted to the viewer's timezone. Footage filmed in
+ * Maputo and reviewed in Zurich must show Maputo time, the time of day the
+ * animal was actually there.
+ */
+export function clockTime(iso: string): string {
+  const m = /T(\d{2}:\d{2}:\d{2})(?:\.\d+)?(Z|[+-]\d{2}:\d{2})$/.exec(iso);
+  if (!m) return iso;
+  return `${m[1]} UTC${m[2] === "Z" ? "+00:00" : m[2]}`;
+}
+
+/** The readable tail of a Camtrap eventID: "dive01_001". */
+export function eventLabel(id: string): string {
+  return id.split(":").pop() || id;
+}
+
 export function shortDate(iso: string | null): string {
   if (!iso) return "—";
   const d = new Date(iso);

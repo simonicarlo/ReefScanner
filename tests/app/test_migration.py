@@ -31,7 +31,7 @@ def _revision(path) -> str:
         conn.close()
 
 
-def test_fresh_database_is_migrated_to_head(tmp_path):
+def test_fresh_database_is_migrated_to_head(tmp_path) -> None:
     db = Database(tmp_path / "fresh.db")
     db.migrate()
     db.dispose()
@@ -39,20 +39,20 @@ def test_fresh_database_is_migrated_to_head(tmp_path):
     head = ScriptDirectory.from_config(alembic_config()).get_current_head()
     assert _revision(tmp_path / "fresh.db") == head
     assert {
-        "project", "job", "event", "label",
+        "project", "job",
         "deployments", "media", "observations",
         "reefscanner_observations", "reefscanner_detections",
     } <= _tables(tmp_path / "fresh.db")
 
 
-def test_migrate_is_idempotent(tmp_path):
+def test_migrate_is_idempotent(tmp_path) -> None:
     db = Database(tmp_path / "x.db")
     db.migrate()
     db.migrate()  # every start runs it; the second run must be a no-op
     db.dispose()
 
 
-def test_models_and_migrations_agree(tmp_path):
+def test_models_and_migrations_agree(tmp_path) -> None:
     """Fails when a model changes without a migration.
 
     Fix by writing one from app/: uv run alembic revision --autogenerate -m "..."
@@ -65,7 +65,7 @@ def test_models_and_migrations_agree(tmp_path):
     assert diff == [], f"models differ from migrations: {diff}"
 
 
-def test_migrations_downgrade_cleanly(tmp_path):
+def test_migrations_downgrade_cleanly(tmp_path) -> None:
     db = Database(tmp_path / "x.db")
     db.migrate()
     cfg = alembic_config()

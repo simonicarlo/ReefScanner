@@ -21,11 +21,14 @@ import logging
 import threading
 import time
 from pathlib import Path
-from typing import Any, Callable, Optional
+from typing import Any, Callable
 
-from sqlmodel import select
+from sqlmodel import func, select
 
+from reefscanner.core.camtrap import Deployment, Observation, ObservationExtra
+from reefscanner.core.camtrap.build import ScanContext, rows_for_video
 from reefscanner.core.config import ReefScannerConfig
+from reefscanner.core.detectors import describe_model
 from reefscanner.core.pipeline import process_folder
 from .db import Database
 from .models import (
@@ -33,9 +36,9 @@ from .models import (
     JOB_DONE,
     JOB_FAILED,
     JOB_RUNNING,
-    Event,
     Job,
     Project,
+    scan_id,
 )
 
 logger = logging.getLogger("reefscanner.app.jobs")
@@ -57,14 +60,58 @@ def config_for(project: Project) -> ReefScannerConfig:
     return ReefScannerConfig.from_dict(data)
 
 
+def run_config(project: Project, job_id: int) -> ReefScannerConfig:
+    """The project's config with everything this run writes in its own folder.
+
+    Each run keeps its clips, frames and manifest in ``scan-<id>/``, so a
+    rescan never overwrites an earlier run's files and the folder is a
+    self-contained Camtrap DP package. The manifest is per run on purpose: a
+    shared one would let a new run skip videos an earlier run finished, and
+    its package would silently lack them. Resuming the *same* run is what
+    skips finished videos.
+    """
+    folder = scan_id(job_id)
+    data = config_for(project).to_dict()
+    for key in (
+        "clips_dirname", "thumbnails_dirname", "frames_dirname", "csv_name",
+        "manifest_name",
+    ):
+        data[key] = f"{folder}/{data[key]}"
+    return ReefScannerConfig.from_dict(data)
+
+
+def scan_context(project: Project, cfg: ReefScannerConfig, job_id: int) -> ScanContext:
+    """What the Camtrap mapping needs to know about this run."""
+    model_name, model_version = describe_model(cfg)
+    folder = scan_id(job_id)
+    return ScanContext(
+        deployment_id=project.deployment_id,
+        scan_id=folder,
+        camera_timezone=cfg.camera_timezone,
+        camera_clock=cfg.camera_clock,
+        # Relative to the run folder, which is the package root.
+        clips_dir=cfg.clips_dirname.removeprefix(f"{folder}/"),
+        frames_dir=cfg.frames_dirname.removeprefix(f"{folder}/"),
+        frame_ext=cfg.thumbnail_ext,
+        pad_seconds=cfg.pad_seconds,
+        model_name=model_name,
+        model_version=model_version,
+        detector_backend=cfg.detector_backend,
+        detector_config={
+            k: v for k, v in cfg.to_dict().items()
+            if k not in ("input_folder", "output_folder")
+        },
+    )
+
+
 class JobRunner:
     """Owns the worker threads. One instance per app, held on ``app.state``."""
 
     def __init__(
         self,
         db: Database,
-        on_update: Optional[Callable[[int, dict[str, Any]], None]] = None,
-    ):
+        on_update: Callable[[int, dict[str, Any]], None] | None = None,
+    ) -> None:
         self.db = db
         #: Called with (job_id, payload) whenever a job's progress changes.
         #: The WebSocket router hangs off this; None means nobody is listening.
@@ -159,7 +206,7 @@ class JobRunner:
                 session.add(job)
                 session.commit()
                 return
-            cfg = config_for(project)
+            cfg = run_config(project, job_id)
 
         self._patch(
             job_id,
@@ -193,10 +240,12 @@ class JobRunner:
         def on_video(result) -> None:
             nonlocal last_write
             state["videos_done"] += 1
-            state["events"] += len(result.events)
             if result.skipped:
                 state["skipped"] += 1
             self._record_events(job_id, result)
+            # Counted from the database, so a resumed run includes the events
+            # it found before it was interrupted.
+            state["events"] = self._count_events(job_id)
             last_write = time.monotonic()
             total = state["videos_total"] or state["videos_done"]
             self._patch(
@@ -239,16 +288,12 @@ class JobRunner:
             # the per-video errors are surfaced rather than swallowed.
             status, message = JOB_DONE, f"Finished with {len(errors)} error(s)"
         elif skipped and skipped == len(batch.results):
-            # Nothing was actually analysed. Say so plainly — a run that ends
-            # in a second with no events otherwise looks like a failure.
+            # Only a resume can get here: every video was done before it.
             status = JOB_DONE
-            message = (
-                f"Nothing to do — all {skipped} video(s) already scanned with "
-                "these settings. Change a setting to rescan."
-            )
+            message = f"Finished — all {skipped} video(s) were already scanned in this run"
         elif skipped:
             status = JOB_DONE
-            message = f"Finished ({skipped} already scanned, skipped)"
+            message = f"Finished ({skipped} video(s) scanned before the resume)"
         else:
             status, message = JOB_DONE, "Finished"
 
@@ -259,85 +304,63 @@ class JobRunner:
             status=status,
             **({"progress": 1.0} if status == JOB_DONE else {}),
             message=message,
-            events_found=state["events"],
+            events_found=self._count_events(job_id),
             videos_done=state["videos_done"],
             error="\n".join(errors) if errors else None,
             finished_at=_dt.datetime.now(_dt.timezone.utc),
         )
 
-    def _record_events(self, job_id: int, result) -> None:
-        """Persist one finished video's events.
+    def _count_events(self, job_id: int) -> int:
+        with self.db.session() as session:
+            return session.exec(
+                select(func.count())
+                .select_from(ObservationExtra)
+                .where(ObservationExtra.scanID == scan_id(job_id))
+            ).one()
 
-        Called after the engine has already committed that video's clips, CSV
-        rows and manifest entry, so a crash here loses database rows but never
-        the analysis — re-running the job re-imports them from the CSV.
+    def _record_events(self, job_id: int, result) -> None:
+        """Store one finished video as Camtrap DP rows.
+
+        Called after the engine has written that video's clips and frames and
+        its manifest entry. Every scanned video also stretches the
+        deployment's start and end, even when nothing was found in it.
         """
-        if not result.events:
-            return
-        info = result.info
-        out_dir = None
-        camera_timezone, camera_clock = None, "local"
+        if result.info is None:
+            return  # skipped or unreadable: nothing new to record
         with self.db.session() as session:
             job = session.get(Job, job_id)
             project = session.get(Project, job.project_id) if job else None
-            if project is not None:
-                out_dir = Path(project.output_folder)
-                cfg = config_for(project)
-                camera_timezone, camera_clock = cfg.camera_timezone, cfg.camera_clock
-
-            existing = set(
-                session.exec(
-                    select(Event.event_id).where(Event.job_id == job_id)
-                ).all()
+            if project is None:
+                return
+            cfg = run_config(project, job_id)
+            rows = rows_for_video(
+                scan_context(project, cfg, job_id), result.info, result.events
             )
 
-            for ev in result.events:
-                if ev.event_id in existing:
-                    continue
-                clip = thumb = frame = None
-                if out_dir is not None:
-                    suffix = Path(result.video).suffix or ".mp4"
-                    clip = str(out_dir / cfg.clips_dirname / f"{ev.event_id}{suffix}")
-                    thumb = str(
-                        out_dir / cfg.thumbnails_dirname
-                        / f"{ev.event_id}{cfg.thumbnail_ext}"
-                    )
-                    frame = str(
-                        out_dir / cfg.frames_dirname
-                        / f"{ev.event_id}{cfg.thumbnail_ext}"
-                    )
-                session.add(
-                    Event(
-                        job_id=job_id,
-                        event_id=ev.event_id,
-                        source_video=ev.source_video,
-                        start_seconds=ev.start_seconds,
-                        end_seconds=ev.end_seconds,
-                        duration_seconds=ev.duration_seconds,
-                        peak_timestamp=ev.peak_timestamp,
-                        peak_score=ev.peak_score,
-                        peak_bbox=list(ev.peak_bbox) if ev.peak_bbox else None,
-                        motion_score=ev.peak_motion_score,
-                        ml_confidence=ev.peak_ml_confidence,
-                        detected_class=ev.peak_class,
-                        start_timestamp=_start_timestamp(
-                            info, ev.start_seconds, camera_timezone, camera_clock
-                        ),
-                        frame_width=info.width if info else None,
-                        frame_height=info.height if info else None,
-                        clip_path=clip,
-                        thumbnail_path=thumb,
-                        frame_path=frame,
-                    )
-                )
+            deployment = session.get(Deployment, project.deployment_id)
+            if deployment.deploymentStart is None or rows.video_start < deployment.deploymentStart:
+                deployment.deploymentStart = rows.video_start.replace(microsecond=0)
+            if deployment.deploymentEnd is None or rows.video_end > deployment.deploymentEnd:
+                deployment.deploymentEnd = rows.video_end.replace(microsecond=0)
+            if rows.timestamp_issues:
+                deployment.timestampIssues = True
+            session.add(deployment)
+
+            # A video re-recorded into the same run (a retried callback) must
+            # not duplicate rows.
+            new = [
+                o for o in rows.observations
+                if session.get(Observation, o.observationID) is None
+            ]
+            keep = {o.observationID for o in new}
+            media = {o.mediaID for o in new} | {f"{o.eventID}:clip" for o in new}
+            # Parents first: there are no ORM relationships to order the inserts.
+            for level in (
+                [m for m in rows.media if m.mediaID in media],
+                new,
+                [e for e in rows.extras if e.observationID in keep],
+                [d for d in rows.detections if d.observationID in keep],
+            ):
+                session.add_all(level)
+                session.flush()
             session.commit()
-
-
-def _start_timestamp(info, start_seconds: float, camera_timezone, camera_clock) -> str:
-    from reefscanner.core.events import derive_timestamp
-
-    if info is None:
-        return ""
-    return derive_timestamp(
-        info.creation_time, start_seconds, camera_timezone, camera_clock
-    )

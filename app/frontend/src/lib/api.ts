@@ -2,6 +2,7 @@ import type {
   EventFilters,
   EventPage,
   Job,
+  DeploymentWrite,
   Project,
   ReefEvent,
   ThresholdAnalysis,
@@ -68,7 +69,8 @@ export const api = {
     name: string;
     input_folder: string;
     output_folder: string;
-    config?: Record<string, unknown>;
+    config: Record<string, unknown>;
+    deployment: DeploymentWrite;
   }) => request<Project>("/api/projects", { method: "POST", body: JSON.stringify(body) }),
   updateProject: (id: number, body: Partial<Project>) =>
     request<Project>(`/api/projects/${id}`, {
@@ -85,6 +87,8 @@ export const api = {
   getJob: (id: number) => request<Job>(`/api/jobs/${id}`),
   cancelJob: (id: number) =>
     request<Job>(`/api/jobs/${id}/cancel`, { method: "POST" }),
+  resumeJob: (id: number) =>
+    request<Job>(`/api/jobs/${id}/resume`, { method: "POST" }),
 
   listEvents: (jobId: number, filters: EventFilters = {}) => {
     const qs = new URLSearchParams();
@@ -98,27 +102,36 @@ export const api = {
   },
   listClasses: (jobId: number) => request<string[]>(`/api/jobs/${jobId}/classes`),
   listSpecies: (jobId: number) => request<string[]>(`/api/jobs/${jobId}/species`),
-  getEvent: (id: number) => request<ReefEvent>(`/api/events/${id}`),
+  getEvent: (id: string) => request<ReefEvent>(`/api/events/${encodeURIComponent(id)}`),
 
-  saveLabel: (
-    eventId: number,
+  saveReview: (
+    eventId: string,
     body: {
       verdict: Verdict;
-      species?: string | null;
+      scientific_name?: string | null;
       notes?: string | null;
-      tight_bbox?: number[] | null;
+      bbox?: number[] | null;
     },
   ) =>
-    request<ReefEvent>(`/api/events/${eventId}/label`, {
+    request<ReefEvent>(`/api/events/${encodeURIComponent(eventId)}/review`, {
       method: "PUT",
       body: JSON.stringify(body),
     }),
-  deleteLabel: (eventId: number) =>
-    request<void>(`/api/events/${eventId}/label`, { method: "DELETE" }),
+  deleteReview: (eventId: string) =>
+    request<void>(`/api/events/${encodeURIComponent(eventId)}/review`, {
+      method: "DELETE",
+    }),
 
   thresholdAnalysis: (jobId: number) =>
     request<ThresholdAnalysis>(`/api/jobs/${jobId}/threshold-analysis`),
 
-  exportUrl: (jobId: number, format: "csv" | "coco" | "yolo") =>
+  exportUrl: (jobId: number, format: "coco" | "yolo") =>
     `/api/jobs/${jobId}/export/${format}`,
+
+  /** Writes the run's Camtrap DP package into its run folder. */
+  writePackage: (jobId: number) =>
+    request<{ path: string; observations: number; media: number }>(
+      `/api/jobs/${jobId}/package`,
+      { method: "POST" },
+    ),
 };

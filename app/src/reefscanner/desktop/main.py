@@ -20,7 +20,6 @@ import time
 import urllib.error
 import urllib.request
 from pathlib import Path
-from typing import Optional
 
 logger = logging.getLogger("reefscanner.desktop")
 
@@ -66,7 +65,7 @@ class Bridge:
     def attach(self, window) -> None:
         self._window = window
 
-    def pick_folder(self) -> Optional[str]:
+    def pick_folder(self) -> str | None:
         """Open the OS folder chooser. Returns None if the user cancels."""
         import webview
 
@@ -78,7 +77,7 @@ class Bridge:
         return str(result[0])
 
 
-def run(db_path: Optional[str | Path] = None, debug: bool = False) -> int:
+def run(db_path: str | Path | None = None, debug: bool = False) -> int:
     """Open the desktop window. Returns a process exit code."""
     try:
         import webview

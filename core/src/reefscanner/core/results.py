@@ -9,7 +9,6 @@ from __future__ import annotations
 
 import csv
 from pathlib import Path
-from typing import Optional
 
 from .events import Event, derive_timestamp
 from .videoio import VideoInfo
@@ -39,9 +38,9 @@ CSV_COLUMNS = [
 def event_to_row(
     event: Event,
     info: VideoInfo,
-    clip_path: Optional[str],
-    thumbnail_path: Optional[str],
-    camera_timezone: Optional[str],
+    clip_path: str | None,
+    thumbnail_path: str | None,
+    camera_timezone: str | None,
     camera_clock: str = "local",
 ) -> dict[str, object]:
     return {
@@ -73,7 +72,7 @@ def event_to_row(
 class CsvWriter:
     """Append-only writer that guarantees whole-row writes per event."""
 
-    def __init__(self, csv_path: str | Path):
+    def __init__(self, csv_path: str | Path) -> None:
         self.csv_path = Path(csv_path)
         self._ensure_header()
 

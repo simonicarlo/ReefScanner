@@ -22,11 +22,12 @@ from pathlib import Path
 import numpy as np
 
 from reefscanner.core.config import ReefScannerConfig
+from reefscanner.core.detection import Detection
 from reefscanner.core.detectors import get_detector
 from reefscanner.core.videoio import iter_sampled_frames, probe_video
 
 
-def iou(a, b) -> float:
+def iou(a: tuple[int, int, int, int], b: tuple[int, int, int, int]) -> float:
     ax, ay, aw, ah = a
     bx, by, bw, bh = b
     ix = max(0, min(ax + aw, bx + bw) - max(ax, bx))
@@ -36,7 +37,9 @@ def iou(a, b) -> float:
     return inter / union if union else 0.0
 
 
-def match(ref, other, threshold=0.5):
+def match(
+    ref: list[Detection], other: list[Detection], threshold: float = 0.5
+) -> list[tuple[Detection, Detection, float]]:
     """Greedy one-to-one matching by IoU; returns matched pairs."""
     pairs, used = [], set()
     for r in sorted(ref, key=lambda d: -d.confidence):

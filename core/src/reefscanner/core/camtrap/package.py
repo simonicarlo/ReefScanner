@@ -27,7 +27,7 @@ import re
 from dataclasses import dataclass, field
 from functools import lru_cache
 from pathlib import Path
-from typing import Any, Iterable, Optional
+from typing import Any, Iterable
 
 from pydantic import ValidationError
 from sqlmodel import SQLModel
@@ -53,7 +53,13 @@ SIDECAR_SCHEMAS: dict[str, dict[str, Any]] = {
         "fields": [
             {"name": "observationID", "type": "string",
              "constraints": {"required": True, "unique": True}},
+            {"name": "scanID", "type": "string"},
             {"name": "trackID", "type": "string"},
+            {"name": "sourceVideo", "type": "string"},
+            {"name": "videoStartSeconds", "type": "number", "constraints": {"minimum": 0}},
+            {"name": "videoEndSeconds", "type": "number", "constraints": {"minimum": 0}},
+            {"name": "peakSeconds", "type": "number", "constraints": {"minimum": 0}},
+            {"name": "detectorClass", "type": "string"},
             {"name": "modelName", "type": "string"},
             {"name": "modelVersion", "type": "string"},
             {"name": "detectorBackend", "type": "string"},
@@ -103,7 +109,7 @@ DEFAULT_PROJECT = {
 class PackageError(ValueError):
     """A package that isn't valid Camtrap DP. ``problems`` lists every issue."""
 
-    def __init__(self, problems: list[str]):
+    def __init__(self, problems: list[str]) -> None:
         self.problems = problems
         shown = "\n".join(f"  - {p}" for p in problems[:20])
         more = f"\n  … and {len(problems) - 20} more" if len(problems) > 20 else ""
@@ -338,7 +344,7 @@ def _check_keys(package: Package) -> list[str]:
     """Unique primary keys, and every reference pointing at a row that exists."""
     problems = []
 
-    def ids(rows, attr, table):
+    def ids(rows: Iterable[SQLModel], attr: str, table: str) -> set[Any]:
         seen, dupes = set(), set()
         for r in rows:
             key = getattr(r, attr)
@@ -351,7 +357,9 @@ def _check_keys(package: Package) -> list[str]:
     observations = ids(package.observations, "observationID", "observations")
     ids(package.observation_extras, "observationID", "reefscanner-observations")
 
-    def refs(rows, attr, known, table, target):
+    def refs(
+        rows: Iterable[SQLModel], attr: str, known: set[Any], table: str, target: str
+    ) -> None:
         for r in rows:
             key = getattr(r, attr)
             if key is not None and key not in known:
@@ -421,7 +429,7 @@ def _read_table(path: Path, table: str, model, problems: list[str]) -> list[SQLM
     return rows
 
 
-def _parse(value: Optional[str], kind: str) -> Any:
+def _parse(value: str | None, kind: str) -> Any:
     if value is None or value == "":
         return None
     if kind == "number":

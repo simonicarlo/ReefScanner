@@ -13,7 +13,7 @@ recall on distant/small animals (the missed-distant-shark failure mode).
 from __future__ import annotations
 
 import logging
-from typing import Optional, Sequence
+from typing import Any, Sequence
 
 import numpy as np
 
@@ -34,9 +34,9 @@ class UltralyticsYoloDetector:
         name: str,
         weights: str,
         conf: float = 0.25,
-        target_classes: Optional[Sequence[str]] = None,
-        imgsz: Optional[int] = None,
-        device: Optional[str] = None,
+        target_classes: Sequence[str] | None = None,
+        imgsz: int | None = None,
+        device: str | None = None,
         use_sahi: bool = False,
         sahi_slice_height: int = 512,
         sahi_slice_width: int = 512,
@@ -75,7 +75,7 @@ class UltralyticsYoloDetector:
                 overlap_width_ratio=sahi_overlap,
             )
 
-    def _build_sahi(self, weights: str, conf: float, device):
+    def _build_sahi(self, weights: str, conf: float, device: str | None) -> Any:
         try:
             from sahi import AutoDetectionModel  # type: ignore
 
