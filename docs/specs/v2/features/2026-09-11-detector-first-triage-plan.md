@@ -8,7 +8,7 @@
 
 **Tech Stack:** Python 3.11, FastAPI, SQLModel/SQLite, Ultralytics YOLO, React 19 + TypeScript + Tailwind v4, pytest.
 
-**Spec:** `docs/superpowers/specs/2026-09-11-detector-first-triage-design.md`
+**Spec:** `docs/specs/v2/features/2026-09-11-detector-first-triage-design.md`
 
 **Run tests with:** `uv run pytest` (the venv needs `uv sync --extra desktop --extra ml --extra dev`).
 

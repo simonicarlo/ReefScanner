@@ -312,8 +312,8 @@ registered with macOS as a foreground GUI app.
 
 ## 8. Detector-first triage (2026-09-11)
 
-Spec `docs/superpowers/specs/2026-09-11-detector-first-triage-design.md`, plan
-`docs/superpowers/plans/2026-09-11-detector-first-triage.md`. All ten tasks done.
+Spec `docs/specs/v2/features/2026-09-11-detector-first-triage-design.md`, plan
+`docs/specs/v2/features/2026-09-11-detector-first-triage-plan.md`. All ten tasks done.
 
 - Motion-only recall removed; `marine` is the default and torch/ultralytics are
   core dependencies. `MotionGate` kept as the optional pre-filter.
