@@ -39,7 +39,7 @@ The prototype assumes it runs underwater in a sealed housing, with power and a l
 
 Three tiers share one core package: the rig decides what to keep, the field laptop is where humans review it, and a later cloud tier only pools finished packages.
 
-&#91;embedded content: system architecture · 3 tiers on a shared core\]
+![alt text](architecture.png)
 
 The rig hands data to the field app at the surface; the dashed buoy link and the cloud are later extensions.
 
@@ -125,7 +125,7 @@ The prototype leaves a seam for each of these but builds none of them.
 
 The prototype is done at the end of phase 2; the extensions follow afterwards, in any order.
 
-&#91;embedded content: roadmap · 3 phases to a prototype, then extensions\]
+![alt text](roadmap.png)
 
 Phases 0 and 1 need no water at all: replayed footage and any camera on a desk are enough.
 
