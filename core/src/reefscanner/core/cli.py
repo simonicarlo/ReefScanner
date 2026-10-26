@@ -3,6 +3,7 @@
     reefscanner process <input_folder> --out <output_folder> [--fps 1.0]
                         [--detector marine] [...]
     reefscanner report  <output_folder>   # false-positive rate
+    reefscanner export-onnx [--weights x.pt] [--out x.onnx]
     reefscanner serve   [--port 8000]     # the local service + review UI
     reefscanner desktop                   # the same thing in a native window
 
@@ -23,7 +24,7 @@ from pathlib import Path
 from typing import Optional, Sequence
 
 from . import __version__
-from .config import VALID_DETECTORS, ReefScannerConfig
+from .config import VALID_BACKENDS, VALID_DETECTORS, ReefScannerConfig
 from .pipeline import process_folder
 from .report import fp_report
 
@@ -64,8 +65,12 @@ def _add_process_args(p: argparse.ArgumentParser) -> None:
     p.add_argument("--detector", choices=list(VALID_DETECTORS),
                    help="marine=YOLO (SharkTrack/fine-tuned, the default), "
                         "generic=stock COCO (experimental).")
+    p.add_argument("--backend", dest="detector_backend", choices=list(VALID_BACKENDS),
+                   help="onnx = ONNX Runtime (default, no torch); "
+                        "ultralytics = PyTorch (needs the ultralytics extra).")
     p.add_argument("--weights", dest="detector_weights",
-                   help="Detector weights .pt path (required for --detector marine).")
+                   help="Detector model: .onnx for --backend onnx, .pt for "
+                        "ultralytics. Default: SharkTrack.")
     p.add_argument("--conf", "--ml-confidence-threshold",
                    dest="ml_confidence_threshold", type=float,
                    help="Detector confidence threshold (recall-first = low, e.g. 0.2).")
@@ -98,7 +103,7 @@ def _config_from_args(args: argparse.Namespace) -> ReefScannerConfig:
         "persistence_frames", "bg_subtractor", "detect_shadows",
         "merge_gap_seconds", "min_event_seconds", "pad_seconds",
         "reencode_clips", "ffmpeg_path", "extensions", "detector",
-        "detector_weights", "ml_confidence_threshold", "target_classes",
+        "detector_backend", "detector_weights", "ml_confidence_threshold", "target_classes",
         "use_sahi", "motion_prefilter",
     ]
     for key in overridable:
@@ -124,6 +129,20 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
         "report", help="Report false-positive rate from a labeled results CSV.")
     p_report.add_argument("output_folder", help="Output folder containing the CSV.")
     p_report.add_argument("--csv", help="Explicit CSV path (overrides default).")
+
+    p_export = sub.add_parser(
+        "export-onnx",
+        help="Convert a YOLO .pt checkpoint to ONNX (needs the ultralytics extra).")
+    p_export.add_argument("--weights",
+                          help="Checkpoint to convert (default: SharkTrack).")
+    p_export.add_argument("--out",
+                          help="Where to write the .onnx (default: the weights "
+                               "cache, where the onnx backend looks for SharkTrack).")
+    p_export.add_argument("--imgsz", type=int, default=640,
+                          help="Input size in pixels, the long side (default 640).")
+    p_export.add_argument("--static", action="store_true",
+                          help="Fixed square input, for board runtimes that "
+                               "need one. Default: dynamic, matching .pt results.")
 
     p_serve = sub.add_parser(
         "serve", help="Run the local web service and review UI.")
@@ -172,6 +191,9 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
     if args.command == "serve":
         return _serve(args)
 
+    if args.command == "export-onnx":
+        return _export_onnx(args)
+
     if args.command == "desktop":
         try:
             from reefscanner.desktop.main import run
@@ -196,6 +218,27 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
 
     parser.error(f"Unknown command: {args.command}")
     return 2
+
+
+def _export_onnx(args: argparse.Namespace) -> int:
+    from . import weights
+
+    try:
+        import ultralytics  # noqa: F401
+    except ImportError:
+        print(
+            "error: export needs the ultralytics extra.\n"
+            "Install it with:  pip install 'reefscanner-core[ultralytics]'",
+            file=sys.stderr,
+        )
+        return 2
+    src = args.weights or weights.ensure_sharktrack_weights()
+    dest = (
+        Path(args.out) if args.out
+        else weights.cache_dir() / Path(src).with_suffix(".onnx").name
+    )
+    print(f"Exported {weights.export_onnx(src, dest, imgsz=args.imgsz, static=args.static)}")
+    return 0
 
 
 def _serve(args: argparse.Namespace) -> int:

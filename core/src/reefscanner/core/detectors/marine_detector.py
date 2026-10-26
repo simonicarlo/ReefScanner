@@ -6,33 +6,52 @@ MIT-licensed) — see ``docs/model-research.md``. Any Ultralytics-compatible
 `.pt` (e.g. a model fine-tuned on our own footage — the §10 data factory) drops
 in the same way.
 
-Weights are NOT bundled, but they are fetched on demand: leaving
-``detector_weights`` unset auto-downloads SharkTrack's checkpoint into a local
-cache (see ``weights.py``). Point ``detector_weights`` (or
-``detector_options['weights']``) at a local `.pt` to use your own instead.
+Weights are NOT bundled with the Python package, but they are fetched on
+demand: leaving ``detector_weights`` unset uses SharkTrack — as an ONNX export
+for the default backend, or the original ``.pt`` for the ultralytics backend
+(see ``weights.py``). Point ``detector_weights`` at your own file to use a
+fine-tuned model instead.
 """
 
 from __future__ import annotations
 
-from ..config import ReefScannerConfig
-from .yolo import UltralyticsYoloDetector
+from ..config import BACKEND_ONNX, ReefScannerConfig
+from .base import Detector
 
 
-def build_marine(cfg: ReefScannerConfig) -> UltralyticsYoloDetector:
+def build_marine(cfg: ReefScannerConfig) -> Detector:
     opts = dict(cfg.detector_options)
     weights = cfg.detector_weights or opts.pop("weights", None)
+    opts.pop("weights", None)
+
+    if cfg.detector_backend == BACKEND_ONNX:
+        from .onnx import OnnxYoloDetector
+
+        if not weights:
+            from ..weights import ensure_sharktrack_onnx
+
+            weights = ensure_sharktrack_onnx()
+        return OnnxYoloDetector(
+            name="marine",
+            weights=weights,
+            # Recall-first: keep the threshold low and all classes by default. A
+            # false positive costs ~10s of triage; a missed animal is expensive.
+            conf=cfg.ml_confidence_threshold,
+            target_classes=cfg.target_classes,
+            **opts,
+        )
+
+    from .yolo import UltralyticsYoloDetector
+
     if not weights:
         # No path given: fetch SharkTrack's weights into a local cache so
         # detector='marine' works out of the box (see weights.py).
         from ..weights import ensure_sharktrack_weights
 
         weights = ensure_sharktrack_weights()
-    opts.pop("weights", None)
     return UltralyticsYoloDetector(
         name="marine",
         weights=weights,
-        # Recall-first: keep the threshold low and all classes by default. A
-        # false positive costs ~10s of triage; a missed animal is expensive.
         conf=cfg.ml_confidence_threshold,
         target_classes=cfg.target_classes,
         imgsz=opts.pop("imgsz", None),

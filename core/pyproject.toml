@@ -11,29 +11,35 @@ license = "MIT"
 authors = [{ name = "ReefScanner contributors" }]
 keywords = ["marine", "bruv", "video", "triage", "opencv", "yolo"]
 
-# No web stack in here -- the rig and the CLI install this alone. The import
-# stays light regardless (detector construction is lazy, so importing
-# reefscanner.core does not pull in torch until a detector is actually built).
+# No web stack and no torch in here -- the rig and the CLI install this alone.
+# Detection runs on ONNX Runtime by default; PyTorch/Ultralytics is an extra.
 dependencies = [
     "opencv-python-headless>=4.9,<5",
     "numpy>=1.24,<3",
     "pandas>=2.0,<4",
     "tqdm>=4.65,<5",
     "PyYAML>=6.0,<7",
-    # The detector is no longer optional: motion-only recall was removed, so an
-    # install without these can't scan anything. NOTE: Ultralytics YOLO is
-    # AGPL-3.0 (copyleft, network clause) -- fine for research and internal use;
-    # see docs/model-research.md before distributing.
+    "onnxruntime>=1.18",
+]
+
+[project.optional-dependencies]
+# The ultralytics backend: PyTorch `.pt` checkpoints, exporting them to ONNX
+# (`reefscanner export-onnx`), and the reference the ONNX backend is checked
+# against. NOTE: Ultralytics YOLO is AGPL-3.0 (copyleft, network clause) --
+# fine for research and internal use; see docs/model-research.md before
+# distributing.
+ultralytics = [
     "ultralytics>=8.1,<9",
     "torch>=2.0",
     # SharkTrack's checkpoint was saved by an older Ultralytics and needs dill to
     # unpickle. Ultralytics would try to pip-install it at load time, which fails
-    # in any venv without pip.
+    # in any venv without pip. Same for the ONNX export's requirements.
     "dill>=0.3",
+    "onnx>=1.16",
+    "onnxslim>=0.1.30",
 ]
-
-[project.optional-dependencies]
-ml = ["sahi>=0.11"]   # tiled inference for distant/small animals (MIT)
+# SAHI tiled inference for distant/small animals (MIT). Runs through Ultralytics.
+ml = ["reefscanner-core[ultralytics]", "sahi>=0.11"]
 # ffmpeg fallback for environments without a system binary.
 ffmpeg = ["imageio-ffmpeg>=0.4.9"]
 

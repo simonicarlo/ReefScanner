@@ -5,7 +5,9 @@
 #
 # Builds from a clean uv-managed standalone Python, never the dev venv, so
 # nothing from the developer's machine (Anaconda, Homebrew) leaks into the app.
-# Needs: uv, node/npm. Everything else it fetches.
+# Needs: uv, node/npm, and the dev workspace synced (`uv sync` at the repo
+# root), whose ultralytics extra exports SharkTrack to ONNX. The app itself
+# ships without torch.
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
@@ -13,8 +15,7 @@ cd "$ROOT"
 
 VENV="build/venv"
 PY="$VENV/bin/python"
-WEIGHTS="build/weights/sharktrack.pt"
-WEIGHTS_URL="https://raw.githubusercontent.com/filippovarini/sharktrack/master/models/sharktrack.pt"
+WEIGHTS="build/weights/sharktrack.onnx"
 VERSION="$(sed -n 's/^version = "\(.*\)"/\1/p' pyproject.toml)"
 
 step() { printf '\n==> %s\n' "$*"; }
@@ -28,10 +29,9 @@ uv pip install --python "$PY" -e ../core -e ".[desktop]" imageio-ffmpeg pyinstal
 step "Review UI"
 (cd frontend && npm ci && npm run build)
 
-step "Detector weights"
+step "Detector model (SharkTrack, exported to ONNX)"
 if [ ! -s "$WEIGHTS" ]; then
-  mkdir -p "$(dirname "$WEIGHTS")"
-  curl -fL --retry 3 -o "$WEIGHTS" "$WEIGHTS_URL"
+  (cd "$ROOT/.." && uv run reefscanner export-onnx --out "$ROOT/$WEIGHTS")
 fi
 
 step "Package ReefScanner.app"

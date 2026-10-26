@@ -66,6 +66,7 @@ const MOTION_ONLY_KEYS = new Set([
 
 const CHOICES: Record<string, string[]> = {
   detector: ["marine", "generic"],
+  detector_backend: ["onnx", "ultralytics"],
   bg_subtractor: ["MOG2", "KNN"],
 };
 

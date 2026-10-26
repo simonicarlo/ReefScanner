@@ -31,14 +31,15 @@ Then:
 git clone https://github.com/simonicarlo/ReefScanner.git
 cd ReefScanner
 
-# 1. Python and all dependencies (first run downloads ~1 GB, mostly PyTorch)
+# 1. Python and all dependencies (first run downloads ~1 GB, mostly PyTorch,
+#    which development needs to convert models; scanning itself doesn't use it)
 uv sync
 
 # 2. Build the review UI. Needed once, and again whenever app/frontend/ changes;
 #    the build is not committed to the repo.
 cd app/frontend && npm install && npm run build && cd ../..
 
-# 3. Check the install: should end with "62 passed"
+# 3. Check the install: should end with "81 passed"
 uv run pytest
 
 # 4. Some synthetic footage to try it on, if you have no dives at hand
@@ -50,7 +51,8 @@ uv run reefscanner desktop
 
 In the app, create a project with `~/ReefScanner-demo` as the footage folder
 and any empty folder for results, then press **Scan footage**. The first scan
-downloads the SharkTrack detector weights (~6 MB), so it needs internet once.
+downloads the SharkTrack detector weights (~6 MB) and converts them for ONNX
+Runtime, so it needs internet once.
 The synthetic footage has no real sharks, so expect few or no events from it;
 it's there to check that everything runs. Real BRUV footage is what the
 detector is for.
@@ -95,8 +97,9 @@ against the lockfile every time and removes anything it didn't record.
 
 | Package | What it adds |
 |---|---|
-| `reefscanner-core` | The detection engine and the `reefscanner` CLI |
-| `reefscanner-core[ml]` | SAHI tiled inference for small/distant animals |
+| `reefscanner-core` | The detection engine and the `reefscanner` CLI, on ONNX Runtime |
+| `reefscanner-core[ultralytics]` | PyTorch/Ultralytics: `.pt` models, `reefscanner export-onnx` |
+| `reefscanner-core[ml]` | SAHI tiled inference for small/distant animals (uses Ultralytics) |
 | `reefscanner-core[ffmpeg]` | A bundled ffmpeg, for machines without one |
 | `reefscanner-app` | The local service and review UI (FastAPI + SQLite) |
 | `reefscanner-app[desktop]` | The native window (PyWebView) |
@@ -106,9 +109,12 @@ Plain pip works too, if you'd rather: `python3 -m venv .venv && source
 .venv/bin/activate && pip install -e './core[ffmpeg]' -e './app[desktop]'`.
 Python 3.10 or newer.
 
-The YOLO detectors are core, not optional — motion-only triage was removed
-because it cannot tell a small fish nearby from a large one far away. A plain
-`pip install reefscanner-core` can scan footage out of the box.
+The detector is core, not optional — motion-only triage was removed because it
+cannot tell a small fish nearby from a large one far away. It runs on ONNX
+Runtime, with no PyTorch; the one thing that still needs Ultralytics is
+converting SharkTrack to ONNX the first time, which the dev install and the
+Mac app take care of. On a machine without it, copy `sharktrack.onnx` into
+`~/.cache/reefscanner/` from one that has it.
 
 ## Reviewing
 
@@ -165,9 +171,16 @@ it can't tell a small fish close to the camera from a large animal far away.)
 
 **`marine` (default) — SharkTrack.** A YOLOv8 model trained on real BRUVS
 footage, single `elasmobranch` class, MIT-licensed. The weights download
-automatically on first use (~6 MB, cached in `~/.cache/reefscanner`). Nothing
-extra to install — the detector ships with the app. Expect scanning to be
-considerably slower on a CPU than on a GPU.
+automatically on first use (~6 MB, cached in `~/.cache/reefscanner`) and are
+converted to ONNX once. On an M2 a frame takes about 23 ms on the CPU.
+
+**Backends.** The model runs on **ONNX Runtime** by default (`--backend onnx`):
+no PyTorch, and the same model file runs on a laptop or an edge board. The
+**Ultralytics** backend (`--backend ultralytics`) runs PyTorch `.pt`
+checkpoints and is needed for SAHI. On the four test dives both give identical
+detections, box for box; `scripts/check_onnx_parity.py` repeats that check on
+any footage. To use your own fine-tuned model on ONNX, convert it first:
+`reefscanner export-onnx --weights my-model.pt --out my-model.onnx`.
 
 **`generic`** runs a stock COCO YOLO as a crude objectness proposer. Mostly
 useful for experimenting.
@@ -175,9 +188,10 @@ useful for experimenting.
 See [`docs/model-research.md`](docs/model-research.md) for how these were
 chosen and what the alternatives were.
 
-> Ultralytics YOLO is AGPL-3.0. Fine for research and internal use; read the
-> license before distributing a product built on the `marine` or `generic`
-> detectors.
+> Ultralytics YOLO is AGPL-3.0. The default ONNX backend runs without any
+> Ultralytics code, but models are still trained and exported with it, and the
+> export stamps AGPL-3.0 into the model's metadata. Fine for research and
+> internal use; settle the license before distributing.
 
 ## Architecture
 

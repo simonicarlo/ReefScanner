@@ -47,8 +47,9 @@ class UltralyticsYoloDetector:
             from ultralytics import YOLO  # type: ignore
         except ImportError as exc:  # pragma: no cover - optional dep
             raise ImportError(
-                f"detector={name!r} requires the optional 'ml' extra: "
-                "pip install 'reefscanner[ml]' (or `pip install ultralytics`)."
+                f"detector_backend='ultralytics' needs the ultralytics extra: "
+                "pip install 'reefscanner-core[ultralytics]', or use the default "
+                "detector_backend='onnx'."
             ) from exc
 
         self.name = name

@@ -22,6 +22,13 @@ DETECTOR_GENERIC = "generic"
 DETECTOR_MARINE = "marine"
 VALID_DETECTORS = (DETECTOR_MARINE, DETECTOR_GENERIC)
 
+# How a detector's model is run. ONNX Runtime is the default everywhere; the
+# Ultralytics backend needs the `ultralytics` extra (torch) and is kept for
+# SAHI, PyTorch `.pt` checkpoints, and as the reference ONNX is checked against.
+BACKEND_ONNX = "onnx"
+BACKEND_ULTRALYTICS = "ultralytics"
+VALID_BACKENDS = (BACKEND_ONNX, BACKEND_ULTRALYTICS)
+
 # Default video extensions to discover (lower-case, with leading dot).
 DEFAULT_EXTENSIONS = (".mp4", ".mov", ".avi", ".mkv", ".m4v", ".mpg", ".mpeg")
 
@@ -94,8 +101,12 @@ class ReefScannerConfig:
     #: marine = SharkTrack YOLO (the default; trained on real BRUVS footage);
     #: generic = stock COCO YOLO objectness (experimental).
     detector: str = DETECTOR_MARINE
-    #: Path/name of detector weights (e.g. a SharkTrack or fine-tuned `.pt`).
-    #: Required for detector=marine; generic falls back to a stock COCO model.
+    #: How the model runs: onnx (ONNX Runtime, no torch; the default) or
+    #: ultralytics (PyTorch, needs the `ultralytics` extra).
+    detector_backend: str = BACKEND_ONNX
+    #: Path to detector weights: a `.onnx` export for the onnx backend, a `.pt`
+    #: checkpoint for ultralytics. Unset, marine uses SharkTrack (fetched or
+    #: exported on first use) and generic a stock COCO model.
     detector_weights: str | None = None
     #: Confidence threshold for the detector. Recall-favoring (low) by default —
     #: a false positive costs ~10s of triage; a missed animal is expensive.
@@ -135,6 +146,24 @@ class ReefScannerConfig:
             raise ValueError(
                 f"detector must be one of {VALID_DETECTORS}, got {self.detector!r}"
             )
+        if self.detector_backend not in VALID_BACKENDS:
+            raise ValueError(
+                f"detector_backend must be one of {VALID_BACKENDS}, "
+                f"got {self.detector_backend!r}"
+            )
+        if self.detector_backend == BACKEND_ONNX:
+            if self.use_sahi:
+                raise ValueError(
+                    "use_sahi needs detector_backend='ultralytics' "
+                    "(SAHI tiling is not implemented for ONNX yet)"
+                )
+            if self.detector_weights and not self.detector_weights.endswith(".onnx"):
+                raise ValueError(
+                    f"detector_backend='onnx' needs an .onnx model, got "
+                    f"{self.detector_weights!r}. Convert a .pt checkpoint with "
+                    "`reefscanner export-onnx --weights <file.pt>`, or set "
+                    "detector_backend='ultralytics'."
+                )
         if self.frame_sample_fps <= 0:
             raise ValueError("frame_sample_fps must be > 0")
         if not (0 < self.detect_downscale <= 1.0):

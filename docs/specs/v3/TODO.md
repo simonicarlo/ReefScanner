@@ -13,10 +13,16 @@ holds. Feature specs and plans for any item go in [`features/`](features/).
 - **Packaging:** one uv workspace with separate packages for `core`, `edge` and
   `app`, so the rig never installs the web stack and the laptop never installs
   board runtimes.
-- **Detector runtime:** ONNX Runtime is the default backend everywhere (laptop
-  CPU, CoreML on a Mac, CUDA on NVIDIA). Ultralytics becomes an optional backend
-  kept for training, export and as the reference to check ONNX output against.
-  Board backends (TensorRT, Hailo, RKNN) all start from the same ONNX export.
+- **Detector runtime:** ONNX Runtime is the default backend everywhere (CPU,
+  CUDA or TensorRT when present; CoreML on request, as it was slower on an M2).
+  Ultralytics is an optional backend kept for training, export, SAHI, and as
+  the reference to check ONNX output against. Board backends (TensorRT, Hailo,
+  RKNN) all start from the same ONNX export.
+- **ONNX input shape:** the laptop export is dynamic, padding frames only to a
+  multiple of 32 as Ultralytics does with a `.pt`; that is what makes ONNX
+  match v2 exactly. Boards that need a fixed shape get `export-onnx --static`,
+  ideally at the camera's aspect ratio rather than a square, since padding to a
+  square changed confidences by ~0.09 on average and found extra boxes.
 - **Database:** start fresh, no migration of v2 data. Tables mirror Camtrap DP
   through the ORM (SQLModel, as in v2), with Alembic migrations from day one.
 - **Hardware:** development targets a laptop; specific boards come later and
@@ -34,10 +40,14 @@ Gate: replayed footage gives the same events as the v2 desktop scan.
 
 - [x] Monorepo: uv workspace with `core/`, `edge/`, `app/`; move `engine/` into
       `core/`; CLI and existing tests keep working
-- [ ] Split dependencies: torch and Ultralytics out of `core`, detector backends
+- [x] Split dependencies: torch and Ultralytics out of `core`, detector backends
       as optional extras
-- [ ] ONNX export of SharkTrack and an ONNX Runtime backend (letterbox, decode,
-      NMS); test that its detections match the Ultralytics backend
+- [x] ONNX export of SharkTrack and an ONNX Runtime backend (letterbox, decode,
+      NMS); test that its detections match the Ultralytics backend. Identical on
+      the four test dives: 72/72 detections, same 7 events as v2
+- [ ] Host `sharktrack.onnx` (e.g. a GitHub release asset) so an install without
+      Ultralytics can fetch it, as the `.pt` is fetched today
+- [ ] SAHI tiling for the ONNX backend (it needs Ultralytics today)
 - [ ] Camtrap DP data model: SQLModel tables for deployments, media and
       observations, the extension sidecar table, and Alembic set up
 - [ ] Camtrap DP writer and reader, validated against the official schema; one
@@ -64,7 +74,8 @@ Gate: 30 fps detection capacity sustained on the chosen board.
       logged
 - [ ] Native frame pipeline (e.g. GStreamer): full-quality and low-res streams,
       capture and inference in separate processes, frames shared without copies
-- [ ] Detector backend for the chosen board (TensorRT, Hailo or RKNN)
+- [ ] Detector backend for the chosen board (TensorRT, Hailo or RKNN), from a
+      static export at the camera's aspect ratio
 - [ ] Backup recorder: continuous recording in segments; quality configurable
       (full quality by default, or low bitrate or time-lapse)
 - [ ] Health: systemd unit, watchdog, logs of temperature, storage and frame-rate

@@ -11,12 +11,35 @@ fine-tuned weights.
 
 from __future__ import annotations
 
-from ..config import ReefScannerConfig
-from .yolo import UltralyticsYoloDetector
+from ..config import BACKEND_ONNX, ReefScannerConfig
+from .base import Detector
 
 
-def build_generic(cfg: ReefScannerConfig) -> UltralyticsYoloDetector:
+def build_generic(cfg: ReefScannerConfig) -> Detector:
     opts = dict(cfg.detector_options)
+
+    if cfg.detector_backend == BACKEND_ONNX:
+        from .onnx import OnnxYoloDetector
+
+        weights = cfg.detector_weights or opts.pop("weights", None)
+        opts.pop("weights", None)
+        if not weights:
+            raise ValueError(
+                "detector='generic' on the onnx backend needs an exported model: "
+                "run `reefscanner export-onnx --weights yolov8n.pt --out "
+                "yolov8n.onnx` and set detector_weights to it, or use "
+                "detector_backend='ultralytics'."
+            )
+        return OnnxYoloDetector(
+            name="generic",
+            weights=weights,
+            conf=cfg.ml_confidence_threshold,
+            target_classes=cfg.target_classes,  # None = keep all (objectness proposer)
+            **opts,
+        )
+
+    from .yolo import UltralyticsYoloDetector
+
     weights = cfg.detector_weights or opts.pop("weights", "yolov8n.pt")
     opts.pop("weights", None)
     return UltralyticsYoloDetector(

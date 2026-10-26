@@ -4,8 +4,8 @@
 # this from a clean standalone Python. Don't run it from the dev venv: that one
 # is based on Anaconda, and its libraries would leak into the bundle.
 #
-# One-folder mode inside a .app, not one-file: a one-file app unpacks ~1 GB to
-# a temp directory on every launch, which would make each start take a minute.
+# One-folder mode inside a .app, not one-file: a one-file app unpacks itself to
+# a temp directory on every launch, which makes each start slow.
 
 import os
 from pathlib import Path
@@ -20,11 +20,9 @@ import imageio_ffmpeg  # noqa: E402  (resolved at build time, from the build ven
 datas = [
     # The built React UI. Missing it gives a window with an API error in it.
     *collect_data_files("reefscanner.app", includes=["static/**/*"]),
-    # Ultralytics reads its default config and model YAMLs from package data.
-    *collect_data_files("ultralytics"),
     # pywebview's JavaScript bridge.
     *collect_data_files("webview"),
-    # Detector weights, found by core/weights.py via sys._MEIPASS/weights.
+    # SharkTrack as ONNX, found by core/weights.py via sys._MEIPASS/weights.
     (str(WEIGHTS), "weights"),
 ]
 
@@ -49,13 +47,6 @@ a = Analysis(
     datas=datas,
     hiddenimports=hiddenimports,
     excludes=["tkinter", "IPython", "jupyter", "pytest", "notebook"],
-    # torch and ultralytics inspect their own source at runtime (TorchScript,
-    # dataclass-style introspection), so they need .py files, not only .pyc.
-    module_collection_mode={
-        "torch": "pyz+py",
-        "torchvision": "pyz+py",
-        "ultralytics": "pyz+py",
-    },
     noarchive=False,
 )
 
