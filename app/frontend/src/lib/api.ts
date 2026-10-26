@@ -16,11 +16,14 @@ import type {
  */
 export class ApiError extends Error {
   status: number;
+  /** Every problem, when the server reports several (e.g. an invalid package). */
+  problems: string[];
 
-  constructor(status: number, message: string) {
+  constructor(status: number, message: string, problems: string[] = []) {
     super(message);
     this.name = "ApiError";
     this.status = status;
+    this.problems = problems;
   }
 }
 
@@ -36,10 +39,14 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
     // FastAPI puts the useful part in `detail`, which is a string for our
     // HTTPExceptions and a list of field errors for validation failures.
     let message = `${res.status} ${res.statusText}`;
+    let problems: string[] = [];
     try {
       const body = await res.json();
       if (typeof body?.detail === "string") {
         message = body.detail;
+      } else if (typeof body?.detail?.message === "string") {
+        message = body.detail.message;
+        problems = Array.isArray(body.detail.problems) ? body.detail.problems : [];
       } else if (Array.isArray(body?.detail)) {
         message = body.detail
           .map((d: { loc?: unknown[]; msg?: string }) => {
@@ -51,7 +58,7 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
     } catch {
       /* a non-JSON error body is not worth failing over */
     }
-    throw new ApiError(res.status, message);
+    throw new ApiError(res.status, message, problems);
   }
 
   if (res.status === 204) return undefined as T;
@@ -72,6 +79,8 @@ export const api = {
     config: Record<string, unknown>;
     deployment: DeploymentWrite;
   }) => request<Project>("/api/projects", { method: "POST", body: JSON.stringify(body) }),
+  importProject: (body: { package_folder: string; output_folder: string; name?: string }) =>
+    request<Project>("/api/projects/import", { method: "POST", body: JSON.stringify(body) }),
   updateProject: (id: number, body: Partial<Project>) =>
     request<Project>(`/api/projects/${id}`, {
       method: "PATCH",

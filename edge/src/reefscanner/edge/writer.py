@@ -72,8 +72,12 @@ class EventWriter:
             model_version=model_version,
             detector_backend=cfg.detector_backend,
             detector_config={
-                k: v for k, v in cfg.to_dict().items()
-                if k not in ("input_folder", "output_folder")
+                **{k: v for k, v in cfg.to_dict().items()
+                   if k not in ("input_folder", "output_folder")},
+                # Lives in the deployment block here, but an importing field
+                # app needs it with the rest of the settings, as its scans have.
+                "camera_timezone": config.deployment.camera_timezone,
+                "camera_clock": config.deployment.camera_clock,
             },
         )
         self.rows = VideoRows()

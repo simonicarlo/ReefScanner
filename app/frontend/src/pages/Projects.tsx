@@ -8,7 +8,8 @@ import { Button, Empty, ErrorNote, Field, Input, Spinner, cx } from "../componen
 
 export function Projects() {
   const { data: projects, isLoading } = useProjects();
-  const [creating, setCreating] = useState(false);
+  const [form, setForm] = useState<"new" | "import" | null>(null);
+  const toggle = (which: "new" | "import") => setForm((f) => (f === which ? null : which));
 
   return (
     <div className="rise">
@@ -19,19 +20,26 @@ export function Projects() {
             A folder of footage plus the settings used to scan it.
           </p>
         </div>
-        <Button variant="primary" onClick={() => setCreating((v) => !v)}>
-          {creating ? "Cancel" : "New project"}
-        </Button>
+        <div className="flex gap-2">
+          <Button variant="ghost" onClick={() => toggle("import")}>
+            {form === "import" ? "Cancel" : "Import package"}
+          </Button>
+          <Button variant="primary" onClick={() => toggle("new")}>
+            {form === "new" ? "Cancel" : "New project"}
+          </Button>
+        </div>
       </div>
 
-      {creating && <NewProjectForm onDone={() => setCreating(false)} />}
+      {form === "new" && <NewProjectForm onDone={() => setForm(null)} />}
+      {form === "import" && <ImportPackageForm onDone={() => setForm(null)} />}
 
       {isLoading ? (
         <Spinner label="Reading projects" />
       ) : !projects?.length ? (
         <Empty title="No projects yet">
-          Create one pointing at a folder of video files. Nothing is uploaded —
-          ReefScanner reads the footage where it already lives.
+          Create one pointing at a folder of video files, or import a package
+          from the rig. Nothing is uploaded — ReefScanner reads the footage
+          where it already lives.
         </Empty>
       ) : (
         <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
@@ -80,6 +88,81 @@ export function Projects() {
         </div>
       )}
     </div>
+  );
+}
+
+/** A Camtrap DP package folder (from the rig, an SD card, another laptop) as a new project. */
+function ImportPackageForm({ onDone }: { onDone: () => void }) {
+  const navigate = useNavigate();
+  const queryClient = useQueryClient();
+  const [packageFolder, setPackageFolder] = useState("");
+  const [outputFolder, setOutputFolder] = useState("");
+  const [name, setName] = useState("");
+
+  const importing = useMutation({
+    mutationFn: () =>
+      api.importProject({
+        package_folder: packageFolder.trim(),
+        output_folder: outputFolder.trim(),
+        ...(name.trim() ? { name: name.trim() } : {}),
+      }),
+    onSuccess: (project) => {
+      queryClient.invalidateQueries({ queryKey: keys.projects });
+      onDone();
+      navigate(`/projects/${project.id}`);
+    },
+  });
+
+  return (
+    <form
+      className="panel rise mb-6 space-y-4 p-5"
+      onSubmit={(e) => {
+        e.preventDefault();
+        importing.mutate();
+      }}
+    >
+      <div className="grid gap-4 md:grid-cols-2">
+        <Field
+          label="Package folder"
+          hint="The folder with datapackage.json in it, e.g. a deployment on the rig's SD card."
+        >
+          <Input
+            autoFocus
+            className="font-mono text-xs"
+            value={packageFolder}
+            onChange={(e) => setPackageFolder(e.target.value)}
+            placeholder="/Volumes/RIG/tofo-2026-11-02-a"
+            required
+          />
+        </Field>
+        <Field
+          label="Results folder"
+          hint="Where the clips and frames are copied, so the card can go back in the rig."
+        >
+          <Input
+            className="font-mono text-xs"
+            value={outputFolder}
+            onChange={(e) => setOutputFolder(e.target.value)}
+            placeholder="/Users/you/reefscanner/tofo"
+            required
+          />
+        </Field>
+      </div>
+      <Field label="Project name" hint="Optional. Defaults to the deployment's location.">
+        <Input value={name} onChange={(e) => setName(e.target.value)} placeholder="Manta Reef" />
+      </Field>
+
+      <ErrorNote error={importing.error} />
+
+      <div className="flex justify-end gap-2">
+        <Button type="button" variant="ghost" onClick={onDone}>
+          Cancel
+        </Button>
+        <Button type="submit" variant="primary" disabled={importing.isPending}>
+          {importing.isPending ? "Checking…" : "Import"}
+        </Button>
+      </div>
+    </form>
   );
 }
 

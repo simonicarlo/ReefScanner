@@ -61,7 +61,7 @@ export function JobDetail() {
             </Link>
           )}
           <h1 className="mt-1 text-2xl font-semibold tracking-tight">
-            Run #{id}
+            {job?.source ? "Import" : "Run"} #{id}
           </h1>
           {job && (
             <p className="mt-1 text-sm text-faint">

@@ -57,6 +57,8 @@ export interface Job {
   started_at: string | null;
   finished_at: string | null;
   error: string | null;
+  /** The package folder an import run came from; null for a scan. */
+  source: string | null;
 }
 
 export interface Review {

@@ -9,11 +9,19 @@ from pathlib import Path
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlmodel import Session, func, select
 
-from reefscanner.core.camtrap import Deployment
+from reefscanner.core.camtrap import Deployment, PackageError
 from reefscanner.core.config import ReefScannerConfig
-from ..deps import get_session
-from ..models import Job, Project
-from ..schemas import DeploymentRead, ProjectCreate, ProjectRead, ProjectUpdate
+from .. import imports
+from ..deps import get_runner, get_session
+from ..jobs import JobRunner
+from ..models import JOB_PENDING, Job, Project
+from ..schemas import (
+    DeploymentRead,
+    ProjectCreate,
+    ProjectImport,
+    ProjectRead,
+    ProjectUpdate,
+)
 
 router = APIRouter(prefix="/api/projects", tags=["projects"])
 
@@ -112,6 +120,54 @@ def create_project(
     )
     session.add(project)
     session.commit()
+    session.refresh(project)
+    return _read(session, project)
+
+
+@router.post("/import", response_model=ProjectRead, status_code=status.HTTP_201_CREATED)
+def import_package(
+    payload: ProjectImport,
+    session: Session = Depends(get_session),
+    runner: JobRunner = Depends(get_runner),
+) -> ProjectRead:
+    """Import a Camtrap DP package folder as a new project.
+
+    Checked here so the person sees every problem at once; the copy and the
+    rows then happen in an import run on the job runner, with progress.
+    """
+    try:
+        checked = imports.check_package(payload.package_folder)
+    except PackageError as exc:
+        raise HTTPException(
+            status.HTTP_422_UNPROCESSABLE_ENTITY,
+            {"message": "This package can't be imported", "problems": exc.problems[:100]},
+        ) from None
+    (incoming,) = checked.package.deployments
+    if session.get(Deployment, incoming.deploymentID) is not None:
+        raise HTTPException(
+            status.HTTP_409_CONFLICT,
+            f"Deployment {incoming.deploymentID} is already in the app",
+        )
+
+    session.add(Deployment.model_validate(incoming.model_dump()))
+    session.flush()  # the project's foreign key needs the deployment first
+    project = Project(
+        name=payload.name or incoming.locationName or incoming.deploymentID,
+        deployment_id=incoming.deploymentID,
+        # A rescan of an imported project reruns the laptop scan on its clips.
+        input_folder=str(checked.folder),
+        output_folder=str(Path(payload.output_folder).expanduser()),
+        config=checked.config,
+    )
+    session.add(project)
+    session.flush()
+    job = Job(
+        project_id=project.id, status=JOB_PENDING, message="Queued",
+        source=str(checked.folder),
+    )
+    session.add(job)
+    session.commit()
+    runner.start(job.id)
     session.refresh(project)
     return _read(session, project)
 

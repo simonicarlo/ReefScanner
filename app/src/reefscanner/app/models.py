@@ -7,9 +7,10 @@ needs around them.
 
 * A **project** is one Camtrap deployment — a folder of footage from one place
   — plus the config it is scanned with.
-* A **job** is one scan run. Its observations carry its id as ``scanID``, and
-  its files live in ``<output folder>/scan-<id>/``, which is also where its
-  Camtrap DP package is written.
+* A **job** is one scan run, or one imported package (``source`` set). Its
+  observations carry its id as ``scanID``, and its files live in
+  ``<output folder>/scan-<id>/``, which is also where its Camtrap DP package
+  is written.
 
 The engine's ``Manifest`` remains the resume mechanism for video processing:
 "have I finished analysing this file under these settings?".
@@ -81,6 +82,8 @@ class Job(SQLModel, table=True):
     started_at: _dt.datetime | None = None
     finished_at: _dt.datetime | None = None
     error: str | None = Field(default=None, sa_column=Column(Text))
+    #: The package folder an import run copies from; None for a scan.
+    source: str | None = None
 
     project: Project | None = Relationship(back_populates="jobs")
 

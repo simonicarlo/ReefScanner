@@ -109,6 +109,16 @@ class ProjectRead(BaseModel):
     deployment: DeploymentRead
 
 
+class ProjectImport(BaseModel):
+    """A Camtrap DP package folder to import as a new project."""
+
+    package_folder: str = Field(min_length=1)
+    #: Where the import run copies the package's clips and frames.
+    output_folder: str = Field(min_length=1)
+    #: Defaults to the deployment's location name, or its ID.
+    name: str | None = Field(default=None, min_length=1, max_length=200)
+
+
 class JobRead(BaseModel):
     id: int
     project_id: int
@@ -121,6 +131,8 @@ class JobRead(BaseModel):
     started_at: _dt.datetime | None = None
     finished_at: _dt.datetime | None = None
     error: str | None = None
+    #: The package folder an import run came from; None for a scan.
+    source: str | None = None
 
 
 def _check_relative_bbox(v: list[float] | None) -> list[float] | None:
