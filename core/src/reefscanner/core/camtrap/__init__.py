@@ -2,12 +2,14 @@
 
 ``models`` defines the tables (shared by the edge agent and the field app),
 ``vocab`` the standard's vocabularies and how ReefScanner's verdicts and
-detector classes map onto them.
+detector classes map onto them, and ``package`` writes and reads package
+folders.
 """
 
 from __future__ import annotations
 
 from .models import Deployment, Detection, Media, Observation, ObservationExtra, TZDateTime
+from .package import Package, PackageError, read_package, validate, write_package
 from .vocab import (
     CAMTRAP_DP_VERSION,
     VERDICT_FP,
@@ -28,6 +30,8 @@ __all__ = [
     "Media",
     "Observation",
     "ObservationExtra",
+    "Package",
+    "PackageError",
     "TZDateTime",
     "VERDICTS",
     "VERDICT_FP",
@@ -35,7 +39,10 @@ __all__ = [
     "VERDICT_OBSERVATION_TYPE",
     "VERDICT_TP",
     "VERDICT_UNSURE",
+    "read_package",
     "taxon_for_class",
+    "validate",
     "verdict_from_tags",
     "verdict_tag",
+    "write_package",
 ]

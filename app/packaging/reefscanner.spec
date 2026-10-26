@@ -20,6 +20,8 @@ import imageio_ffmpeg  # noqa: E402  (resolved at build time, from the build ven
 datas = [
     # The built React UI. Missing it gives a window with an API error in it.
     *collect_data_files("reefscanner.app", includes=["static/**/*"]),
+    # The Camtrap DP table schemas the package writer and reader work from.
+    *collect_data_files("reefscanner.core", includes=["camtrap/schemas/**/*"]),
     # Alembic reads its scripts (env.py, versions/*.py) from disk at startup,
     # so they ship as files, not only as compiled modules in the archive.
     *collect_data_files(
