@@ -1,0 +1,18 @@
+[build-system]
+requires = ["hatchling>=1.25"]
+build-backend = "hatchling.build"
+
+[project]
+name = "reefscanner-edge"
+version = "3.0.0.dev0"
+description = "ReefScanner's headless on-rig agent: films, detects and keeps the clips worth reviewing."
+requires-python = ">=3.10"
+license = "MIT"
+authors = [{ name = "ReefScanner contributors" }]
+dependencies = ["reefscanner-core"]
+
+[tool.uv.sources]
+reefscanner-core = { workspace = true }
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/reefscanner"]

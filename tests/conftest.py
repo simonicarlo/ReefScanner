@@ -97,7 +97,7 @@ class StubDetector:
         self.min_area = min_area
 
     def detect(self, frame):
-        from reefscanner.engine.detection import Detection
+        from reefscanner.core.detection import Detection
 
         gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
         _, thresh = cv2.threshold(gray, 200, 255, cv2.THRESH_BINARY)
@@ -122,7 +122,7 @@ def stub_detector(monkeypatch):
     The same instance is both patched in and returned, so a test can configure
     it (confidence, min_area) and have the pipeline actually use those values.
     """
-    import reefscanner.engine.pipeline as pipeline
+    import reefscanner.core.pipeline as pipeline
 
     detector = StubDetector()
     monkeypatch.setattr(pipeline, "get_detector", lambda cfg: detector)

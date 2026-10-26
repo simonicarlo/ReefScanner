@@ -32,7 +32,7 @@ holds. Feature specs and plans for any item go in [`features/`](features/).
 
 Gate: replayed footage gives the same events as the v2 desktop scan.
 
-- [ ] Monorepo: uv workspace with `core/`, `edge/`, `app/`; move `engine/` into
+- [x] Monorepo: uv workspace with `core/`, `edge/`, `app/`; move `engine/` into
       `core/`; CLI and existing tests keep working
 - [ ] Split dependencies: torch and Ultralytics out of `core`, detector backends
       as optional extras

@@ -1,0 +1,49 @@
+[build-system]
+requires = ["hatchling>=1.25"]
+build-backend = "hatchling.build"
+
+[project]
+name = "reefscanner-core"
+version = "3.0.0.dev0"
+description = "ReefScanner's detection engine: scans static-camera (BRUV) video for marine megafauna."
+requires-python = ">=3.10"
+license = "MIT"
+authors = [{ name = "ReefScanner contributors" }]
+keywords = ["marine", "bruv", "video", "triage", "opencv", "yolo"]
+
+# No web stack in here -- the rig and the CLI install this alone. The import
+# stays light regardless (detector construction is lazy, so importing
+# reefscanner.core does not pull in torch until a detector is actually built).
+dependencies = [
+    "opencv-python-headless>=4.9,<5",
+    "numpy>=1.24,<3",
+    "pandas>=2.0,<4",
+    "tqdm>=4.65,<5",
+    "PyYAML>=6.0,<7",
+    # The detector is no longer optional: motion-only recall was removed, so an
+    # install without these can't scan anything. NOTE: Ultralytics YOLO is
+    # AGPL-3.0 (copyleft, network clause) -- fine for research and internal use;
+    # see docs/model-research.md before distributing.
+    "ultralytics>=8.1,<9",
+    "torch>=2.0",
+    # SharkTrack's checkpoint was saved by an older Ultralytics and needs dill to
+    # unpickle. Ultralytics would try to pip-install it at load time, which fails
+    # in any venv without pip.
+    "dill>=0.3",
+]
+
+[project.optional-dependencies]
+ml = ["sahi>=0.11"]   # tiled inference for distant/small animals (MIT)
+# ffmpeg fallback for environments without a system binary.
+ffmpeg = ["imageio-ffmpeg>=0.4.9"]
+
+[project.scripts]
+reefscanner = "reefscanner.core.cli:main"
+
+[project.urls]
+Homepage = "https://github.com/simonicarlo/reefscanner"
+
+[tool.hatch.build.targets.wheel]
+# `reefscanner` is a namespace package shared by core, edge and app, so it has
+# no __init__.py; each member ships its own subpackage under it.
+packages = ["src/reefscanner"]

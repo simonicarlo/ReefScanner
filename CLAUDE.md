@@ -10,3 +10,13 @@ Write new feature specs and implementation plans (including those from the
 superpowers brainstorming and writing-plans skills) to
 `docs/specs/v3/features/`, named `YYYY-MM-DD-<topic>-design.md` and
 `YYYY-MM-DD-<topic>-plan.md` — not to `docs/superpowers/`.
+
+## Layout
+
+A uv workspace of three packages sharing the `reefscanner` namespace:
+`core/` (engine + CLI, no web deps), `edge/` (on-rig agent), `app/` (FastAPI
+service, review UI in `app/frontend/`, desktop shell, Mac build). Core must
+never import from `app` or `edge`.
+
+- `uv sync` installs every member editable, plus the dev group.
+- `uv run pytest` runs `tests/core/` and `tests/app/`.

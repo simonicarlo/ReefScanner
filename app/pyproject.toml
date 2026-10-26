@@ -1,0 +1,31 @@
+[build-system]
+requires = ["hatchling>=1.25"]
+build-backend = "hatchling.build"
+
+[project]
+name = "reefscanner-app"
+version = "3.0.0.dev0"
+description = "ReefScanner's field app: local service, review UI and desktop shell."
+requires-python = ">=3.10"
+license = "MIT"
+authors = [{ name = "ReefScanner contributors" }]
+dependencies = [
+    "reefscanner-core",
+    "fastapi>=0.115,<1",
+    "uvicorn[standard]>=0.30,<1",
+    "sqlmodel>=0.0.22,<0.1",
+    "python-multipart>=0.0.9",
+]
+
+[project.optional-dependencies]
+# The native window. Adds nothing the service needs — `serve` works without it.
+desktop = ["pywebview>=5.1,<6"]
+
+[tool.uv.sources]
+reefscanner-core = { workspace = true }
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/reefscanner"]
+# The built React app is gitignored, and hatchling skips ignored files unless
+# told otherwise; it ships inside the wheel so the desktop shell is self-contained.
+artifacts = ["src/reefscanner/app/static/**"]

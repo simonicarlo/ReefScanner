@@ -20,44 +20,38 @@ Everything runs on your machine. No upload, no account, no cloud.
 git clone https://github.com/simonicarlo/reefscanner.git
 cd reefscanner
 
-uv sync --extra desktop
+uv sync
 
-# Build the review UI. Needed once, and again whenever frontend/ changes —
+# Build the review UI. Needed once, and again whenever app/frontend/ changes —
 # the build is not committed to the repo.
-cd frontend && npm install && npm run build && cd ..
+cd app/frontend && npm install && npm run build && cd ../..
 ```
 
-Use `uv sync`, not `uv pip install`, to pick extras. `uv run` re-syncs the
-environment against the lockfile every time, and it only keeps the extras
-`uv sync` recorded — install them any other way and the next `uv run` quietly
-removes them.
-
-Add extras as you need them, always listing every one you want kept:
-
-```bash
-uv sync --extra desktop --extra ml      # + SAHI tiled inference
-uv sync --extra desktop --extra dev     # + the test suite
-```
+The repo is a uv workspace of three packages (see [Architecture](#architecture)),
+and a plain `uv sync` installs all of them, editable, with the desktop window,
+SAHI and the test suite. Use `uv sync` rather than `uv pip install`: `uv run`
+re-syncs against the lockfile every time and removes anything it didn't record.
 
 Plain pip works too, if you'd rather: `python3 -m venv .venv && source
-.venv/bin/activate && pip install -e '.[desktop]'`.
+.venv/bin/activate && pip install -e ./core -e './app[desktop]'`.
 
 Needs Python ≥ 3.10 and **ffmpeg** for clip extraction — `brew install ffmpeg`
 on macOS, `apt install ffmpeg` on Debian/Ubuntu, or `pip install
 imageio-ffmpeg` for a bundled fallback binary.
 
-Extras, all optional:
+Packages and extras:
 
-| Extra | What it adds |
+| Package | What it adds |
 |---|---|
-| `[app]` | The local service and review UI (FastAPI + SQLite) |
-| `[desktop]` | The native window (PyWebView) |
-| `[ml]` | SAHI tiled inference for small/distant animals |
-| `[dev]` | Tests |
+| `reefscanner-core` | The detection engine and the `reefscanner` CLI |
+| `reefscanner-core[ml]` | SAHI tiled inference for small/distant animals |
+| `reefscanner-app` | The local service and review UI (FastAPI + SQLite) |
+| `reefscanner-app[desktop]` | The native window (PyWebView) |
+| `reefscanner-edge` | The on-rig agent (v3, in progress) |
 
 The YOLO detectors are core, not optional — motion-only triage was removed
 because it cannot tell a small fish nearby from a large one far away. A plain
-`pip install reefscanner` can scan footage out of the box.
+`pip install reefscanner-core` can scan footage out of the box.
 
 ## Running it
 
@@ -158,16 +152,21 @@ chosen and what the alternatives were.
 ## Architecture
 
 ```
-src/reefscanner/
-├── engine/      the analysis core — no web dependencies, importable alone
-├── app/         FastAPI service + SQLite state store
-├── desktop/     PyWebView shell — starts the service, opens a native window
-└── cli.py       process | report | serve | desktop
-frontend/        React + Vite + Tailwind review UI
+core/src/reefscanner/core/       reefscanner-core: the detection engine, no web
+                                 dependencies; cli.py is process | report |
+                                 serve | desktop
+edge/src/reefscanner/edge/       reefscanner-edge: the on-rig agent (v3)
+app/src/reefscanner/app/         reefscanner-app: FastAPI service + SQLite store
+app/src/reefscanner/desktop/     PyWebView shell — starts the service, opens a window
+app/frontend/                    React + Vite + Tailwind review UI
+app/packaging/, app/scripts/     the Mac app build
+tests/core/, tests/app/          one test suite, split by package
 ```
 
-The engine never imports from the app, which is what keeps `reefscanner
-process` usable with nothing but OpenCV installed.
+`reefscanner` is a namespace package that the three share. Core never imports
+from the app or the edge agent, which is what keeps `reefscanner process`
+usable without the web stack, and keeps it light enough for the rig. Specs
+for each version live in [`docs/specs/`](docs/specs/README.md).
 
 Two separate pieces of state, on purpose:
 
@@ -188,7 +187,9 @@ anything (`POST /api/jobs/{id}/import/csv`).
 ```
 results/
 ├── clips/                      one padded clip per event
-\1├── frames/                     the same peak frame, clean — for training\n├── reefscanner_results.csv     one row per event
+├── thumbnails/                 peak frame with the detection box drawn
+├── frames/                     the same peak frame, clean — for training
+├── reefscanner_results.csv     one row per event
 └── reefscanner_manifest.json   which videos are finished
 ```
 
@@ -219,22 +220,22 @@ leaves everything already committed intact.
 ## Development
 
 ```bash
-uv sync --extra desktop --extra dev
+uv sync
 uv run pytest
 
 # Two terminals: the API with reload, and Vite with hot module replacement.
 uv run reefscanner serve --reload
-cd frontend && npm run dev        # http://localhost:5173, proxies /api
+cd app/frontend && npm run dev    # http://localhost:5173, proxies /api
 ```
 
 Fonts are bundled rather than loaded from a CDN — the app has to work with no
-internet. `npm run build` writes into `src/reefscanner/app/static/`, which is
+internet. `npm run build` writes into `app/src/reefscanner/app/static/`, which is
 gitignored; the wheel picks it up from there.
 
 ### Building the Mac app
 
 ```bash
-scripts/build_app.sh        # → dist/ReefScanner.dmg (Apple Silicon)
+app/scripts/build_app.sh    # → app/dist/ReefScanner.dmg (Apple Silicon)
 ```
 
 Builds from a clean standalone Python, bundles the UI, the SharkTrack weights
