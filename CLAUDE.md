@@ -11,6 +11,12 @@ superpowers brainstorming and writing-plans skills) to
 `docs/specs/v3/features/`, named `YYYY-MM-DD-<topic>-design.md` and
 `YYYY-MM-DD-<topic>-plan.md` — not to `docs/superpowers/`.
 
+## Standards
+
+Coding standards live in `.claude/rules/` (Python, testing, API design,
+security, dependencies, frontend) and apply to all new and changed code.
+Skills for audits, onboarding and PR review are in `.claude/skills/`.
+
 ## Layout
 
 A uv workspace of three packages sharing the `reefscanner` namespace:
