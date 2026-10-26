@@ -276,12 +276,14 @@ class JobRunner:
             return
         info = result.info
         out_dir = None
+        camera_timezone, camera_clock = None, "local"
         with self.db.session() as session:
             job = session.get(Job, job_id)
             project = session.get(Project, job.project_id) if job else None
             if project is not None:
                 out_dir = Path(project.output_folder)
                 cfg = config_for(project)
+                camera_timezone, camera_clock = cfg.camera_timezone, cfg.camera_clock
 
             existing = set(
                 session.exec(
@@ -318,7 +320,9 @@ class JobRunner:
                         motion_score=ev.peak_motion_score,
                         ml_confidence=ev.peak_ml_confidence,
                         detected_class=ev.peak_class,
-                        start_timestamp=_start_timestamp(info, ev.start_seconds),
+                        start_timestamp=_start_timestamp(
+                            info, ev.start_seconds, camera_timezone, camera_clock
+                        ),
                         frame_width=info.width if info else None,
                         frame_height=info.height if info else None,
                         clip_path=clip,
@@ -329,9 +333,11 @@ class JobRunner:
             session.commit()
 
 
-def _start_timestamp(info, start_seconds: float) -> str:
+def _start_timestamp(info, start_seconds: float, camera_timezone, camera_clock) -> str:
     from reefscanner.core.events import derive_timestamp
 
     if info is None:
         return ""
-    return derive_timestamp(info.creation_time, start_seconds)
+    return derive_timestamp(
+        info.creation_time, start_seconds, camera_timezone, camera_clock
+    )

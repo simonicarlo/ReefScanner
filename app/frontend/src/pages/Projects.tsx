@@ -4,7 +4,7 @@ import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { api } from "../lib/api";
 import { keys, useProjects } from "../lib/queries";
 import { shortDate, tailPath } from "../lib/format";
-import { Button, Empty, ErrorNote, Field, Input, Spinner } from "../components/ui";
+import { Button, Empty, ErrorNote, Field, Input, Spinner, cx } from "../components/ui";
 
 export function Projects() {
   const { data: projects, isLoading } = useProjects();
@@ -83,12 +83,28 @@ export function Projects() {
   );
 }
 
+/** This computer's IANA timezone: a starting guess for the camera's, never a fact. */
+const LOCAL_TIMEZONE = Intl.DateTimeFormat().resolvedOptions().timeZone ?? "UTC";
+
+/** Every IANA zone the browser knows, for autocompletion; empty if unsupported. */
+const TIMEZONES: string[] = (() => {
+  try {
+    return (Intl as unknown as { supportedValuesOf(k: string): string[] }).supportedValuesOf(
+      "timeZone",
+    );
+  } catch {
+    return [];
+  }
+})();
+
 function NewProjectForm({ onDone }: { onDone: () => void }) {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const [name, setName] = useState("");
   const [inputFolder, setInputFolder] = useState("");
   const [outputFolder, setOutputFolder] = useState("");
+  const [cameraTimezone, setCameraTimezone] = useState(LOCAL_TIMEZONE);
+  const [cameraClock, setCameraClock] = useState<"local" | "utc">("local");
 
   const create = useMutation({
     mutationFn: () =>
@@ -99,6 +115,7 @@ function NewProjectForm({ onDone }: { onDone: () => void }) {
         // everyone wants, and it keeps clips near what they came from.
         output_folder:
           outputFolder.trim() || `${inputFolder.trim().replace(/\/+$/, "")}_results`,
+        config: { camera_timezone: cameraTimezone.trim(), camera_clock: cameraClock },
       }),
     onSuccess: (project) => {
       queryClient.invalidateQueries({ queryKey: keys.projects });
@@ -152,6 +169,49 @@ function NewProjectForm({ onDone }: { onDone: () => void }) {
           }
         />
       </Field>
+
+      <div className="grid gap-4 md:grid-cols-2">
+      <Field
+        label="Camera timezone"
+        hint="Where the footage was filmed. Filled in with this computer's timezone; change it if that's elsewhere. Video files can't be trusted to say."
+      >
+        <Input
+          className="font-mono text-xs"
+          value={cameraTimezone}
+          onChange={(e) => setCameraTimezone(e.target.value)}
+          list="timezones"
+          placeholder="Africa/Maputo"
+          required
+        />
+        <datalist id="timezones">
+          {TIMEZONES.map((tz) => (
+            <option key={tz} value={tz} />
+          ))}
+        </datalist>
+      </Field>
+      <Field
+        label="Camera clock"
+        hint="Local: the camera's clock shows local time (GoPros, most action cams). UTC: it records real UTC (phones, GPS-synced cameras)."
+      >
+        <div className="flex flex-wrap gap-1">
+          {(["local", "utc"] as const).map((choice) => (
+            <button
+              key={choice}
+              type="button"
+              onClick={() => setCameraClock(choice)}
+              className={cx(
+                "rounded-[3px] border px-2.5 py-1 font-mono text-xs transition-colors",
+                cameraClock === choice
+                  ? "border-signal/60 bg-signal/15 text-signal"
+                  : "border-rule text-dim hover:border-rule-hi hover:text-read",
+              )}
+            >
+              {choice === "local" ? "local time" : "true UTC"}
+            </button>
+          ))}
+        </div>
+      </Field>
+      </div>
 
       <ErrorNote error={create.error} />
 

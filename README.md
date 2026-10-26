@@ -39,7 +39,7 @@ uv sync
 #    the build is not committed to the repo.
 cd app/frontend && npm install && npm run build && cd ../..
 
-# 3. Check the install: should end with "89 passed"
+# 3. Check the install: should end with "120 passed"
 uv run pytest
 
 # 4. Some synthetic footage to try it on, if you have no dives at hand
@@ -83,7 +83,7 @@ for one person on one machine. Don't put it on a network interface.
 Headless, no UI required:
 
 ```bash
-uv run reefscanner process ~/footage --out ~/results
+uv run reefscanner process ~/footage --out ~/results --camera-timezone Africa/Maputo
 ```
 
 ### Packages
@@ -113,6 +113,13 @@ Runtime, with no PyTorch: a plain `pip install reefscanner-core` downloads
 SharkTrack's ONNX export (published as a
 [release file](https://github.com/simonicarlo/ReefScanner/releases/tag/models-v1),
 checked against a pinned hash) on first use and can scan footage out of the box.
+
+**Timezones.** Video files can't be trusted about when they were filmed:
+GoPros store the camera's local clock time but label it UTC, while phones store
+real UTC. So each project asks where the footage was filmed
+(`--camera-timezone`, e.g. `Africa/Maputo`) and what the camera's clock holds
+(`--camera-clock local`, the default, or `utc`). Without a timezone, event
+timestamps are left blank rather than guessed.
 
 ## Reviewing
 

@@ -26,12 +26,27 @@ def validated_config(data: dict[str, Any]) -> dict[str, Any]:
     return ReefScannerConfig.from_dict(data).to_dict()
 
 
+def _require_camera_timezone(v: dict[str, Any]) -> None:
+    """A project must say which timezone the camera clock was in.
+
+    File timestamps can't be trusted for it (GoPros label local time as UTC),
+    and the laptop's own zone is only a guess, so the UI pre-fills that and
+    asks the person to confirm.
+    """
+    if not v.get("camera_timezone"):
+        raise ValueError(
+            "camera_timezone is required: the IANA timezone the camera's clock "
+            "was set to, e.g. 'Africa/Maputo'"
+        )
+
+
 class ProjectCreate(BaseModel):
     name: str = Field(min_length=1, max_length=200)
     input_folder: str = Field(min_length=1)
     output_folder: str = Field(min_length=1)
-    #: Partial or full engine config; unset keys take the engine's defaults.
-    config: dict[str, Any] = Field(default_factory=dict)
+    #: Partial or full engine config; unset keys take the engine's defaults,
+    #: except camera_timezone, which has to be given.
+    config: dict[str, Any]
 
     @field_validator("config")
     @classmethod
@@ -39,6 +54,7 @@ class ProjectCreate(BaseModel):
         # input/output folders live on the project, not in the config blob, so
         # they're stripped here and re-attached when a job builds the config.
         v = {k: val for k, val in v.items() if k not in ("input_folder", "output_folder")}
+        _require_camera_timezone(v)
         validated_config(v)
         return v
 
@@ -55,6 +71,8 @@ class ProjectUpdate(BaseModel):
         if v is None:
             return v
         v = {k: val for k, val in v.items() if k not in ("input_folder", "output_folder")}
+        # A config update replaces the stored blob, so it can't drop the zone.
+        _require_camera_timezone(v)
         validated_config(v)
         return v
 

@@ -80,6 +80,14 @@ def _add_process_args(p: argparse.ArgumentParser) -> None:
                    action="store_true", default=None,
                    help="In detector mode, skip dead-static frames (cheap pre-skip).")
 
+    p.add_argument("--camera-timezone", dest="camera_timezone",
+                   help="IANA timezone the camera's clock was set to, e.g. "
+                        "Africa/Maputo. Without it, event timestamps are left "
+                        "blank.")
+    p.add_argument("--camera-clock", dest="camera_clock", choices=["local", "utc"],
+                   help="What the file's time is: local = the camera's clock "
+                        "reading (GoPros; the default), utc = true UTC (phones).")
+
     p.add_argument("--quiet", action="store_true", help="Reduce logging.")
     p.add_argument("--no-progress", dest="progress", action="store_false",
                    default=True, help="Disable the tqdm progress bar.")
@@ -102,7 +110,8 @@ def _config_from_args(args: argparse.Namespace) -> ReefScannerConfig:
         "merge_gap_seconds", "min_event_seconds", "pad_seconds",
         "reencode_clips", "ffmpeg_path", "extensions", "detector",
         "detector_backend", "detector_weights", "ml_confidence_threshold", "target_classes",
-        "use_sahi", "motion_prefilter",
+        "use_sahi", "motion_prefilter", "camera_timezone",
+        "camera_clock",
     ]
     for key in overridable:
         val = getattr(args, key, None)

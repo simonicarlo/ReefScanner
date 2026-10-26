@@ -130,9 +130,33 @@ def aggregate_events(
 
 
 def derive_timestamp(
-    creation_time: Optional[_dt.datetime], start_seconds: float
+    creation_time: Optional[_dt.datetime],
+    start_seconds: float,
+    camera_timezone: Optional[str],
+    camera_clock: str = "local",
 ) -> str:
-    """Wall-clock ISO timestamp for an event start, or '' if unknown (SPEC §3)."""
-    if creation_time is None:
+    """Wall-clock ISO timestamp for an event start, or '' if it can't be known.
+
+    Files can't be trusted about their own timezone, and cameras disagree:
+
+    * ``camera_clock="local"`` — the file holds the camera's *clock reading*,
+      whatever zone it claims. GoPros record local time labelled as UTC, so
+      the reading is placed in ``camera_timezone`` and the label ignored.
+    * ``camera_clock="utc"`` — the file holds real UTC (phones, GPS-synced
+      cameras), which is converted into ``camera_timezone``.
+
+    Either way the result carries the camera zone's offset. Without a zone, no
+    timestamp is better than one that is silently hours off.
+    """
+    if creation_time is None or camera_timezone is None:
         return ""
-    return (creation_time + _dt.timedelta(seconds=start_seconds)).isoformat()
+    from zoneinfo import ZoneInfo
+
+    zone = ZoneInfo(camera_timezone)
+    offset = _dt.timedelta(seconds=start_seconds)
+    if camera_clock == "utc":
+        utc = creation_time.replace(tzinfo=_dt.timezone.utc) if creation_time.tzinfo is None \
+            else creation_time.astimezone(_dt.timezone.utc)
+        return (utc + offset).astimezone(zone).isoformat()
+    clock = creation_time.replace(tzinfo=None) + offset
+    return clock.replace(tzinfo=zone).isoformat()

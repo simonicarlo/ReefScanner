@@ -26,6 +26,16 @@ const PRIMARY: { key: string; label: string; hint: string }[] = [
     hint: "marine = SharkTrack, trained on real BRUVS footage. generic = stock COCO YOLO, experimental.",
   },
   {
+    key: "camera_timezone",
+    label: "Camera timezone",
+    hint: "IANA zone the footage was filmed in, e.g. Africa/Maputo. Event times are given in it; changing it rescans.",
+  },
+  {
+    key: "camera_clock",
+    label: "Camera clock",
+    hint: "local = the file holds the camera's local clock time (GoPros). utc = it holds real UTC (phones).",
+  },
+  {
     key: "ml_confidence_threshold",
     label: "Confidence threshold",
     hint: "Detections below this are discarded. Review some events and the run page will recommend a value.",
@@ -67,6 +77,7 @@ const MOTION_ONLY_KEYS = new Set([
 const CHOICES: Record<string, string[]> = {
   detector: ["marine", "generic"],
   detector_backend: ["onnx", "ultralytics"],
+  camera_clock: ["local", "utc"],
   bg_subtractor: ["MOG2", "KNN"],
 };
 

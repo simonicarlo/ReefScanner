@@ -41,6 +41,8 @@ def event_to_row(
     info: VideoInfo,
     clip_path: Optional[str],
     thumbnail_path: Optional[str],
+    camera_timezone: Optional[str],
+    camera_clock: str = "local",
 ) -> dict[str, object]:
     return {
         "event_id": event.event_id,
@@ -49,7 +51,7 @@ def event_to_row(
         "end_seconds": round(event.end_seconds, 3),
         "duration_s": round(event.duration_seconds, 3),
         "start_timestamp": derive_timestamp(
-            info.creation_time, event.start_seconds
+            info.creation_time, event.start_seconds, camera_timezone, camera_clock
         ),
         "motion_score": (
             "" if event.peak_motion_score is None

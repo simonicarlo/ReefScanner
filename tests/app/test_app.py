@@ -24,6 +24,8 @@ from conftest import make_video
 #: 1 sampled fps) would spend the whole video learning the background and emit
 #: nothing. These are the same tunings the engine tests use.
 TEST_CONFIG = {
+    # Required on every project; the synthetic videos carry no creation time.
+    "camera_timezone": "UTC",
     "frame_sample_fps": 2.0,
     "warmup_frames": 3,
     "min_blob_area": 300,
@@ -98,6 +100,7 @@ def test_create_project_rejects_missing_folder(client: TestClient, tmp_path) -> 
             "name": "nope",
             "input_folder": str(tmp_path / "does-not-exist"),
             "output_folder": str(tmp_path / "out"),
+            "config": TEST_CONFIG,
         },
     )
     assert resp.status_code == 400
@@ -111,7 +114,7 @@ def test_create_project_rejects_unknown_config_key(client, project_dirs) -> None
             "name": "typo",
             "input_folder": str(in_dir),
             "output_folder": str(out_dir),
-            "config": {"frame_sample_fpz": 2.0},
+            "config": {"frame_sample_fpz": 2.0, "camera_timezone": "UTC"},
         },
     )
     # The engine's typo protection must survive the trip through the API.
@@ -436,3 +439,17 @@ def test_spa_route_does_not_serve_files_outside_the_build(
             assert resp.status_code == 200
             assert "do not serve" not in resp.text
             assert resp.text == "<!doctype html>index"
+
+
+def test_project_needs_a_camera_timezone(client: TestClient, project_dirs) -> None:
+    """Files can't be trusted about their timezone, so a project must say."""
+    in_dir, out_dir = project_dirs
+    body = {"name": "no zone", "input_folder": str(in_dir), "output_folder": str(out_dir)}
+    assert client.post("/api/projects", json=body).status_code == 422
+    resp = client.post("/api/projects", json={**body, "config": {"frame_sample_fps": 2.0}})
+    assert resp.status_code == 422 and "camera_timezone" in resp.text
+
+    created = client.post("/api/projects", json={**body, "config": TEST_CONFIG}).json()
+    # A config update replaces the stored one, so it can't drop the zone either.
+    resp = client.patch(f"/api/projects/{created['id']}", json={"config": {"frame_sample_fps": 1.0}})
+    assert resp.status_code == 422

@@ -157,7 +157,10 @@ def process_video(
         peak = read_peak_frame(event, info)
         thumb_path = save_thumbnail(event, info, cfg, thumbs_dir, frame=peak)
         save_clean_frame(event, info, cfg, frames_dir, frame=peak)
-        rows.append(event_to_row(event, info, str(clip_path), str(thumb_path)))
+        rows.append(event_to_row(
+            event, info, str(clip_path), str(thumb_path),
+            cfg.camera_timezone, cfg.camera_clock,
+        ))
     return events, rows
 
 
@@ -201,6 +204,12 @@ def process_folder(
     ffmpeg = resolve_ffmpeg(cfg)
 
     videos = discover_videos(input_root, cfg.extensions)
+    if cfg.camera_timezone is None:
+        logger.warning(
+            "No camera timezone set, so events get no wall-clock timestamp. "
+            "Set camera_timezone (--camera-timezone) to the zone the camera's "
+            "clock was set to, e.g. Africa/Maputo."
+        )
     logger.info(
         "Discovered %d video(s) under %s (detector=%s)",
         len(videos), input_root, cfg.detector,

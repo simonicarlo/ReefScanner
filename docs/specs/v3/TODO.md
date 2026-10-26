@@ -32,6 +32,15 @@ holds. Feature specs and plans for any item go in [`features/`](features/).
 - **No test bench yet.** Build the prototype as well as we can, then test and
   optimise against real deployments. Until then, "same events as v2" means
   comparing against the v2 scan of the same footage, which needs no labels.
+- **Time comes from the person, not the file.** Video files can't be trusted
+  about their timezone: GoPros record local time labelled as UTC, phones record
+  real UTC. Every project says which zone the camera was in
+  (`camera_timezone`, pre-filled with the laptop's and confirmed by the user)
+  and what the file's clock holds (`camera_clock`: `local` or `utc`). Without
+  a zone, timestamps stay blank rather than guessed. The zone is required even
+  for UTC clocks: local time of day matters for the research, and UTC alone
+  doesn't give it. The rig will need the same
+  two answers at deployment setup, next to clock sync.
 - **Backup recording quality is configurable.** It defaults to full quality,
   because early deployments will keep all footage and be checked by hand; it
   can be reduced once researchers trust the detector.
@@ -53,7 +62,7 @@ Gate: replayed footage gives the same events as the v2 desktop scan.
 - [x] Camtrap DP data model: SQLModel tables for deployments, media and
       observations, the extension sidecar table, and Alembic set up
       ([design](features/2026-10-26-camtrap-dp-data-model-design.md))
-- [ ] Camtrap DP writer and reader, validated against the official schema; one
+- [x] Camtrap DP writer and reader, validated against the official schema; one
       package folder per deployment
 - [ ] Camera adapter interface, with file replay at real-time speed and USB
       webcam sources
@@ -92,8 +101,9 @@ Gate: an unattended run yields a valid package; recall checked against the backu
       configuration, clock sync
 - [ ] Field app, device: connect over Wi-Fi or USB, show health, pull packages;
       import from an SD card or USB drive the same way
-- [ ] Field app, deployment setup: name, location, push config and model version,
-      sync the clock, check framing in the live preview
+- [ ] Field app, deployment setup: name, location, camera timezone and clock
+      kind, push config and model version, sync the clock, check framing in
+      the live preview
 - [ ] Recall check tool: compare a deployment's events against a human pass over
       its backup recording
 - [ ] Sealed housing, unattended run, acceptance check

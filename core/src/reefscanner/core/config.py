@@ -97,6 +97,15 @@ class ReefScannerConfig:
     #: imageio-ffmpeg fallback if installed).
     ffmpeg_path: str | None = None
 
+    # --- Time -----------------------------------------------------------------
+    #: The IANA timezone the camera was in, e.g. "Africa/Maputo". Event times
+    #: are given in it. None leaves event timestamps blank rather than guessing.
+    camera_timezone: str | None = None
+    #: What the file's creation time really is. "local": the camera's clock
+    #: reading in camera_timezone, whatever zone the file claims (GoPros record
+    #: local time labelled as UTC). "utc": true UTC (phones, GPS-synced cameras).
+    camera_clock: str = "local"
+
     # --- Step 4: detector / ML stage (pluggable; the recall source) --------
     #: marine = SharkTrack YOLO (the default; trained on real BRUVS footage);
     #: generic = stock COCO YOLO objectness (experimental).
@@ -164,6 +173,20 @@ class ReefScannerConfig:
                     "`reefscanner export-onnx --weights <file.pt>`, or set "
                     "detector_backend='ultralytics'."
                 )
+        if self.camera_timezone is not None:
+            from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
+
+            try:
+                ZoneInfo(self.camera_timezone)
+            except (ZoneInfoNotFoundError, ValueError):
+                raise ValueError(
+                    f"camera_timezone {self.camera_timezone!r} is not a known "
+                    "IANA timezone (e.g. 'Africa/Maputo', 'UTC')"
+                ) from None
+        if self.camera_clock not in ("local", "utc"):
+            raise ValueError(
+                f"camera_clock must be 'local' or 'utc', got {self.camera_clock!r}"
+            )
         if self.frame_sample_fps <= 0:
             raise ValueError("frame_sample_fps must be > 0")
         if not (0 < self.detect_downscale <= 1.0):
