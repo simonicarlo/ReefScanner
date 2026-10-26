@@ -45,8 +45,8 @@ Gate: replayed footage gives the same events as the v2 desktop scan.
 - [x] ONNX export of SharkTrack and an ONNX Runtime backend (letterbox, decode,
       NMS); test that its detections match the Ultralytics backend. Identical on
       the four test dives: 72/72 detections, same 7 events as v2
-- [ ] Host `sharktrack.onnx` (e.g. a GitHub release asset) so an install without
-      Ultralytics can fetch it, as the `.pt` is fetched today
+- [x] Host `sharktrack.onnx` as a GitHub release asset (`models-v1`) so an
+      install without Ultralytics can fetch it; downloads are hash-checked
 - [ ] SAHI tiling for the ONNX backend (it needs Ultralytics today)
 - [ ] Camtrap DP data model: SQLModel tables for deployments, media and
       observations, the extension sidecar table, and Alembic set up

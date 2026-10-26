@@ -6,14 +6,16 @@ SharkTrack repo) into a local cache — the same convenience Ultralytics provide
 for ``yolov8n.pt``. Set ``detector_weights`` explicitly to use your own
 fine-tuned checkpoint instead.
 
-The default ONNX backend needs the same model as ``sharktrack.onnx``. Nobody
-publishes that file, so it is exported from the ``.pt`` once (which needs the
-``ultralytics`` extra) and cached next to it; the packaged app and the rig get
-it bundled instead.
+The default ONNX backend needs the same model as ``sharktrack.onnx``. SharkTrack
+doesn't publish one, so ReefScanner does, as a GitHub release asset (exported
+with ``reefscanner export-onnx``). It is downloaded and checked against a
+pinned hash; with the ``ultralytics`` extra installed it can also be exported
+locally if the download fails. The packaged app gets it bundled.
 """
 
 from __future__ import annotations
 
+import hashlib
 import logging
 import os
 import shutil
@@ -29,6 +31,15 @@ SHARKTRACK_WEIGHTS_URL = (
 )
 SHARKTRACK_FILENAME = "sharktrack.pt"
 SHARKTRACK_ONNX_FILENAME = "sharktrack.onnx"
+#: Our ONNX export of the same weights (dynamic input, 640 px, opset 17).
+SHARKTRACK_ONNX_URL = (
+    "https://github.com/simonicarlo/ReefScanner/releases/download/"
+    "models-v1/sharktrack.onnx"
+)
+#: Pinned so a replaced or corrupted release file is refused, not run.
+SHARKTRACK_ONNX_SHA256 = (
+    "ebbef2594720033066cc3eca0809c144b7092660a2018080a6042ae1ab565ff4"
+)
 #: SharkTrack was trained at 640 px, so it is exported at that input size.
 SHARKTRACK_IMGSZ = 640
 
@@ -85,10 +96,11 @@ def ensure_sharktrack_weights() -> str:
 
 
 def ensure_sharktrack_onnx() -> str:
-    """Return a local path to SharkTrack as ONNX, exporting it once if needed.
+    """Return a local path to SharkTrack as ONNX, fetching it once if needed.
 
-    Preference order: the bundled copy, then the cache, then an export from the
-    ``.pt`` weights (downloading those first if needed).
+    Preference order: the bundled copy, then the cache, then a download of our
+    published export, then a local export from the ``.pt`` (only possible with
+    the ``ultralytics`` extra).
     """
     shipped = bundled_weights(SHARKTRACK_ONNX_FILENAME)
     if shipped is not None:
@@ -97,18 +109,41 @@ def ensure_sharktrack_onnx() -> str:
     dest = cache_dir() / SHARKTRACK_ONNX_FILENAME
     if dest.exists() and dest.stat().st_size > 0:
         return str(dest)
+
+    logger.info("Downloading SharkTrack (ONNX) to %s", dest)
     try:
-        import ultralytics  # type: ignore  # noqa: F401
-    except ImportError as exc:
-        raise RuntimeError(
-            f"No SharkTrack ONNX model found in {dest.parent}. Create it once "
-            "on a machine with the ultralytics extra installed "
-            "(pip install 'reefscanner-core[ultralytics]') by running "
-            "`reefscanner export-onnx`, then copy sharktrack.onnx here or set "
-            "detector_weights to its path."
-        ) from exc
-    logger.info("Exporting SharkTrack to ONNX at %s (one-off)", dest)
-    return export_onnx(ensure_sharktrack_weights(), dest, imgsz=SHARKTRACK_IMGSZ)
+        return _download(SHARKTRACK_ONNX_URL, dest, sha256=SHARKTRACK_ONNX_SHA256)
+    except Exception as download_error:
+        try:
+            import ultralytics  # type: ignore  # noqa: F401
+        except ImportError:
+            raise RuntimeError(
+                f"Failed to download SharkTrack (ONNX) from "
+                f"{SHARKTRACK_ONNX_URL}: {download_error}. Download it manually "
+                f"into {dest.parent}, or export it with `reefscanner export-onnx` "
+                "on a machine with the ultralytics extra "
+                "(pip install 'reefscanner-core[ultralytics]')."
+            ) from download_error
+        logger.warning(
+            "Download failed (%s); exporting SharkTrack to ONNX locally instead",
+            download_error,
+        )
+        return export_onnx(ensure_sharktrack_weights(), dest, imgsz=SHARKTRACK_IMGSZ)
+
+
+def _download(url: str, dest: Path, sha256: str | None = None) -> str:
+    """Fetch ``url`` to ``dest`` atomically, checking its hash if one is given."""
+    partial = dest.with_name(dest.name + ".partial")
+    try:
+        urllib.request.urlretrieve(url, partial)
+        if sha256 is not None:
+            digest = hashlib.sha256(partial.read_bytes()).hexdigest()
+            if digest != sha256:
+                raise ValueError(f"checksum mismatch: got {digest}, expected {sha256}")
+        partial.replace(dest)
+    finally:
+        partial.unlink(missing_ok=True)
+    return str(dest)
 
 
 def export_onnx(

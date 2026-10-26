@@ -39,7 +39,7 @@ uv sync
 #    the build is not committed to the repo.
 cd app/frontend && npm install && npm run build && cd ../..
 
-# 3. Check the install: should end with "81 passed"
+# 3. Check the install: should end with "84 passed"
 uv run pytest
 
 # 4. Some synthetic footage to try it on, if you have no dives at hand
@@ -51,8 +51,7 @@ uv run reefscanner desktop
 
 In the app, create a project with `~/ReefScanner-demo` as the footage folder
 and any empty folder for results, then press **Scan footage**. The first scan
-downloads the SharkTrack detector weights (~6 MB) and converts them for ONNX
-Runtime, so it needs internet once.
+downloads the SharkTrack detector (~12 MB), so it needs internet once.
 The synthetic footage has no real sharks, so expect few or no events from it;
 it's there to check that everything runs. Real BRUV footage is what the
 detector is for.
@@ -111,10 +110,10 @@ Python 3.10 or newer.
 
 The detector is core, not optional — motion-only triage was removed because it
 cannot tell a small fish nearby from a large one far away. It runs on ONNX
-Runtime, with no PyTorch; the one thing that still needs Ultralytics is
-converting SharkTrack to ONNX the first time, which the dev install and the
-Mac app take care of. On a machine without it, copy `sharktrack.onnx` into
-`~/.cache/reefscanner/` from one that has it.
+Runtime, with no PyTorch: a plain `pip install reefscanner-core` downloads
+SharkTrack's ONNX export (published as a
+[release file](https://github.com/simonicarlo/ReefScanner/releases/tag/models-v1),
+checked against a pinned hash) on first use and can scan footage out of the box.
 
 ## Reviewing
 
@@ -171,8 +170,7 @@ it can't tell a small fish close to the camera from a large animal far away.)
 
 **`marine` (default) — SharkTrack.** A YOLOv8 model trained on real BRUVS
 footage, single `elasmobranch` class, MIT-licensed. The weights download
-automatically on first use (~6 MB, cached in `~/.cache/reefscanner`) and are
-converted to ONNX once. On an M2 a frame takes about 23 ms on the CPU.
+automatically on first use (~12 MB as ONNX, cached in `~/.cache/reefscanner`). On an M2 a frame takes about 23 ms on the CPU.
 
 **Backends.** The model runs on **ONNX Runtime** by default (`--backend onnx`):
 no PyTorch, and the same model file runs on a laptop or an edge board. The

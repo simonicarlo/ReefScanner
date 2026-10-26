@@ -8,6 +8,9 @@ scripts/check_onnx_parity.py.
 
 from __future__ import annotations
 
+import hashlib
+from pathlib import Path
+
 import numpy as np
 import pytest
 
@@ -183,22 +186,87 @@ def test_sharktrack_onnx_comes_from_the_cache(tmp_path, monkeypatch):
     assert weights.ensure_sharktrack_onnx() == str(cached)
 
 
-def test_sharktrack_onnx_without_ultralytics_explains_how_to_get_it(
+def fake_download(monkeypatch, payload: bytes | None):
+    """Stand in for urlretrieve: write ``payload``, or fail like a network error."""
+    calls = []
+
+    def retrieve(url, dest):
+        calls.append(url)
+        if payload is None:
+            raise OSError("network unreachable")
+        Path(dest).write_bytes(payload)
+
+    monkeypatch.setattr(weights.urllib.request, "urlretrieve", retrieve)
+    return calls
+
+
+def test_sharktrack_onnx_downloads_the_published_export(tmp_path, monkeypatch):
+    monkeypatch.setenv("REEFSCANNER_CACHE", str(tmp_path))
+    payload = b"onnx model"
+    monkeypatch.setattr(
+        weights, "SHARKTRACK_ONNX_SHA256", hashlib.sha256(payload).hexdigest()
+    )
+    calls = fake_download(monkeypatch, payload)
+
+    path = weights.ensure_sharktrack_onnx()
+    assert calls == [weights.SHARKTRACK_ONNX_URL]
+    assert Path(path).read_bytes() == payload
+    # Cached: a second call doesn't download again.
+    assert weights.ensure_sharktrack_onnx() == path and len(calls) == 1
+
+
+def test_sharktrack_onnx_with_a_wrong_hash_is_refused_and_not_kept(
     tmp_path, monkeypatch
 ):
+    monkeypatch.setenv("REEFSCANNER_CACHE", str(tmp_path))
+    fake_download(monkeypatch, b"tampered")
+    no_ultralytics(monkeypatch)
+
+    with pytest.raises(RuntimeError, match="checksum mismatch"):
+        weights.ensure_sharktrack_onnx()
+    assert list(tmp_path.iterdir()) == []
+
+
+def test_sharktrack_onnx_download_failure_explains_how_to_get_it(
+    tmp_path, monkeypatch
+):
+    monkeypatch.setenv("REEFSCANNER_CACHE", str(tmp_path))
+    fake_download(monkeypatch, None)
+    no_ultralytics(monkeypatch)
+
+    with pytest.raises(RuntimeError, match="export-onnx"):
+        weights.ensure_sharktrack_onnx()
+
+
+def test_sharktrack_onnx_falls_back_to_a_local_export(tmp_path, monkeypatch):
+    monkeypatch.setenv("REEFSCANNER_CACHE", str(tmp_path))
+    fake_download(monkeypatch, None)
+    monkeypatch.setattr(weights, "ensure_sharktrack_weights", lambda: "shark.pt")
+    exported = {}
+
+    def export(src, dest, imgsz):
+        exported.update(src=src, dest=dest, imgsz=imgsz)
+        return str(dest)
+
+    monkeypatch.setattr(weights, "export_onnx", export)
+    path = weights.ensure_sharktrack_onnx()
+    assert exported == {
+        "src": "shark.pt", "dest": tmp_path / "sharktrack.onnx", "imgsz": 640,
+    }
+    assert path == str(tmp_path / "sharktrack.onnx")
+
+
+def no_ultralytics(monkeypatch):
     import builtins
 
-    monkeypatch.setenv("REEFSCANNER_CACHE", str(tmp_path))
     real_import = builtins.__import__
 
-    def no_ultralytics(name, *args, **kwargs):
+    def refuse(name, *args, **kwargs):
         if name == "ultralytics":
             raise ImportError("no ultralytics here")
         return real_import(name, *args, **kwargs)
 
-    monkeypatch.setattr(builtins, "__import__", no_ultralytics)
-    with pytest.raises(RuntimeError, match="export-onnx"):
-        weights.ensure_sharktrack_onnx()
+    monkeypatch.setattr(builtins, "__import__", refuse)
 
 
 def test_dynamic_models_pad_only_to_the_stride():
