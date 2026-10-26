@@ -67,15 +67,20 @@ Gate: replayed footage gives the same events as the v2 desktop scan.
       ([design](features/2026-10-26-camtrap-dp-data-model-design.md))
 - [x] Camtrap DP writer and reader, validated against the official schema; one
       package folder per deployment
-- [ ] Camera adapter interface, with file replay at real-time speed and USB
-      webcam sources
-- [ ] Ring buffer of the encoded full-quality stream (default 30 s pre-roll)
-- [ ] Scheduler: 2–5 fps while idle, full frame rate in a burst after a
+- [x] Camera adapter interface, with file replay at real-time speed and USB
+      webcam sources ([design](features/2026-10-26-edge-agent-design.md))
+- [x] Ring buffer of the encoded full-quality stream (default 30 s pre-roll):
+      2 s MPEG-TS segments from ffmpeg, clips joined without re-encoding
+- [x] Scheduler: 2–5 fps while idle, full frame rate in a burst after a
       detection, then back to idle
-- [ ] Event writer: clip (pre-roll + event + post-roll), clean peak frame,
+- [x] Event writer: clip (pre-roll + event + post-roll), clean peak frame,
       annotated thumbnail, Camtrap DP rows
-- [ ] Replay simulator: run the whole agent on a laptop against the baseline
+- [x] Replay simulator: run the whole agent on a laptop against the baseline
       footage, write a package, and diff its events against the v2 reference
+      (`reefscanner-edge replay`). **Gate holds on the four test dives:** all
+      7 laptop-scan events found, none missed or extra, with the full frame
+      and with the 640 px low-res copy; in real time on the dev laptop, 12 of 853
+      frames dropped during bursts
 - [x] Field app on Camtrap DP: scans write media and machine observations,
       reviews write human observations, a run exports as a package
       ([design](features/2026-10-26-app-on-camtrap-design.md))

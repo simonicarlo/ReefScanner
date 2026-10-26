@@ -67,28 +67,34 @@ class VideoRows:
     #: True when the start time was guessed from the file, not recorded in it.
     timestamp_issues: bool = False
 
+    def extend(self, other: VideoRows) -> None:
+        self.media += other.media
+        self.observations += other.observations
+        self.extras += other.extras
+        self.detections += other.detections
+
 
 def event_id(ctx: ScanContext, event: Event) -> str:
     return f"{ctx.deployment_id}:{ctx.scan_id}:{event.event_id}"
 
 
-def video_start(info: VideoInfo, ctx: ScanContext) -> tuple[_dt.datetime, bool]:
-    """When the video started, and whether that is a guess.
+def file_start(
+    info: VideoInfo, camera_timezone: str, camera_clock: str
+) -> tuple[_dt.datetime, bool]:
+    """When a video's first frame happened, and whether that is a guess.
 
     The recorded creation time, read per the camera's timezone and clock, when
     the file has one. Otherwise the file's modification time minus its
     duration: often right for a file straight off the camera, wrong for a copy,
     hence flagged so the deployment can say its timestamps have issues.
     """
-    recorded = wall_clock(
-        info.creation_time, 0.0, ctx.camera_timezone, ctx.camera_clock
-    )
+    recorded = wall_clock(info.creation_time, 0.0, camera_timezone, camera_clock)
     if recorded is not None:
         return recorded, False
     from zoneinfo import ZoneInfo
 
     modified = _dt.datetime.fromtimestamp(
-        Path(info.path).stat().st_mtime, tz=ZoneInfo(ctx.camera_timezone)
+        Path(info.path).stat().st_mtime, tz=ZoneInfo(camera_timezone)
     )
     return modified - _dt.timedelta(seconds=info.duration_seconds or 0.0), True
 
@@ -97,85 +103,113 @@ def rows_for_video(
     ctx: ScanContext, info: VideoInfo, events: Sequence[Event]
 ) -> VideoRows:
     """Media, machine observations and per-frame detections for one video."""
-    start, guessed = video_start(info, ctx)
+    start, guessed = file_start(info, ctx.camera_timezone, ctx.camera_clock)
     out = VideoRows(
         video_start=start,
         video_end=start + _dt.timedelta(seconds=info.duration_seconds or 0.0),
         timestamp_issues=guessed,
     )
-    suffix = Path(info.path).suffix.lower() or ".mp4"
+    for ev in events:
+        out.extend(rows_for_event(
+            ctx, ev, start=start, width=info.width, height=info.height,
+            source_name=Path(info.path).name,
+            clip_suffix=Path(info.path).suffix.lower() or ".mp4",
+        ))
+    return out
+
+
+def rows_for_event(
+    ctx: ScanContext,
+    ev: Event,
+    *,
+    start: _dt.datetime,
+    width: int,
+    height: int,
+    source_name: str,
+    clip_suffix: str,
+    clip_start_seconds: float | None = None,
+) -> VideoRows:
+    """Media, machine observation and per-frame detections for one event.
+
+    ``start`` is when second 0 of the event's times happened; ``width`` and
+    ``height`` are the frame size its boxes are in. The clip is assumed to
+    start ``pad_seconds`` before the event unless ``clip_start_seconds`` says
+    where it really starts (the edge agent's clips snap to buffer segments).
+    """
+    out = VideoRows()
 
     def at(seconds: float) -> _dt.datetime:
         # Camtrap timestamps have whole seconds; keep the offset, drop the rest.
         return (start + _dt.timedelta(seconds=seconds)).replace(microsecond=0)
 
-    for ev in events:
-        eid = event_id(ctx, ev)
-        clip_id, frame_id = f"{eid}:clip", f"{eid}:frame"
-        out.media += [
-            Media(
-                mediaID=clip_id,
-                deploymentID=ctx.deployment_id,
-                captureMethod="activityDetection",
-                timestamp=at(max(0.0, ev.start_seconds - ctx.pad_seconds)),
-                filePath=f"{ctx.clips_dir}/{ev.event_id}{suffix}",
-                fileName=f"{ev.event_id}{suffix}",
-                fileMediatype=_MEDIATYPES.get(suffix, "video/mp4"),
-            ),
-            Media(
-                mediaID=frame_id,
-                deploymentID=ctx.deployment_id,
-                captureMethod="activityDetection",
-                timestamp=at(ev.peak_timestamp),
-                filePath=f"{ctx.frames_dir}/{ev.event_id}{ctx.frame_ext}",
-                fileName=f"{ev.event_id}{ctx.frame_ext}",
-                fileMediatype=_MEDIATYPES.get(ctx.frame_ext, "image/jpeg"),
-            ),
-        ]
-
-        taxon = taxon_for_class(ev.peak_class) if ev.peak_class else None
-        box = relative_bbox(ev.peak_bbox, info.width, info.height)
-        obs_id = f"{eid}:machine"
-        out.observations.append(Observation(
-            observationID=obs_id,
+    if clip_start_seconds is None:
+        clip_start_seconds = max(0.0, ev.start_seconds - ctx.pad_seconds)
+    eid = event_id(ctx, ev)
+    clip_id, frame_id = f"{eid}:clip", f"{eid}:frame"
+    out.media += [
+        Media(
+            mediaID=clip_id,
             deploymentID=ctx.deployment_id,
+            captureMethod="activityDetection",
+            timestamp=at(clip_start_seconds),
+            filePath=f"{ctx.clips_dir}/{ev.event_id}{clip_suffix}",
+            fileName=f"{ev.event_id}{clip_suffix}",
+            fileMediatype=_MEDIATYPES.get(clip_suffix, "video/mp4"),
+        ),
+        Media(
             mediaID=frame_id,
-            eventID=eid,
-            eventStart=at(ev.start_seconds),
-            eventEnd=at(ev.end_seconds),
-            observationLevel="media",
-            # A class we can't name scientifically is still a detection worth
-            # reviewing, just not a known animal.
-            observationType="animal" if taxon else "unknown",
-            scientificName=taxon,
-            **box,
-            classificationMethod="machine",
-            classifiedBy=f"{ctx.model_name} ({ctx.detector_backend}, {ctx.model_version})",
-            classificationTimestamp=ctx.classified_at.replace(microsecond=0),
-            classificationProbability=_unit(ev.peak_ml_confidence),
-        ))
-        out.extras.append(ObservationExtra(
+            deploymentID=ctx.deployment_id,
+            captureMethod="activityDetection",
+            timestamp=at(ev.peak_timestamp),
+            filePath=f"{ctx.frames_dir}/{ev.event_id}{ctx.frame_ext}",
+            fileName=f"{ev.event_id}{ctx.frame_ext}",
+            fileMediatype=_MEDIATYPES.get(ctx.frame_ext, "image/jpeg"),
+        ),
+    ]
+
+    taxon = taxon_for_class(ev.peak_class) if ev.peak_class else None
+    box = relative_bbox(ev.peak_bbox, width, height)
+    obs_id = f"{eid}:machine"
+    out.observations.append(Observation(
+        observationID=obs_id,
+        deploymentID=ctx.deployment_id,
+        mediaID=frame_id,
+        eventID=eid,
+        eventStart=at(ev.start_seconds),
+        eventEnd=at(ev.end_seconds),
+        observationLevel="media",
+        # A class we can't name scientifically is still a detection worth
+        # reviewing, just not a known animal.
+        observationType="animal" if taxon else "unknown",
+        scientificName=taxon,
+        **box,
+        classificationMethod="machine",
+        classifiedBy=f"{ctx.model_name} ({ctx.detector_backend}, {ctx.model_version})",
+        classificationTimestamp=ctx.classified_at.replace(microsecond=0),
+        classificationProbability=_unit(ev.peak_ml_confidence),
+    ))
+    out.extras.append(ObservationExtra(
+        observationID=obs_id,
+        scanID=ctx.scan_id,
+        sourceVideo=source_name,
+        videoStartSeconds=round(ev.start_seconds, 3),
+        videoEndSeconds=round(ev.end_seconds, 3),
+        peakSeconds=round(ev.peak_timestamp, 3),
+        detectorClass=ev.peak_class,
+        modelName=ctx.model_name,
+        modelVersion=ctx.model_version,
+        detectorBackend=ctx.detector_backend,
+        detectorConfig=ctx.detector_config,
+    ))
+    for hit in ev.members:
+        if hit.ml_confidence is None:
+            continue
+        out.detections.append(Detection(
             observationID=obs_id,
-            scanID=ctx.scan_id,
-            sourceVideo=Path(info.path).name,
-            videoStartSeconds=round(ev.start_seconds, 3),
-            videoEndSeconds=round(ev.end_seconds, 3),
-            peakSeconds=round(ev.peak_timestamp, 3),
-            detectorClass=ev.peak_class,
-            modelName=ctx.model_name,
-            modelVersion=ctx.model_version,
-            detectorBackend=ctx.detector_backend,
-            detectorConfig=ctx.detector_config,
+            frameTimestamp=at(hit.timestamp),
+            **relative_bbox(hit.bbox, width, height),
+            confidence=_unit(hit.ml_confidence),
         ))
-        for hit in ev.members:
-            if hit.ml_confidence is None:
-                continue
-            out.detections.append(Detection(
-                observationID=obs_id,
-                frameTimestamp=at(hit.timestamp),
-                **relative_bbox(hit.bbox, info.width, info.height),
-                confidence=_unit(hit.ml_confidence),
-            ))
     return out
 
 

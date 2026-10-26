@@ -1,0 +1,31 @@
+# Agent config for one deployment. Copy, fill in, and pass with --config.
+
+deployment:
+  id: tofo-2026-11-02-a          # letters, digits, '.', '_', '-'
+  latitude: -23.85
+  longitude: 35.55
+  camera_timezone: Africa/Maputo # where the rig is; local time of day matters
+  camera_clock: utc              # live rig: system clock synced to UTC.
+                                 # Replaying GoPro files: local
+  location_name: Manta Reef
+  camera_depth: 18               # metres
+  bait_use: true
+
+project:
+  title: Tofo BRUV survey
+  contributors:
+    - Jane Diver
+
+agent:
+  pre_roll_seconds: 30
+  post_roll_seconds: 10
+  idle_fps: 2
+  burst_seconds: 5
+  detect_width: 640              # 0 = full frame, as the laptop scan
+
+# Same keys as the laptop scan's config (reefscanner.core.config).
+detector:
+  detector: marine
+  ml_confidence_threshold: 0.2
+  merge_gap_seconds: 3.0
+  min_event_seconds: 1.0

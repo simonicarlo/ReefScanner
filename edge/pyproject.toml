@@ -9,7 +9,13 @@ description = "ReefScanner's headless on-rig agent: films, detects and keeps the
 requires-python = ">=3.12"
 license = "MIT"
 authors = [{ name = "ReefScanner contributors" }]
+# Everything the agent needs (OpenCV, ONNX Runtime, PyYAML, the Camtrap DP
+# tables) comes with core. It also needs an ffmpeg binary with libx264 for the
+# ring buffer: the system's, or core's `ffmpeg` extra.
 dependencies = ["reefscanner-core"]
+
+[project.scripts]
+reefscanner-edge = "reefscanner.edge.cli:main"
 
 [tool.uv.sources]
 reefscanner-core = { workspace = true }
