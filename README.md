@@ -10,48 +10,64 @@ for a better detector later.
 
 Everything runs on your machine. No upload, no account, no cloud.
 
-> **Status: v2 usable.** Engine, service, review UI and native window all
-> work. Not yet packaged as a double-clickable app — you launch it from a
-> terminal.
+> **Status:** the v2 desktop app works end to end and ships as a Mac app
+> ([install guide](docs/INSTALL-mac.md)). v3, on-rig live detection, is in
+> progress — see [`docs/specs/v3/`](docs/specs/v3/spec.md).
 
-## Install
+## Quick start
+
+You need three things installed:
+
+- **git**
+- **[uv](https://docs.astral.sh/uv/getting-started/installation/)**, which
+  manages Python and every Python dependency, including a bundled ffmpeg. You
+  don't need to install Python yourself.
+- **[Node.js](https://nodejs.org/) 22 or newer**, only to build the review UI
+  once.
+
+Then:
 
 ```bash
-git clone https://github.com/simonicarlo/reefscanner.git
-cd reefscanner
+git clone https://github.com/simonicarlo/ReefScanner.git
+cd ReefScanner
 
+# 1. Python and all dependencies (first run downloads ~1 GB, mostly PyTorch)
 uv sync
 
-# Build the review UI. Needed once, and again whenever app/frontend/ changes —
-# the build is not committed to the repo.
+# 2. Build the review UI. Needed once, and again whenever app/frontend/ changes;
+#    the build is not committed to the repo.
 cd app/frontend && npm install && npm run build && cd ../..
+
+# 3. Check the install: should end with "62 passed"
+uv run pytest
+
+# 4. Some synthetic footage to try it on, if you have no dives at hand
+uv run python scripts/make_demo_footage.py ~/ReefScanner-demo
+
+# 5. Open the app
+uv run reefscanner desktop
 ```
 
-The repo is a uv workspace of three packages (see [Architecture](#architecture)),
-and a plain `uv sync` installs all of them, editable, with the desktop window,
-SAHI and the test suite. Use `uv sync` rather than `uv pip install`: `uv run`
-re-syncs against the lockfile every time and removes anything it didn't record.
+In the app, create a project with `~/ReefScanner-demo` as the footage folder
+and any empty folder for results, then press **Scan footage**. The first scan
+downloads the SharkTrack detector weights (~6 MB), so it needs internet once.
+The synthetic footage has no real sharks, so expect few or no events from it;
+it's there to check that everything runs. Real BRUV footage is what the
+detector is for.
 
-Plain pip works too, if you'd rather: `python3 -m venv .venv && source
-.venv/bin/activate && pip install -e ./core -e './app[desktop]'`.
+`uv run` finds the project's virtualenv on its own, so there is nothing to
+activate. With the venv activated (`source .venv/bin/activate`), drop the
+`uv run` prefix from every command.
 
-Needs Python ≥ 3.10 and **ffmpeg** for clip extraction — `brew install ffmpeg`
-on macOS, `apt install ffmpeg` on Debian/Ubuntu, or `pip install
-imageio-ffmpeg` for a bundled fallback binary.
+### If something goes wrong
 
-Packages and extras:
-
-| Package | What it adds |
+| Symptom | Fix |
 |---|---|
-| `reefscanner-core` | The detection engine and the `reefscanner` CLI |
-| `reefscanner-core[ml]` | SAHI tiled inference for small/distant animals |
-| `reefscanner-app` | The local service and review UI (FastAPI + SQLite) |
-| `reefscanner-app[desktop]` | The native window (PyWebView) |
-| `reefscanner-edge` | The on-rig agent (v3, in progress) |
-
-The YOLO detectors are core, not optional — motion-only triage was removed
-because it cannot tell a small fish nearby from a large one far away. A plain
-`pip install reefscanner-core` can scan footage out of the box.
+| `uv: command not found` | Install uv (link above), then open a new terminal |
+| The window says no frontend build was found | Run step 2 |
+| `npm run build` fails on syntax or engine errors | Node is too old: `node --version` should be 22 or newer |
+| The first scan fails while downloading weights | Connect to the internet once; the weights are cached in `~/.cache/reefscanner` |
+| `reefscanner desktop` won't open a window | Use `uv run reefscanner serve` and open http://127.0.0.1:8000 in a browser instead |
 
 ## Running it
 
@@ -59,10 +75,6 @@ because it cannot tell a small fish nearby from a large one far away. A plain
 uv run reefscanner desktop   # native window — the normal way to use it
 uv run reefscanner serve     # same app in your browser, http://127.0.0.1:8000
 ```
-
-`uv run` finds the project's virtualenv on its own, so there is nothing to
-activate. With the venv activated, drop the `uv run` prefix from every command
-below.
 
 There is no authentication, deliberately — it binds to localhost and is meant
 for one person on one machine. Don't put it on a network interface.
@@ -74,11 +86,29 @@ uv run reefscanner process ~/footage --out ~/results
 uv run reefscanner report ~/results   # false-positive rate once you've labeled
 ```
 
-No footage handy? Generate some synthetic dives to try the whole loop on:
+### Packages
 
-```bash
-uv run python scripts/make_demo_footage.py ~/ReefScanner-demo
-```
+The repo is a uv workspace of three packages (see [Architecture](#architecture)).
+`uv sync` installs all of them, editable, with the desktop window, SAHI and the
+test suite. Use `uv sync` rather than `uv pip install`: `uv run` re-syncs
+against the lockfile every time and removes anything it didn't record.
+
+| Package | What it adds |
+|---|---|
+| `reefscanner-core` | The detection engine and the `reefscanner` CLI |
+| `reefscanner-core[ml]` | SAHI tiled inference for small/distant animals |
+| `reefscanner-core[ffmpeg]` | A bundled ffmpeg, for machines without one |
+| `reefscanner-app` | The local service and review UI (FastAPI + SQLite) |
+| `reefscanner-app[desktop]` | The native window (PyWebView) |
+| `reefscanner-edge` | The on-rig agent (v3, in progress) |
+
+Plain pip works too, if you'd rather: `python3 -m venv .venv && source
+.venv/bin/activate && pip install -e './core[ffmpeg]' -e './app[desktop]'`.
+Python 3.10 or newer.
+
+The YOLO detectors are core, not optional — motion-only triage was removed
+because it cannot tell a small fish nearby from a large one far away. A plain
+`pip install reefscanner-core` can scan footage out of the box.
 
 ## Reviewing
 
