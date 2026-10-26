@@ -150,8 +150,11 @@ def _mount_frontend(app: FastAPI) -> None:
         """
         if path.startswith(("api/", "ws/", "docs", "openapi.json")):
             raise HTTPException(404, "Not found")
-        candidate = STATIC_DIR / path
-        if candidate.is_file():
+        # The path arrives percent-decoded, so `..%2f` reaches here as `../`.
+        # Without the containment check this route reads any file on disk.
+        root = STATIC_DIR.resolve()
+        candidate = (root / path).resolve()
+        if candidate.is_relative_to(root) and candidate.is_file():
             return FileResponse(candidate)
         return FileResponse(index)
 

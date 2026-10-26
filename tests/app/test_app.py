@@ -461,3 +461,23 @@ def test_yolo_export_ships_clean_images(client: TestClient, project_dirs) -> Non
     img = cv2.imdecode(np.frombuffer(archive.read(images[0]), np.uint8), cv2.IMREAD_COLOR)
     b, g, r = (img[:, :, i].astype(int) for i in range(3))
     assert not np.any((r > 180) & (g < 80) & (b < 80)), "export shipped the annotated thumbnail"
+
+
+def test_spa_route_does_not_serve_files_outside_the_build(
+    monkeypatch, tmp_path: Path
+) -> None:
+    static = tmp_path / "static"
+    static.mkdir()
+    (static / "index.html").write_text("<!doctype html>index")
+    (static / "favicon.svg").write_text("<svg/>")
+    (tmp_path / "secret.txt").write_text("do not serve")
+    monkeypatch.setattr("reefscanner.app.main.STATIC_DIR", static)
+
+    with TestClient(create_app(db_path=tmp_path / "test.db")) as c:
+        assert c.get("/favicon.svg").text == "<svg/>"
+        # Percent-encoded so the client doesn't normalise the dots away.
+        for url in ("/..%2fsecret.txt", "/%2e%2e/secret.txt"):
+            resp = c.get(url)
+            assert resp.status_code == 200
+            assert "do not serve" not in resp.text
+            assert resp.text == "<!doctype html>index"
