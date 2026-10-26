@@ -9,9 +9,8 @@ Division of responsibility with the engine (deliberate, don't collapse it):
 * This database owns *app* state — projects, job history, and above all the
   human labels, which the engine knows nothing about.
 
-``reefscanner_results.csv`` stops being the source of truth here and becomes an
-export format; ``exports.py`` reads and writes it so runs from v1 aren't
-orphaned.
+``reefscanner_results.csv`` is not the source of truth here, only an export
+format (``exports.py``).
 """
 
 # NOTE: no ``from __future__ import annotations`` here on purpose. SQLModel
@@ -118,13 +117,12 @@ class Event(SQLModel, table=True):
     start_timestamp: str = ""
     #: Source video resolution — the coordinate space ``peak_bbox`` lives in.
     #: Recorded at ingest so the annotation exporters don't have to reopen
-    #: media just to normalise a box. Null for events imported from a v1 CSV.
+    #: media just to normalise a box. Null only if the video couldn't be probed.
     frame_width: Optional[int] = None
     frame_height: Optional[int] = None
     clip_path: Optional[str] = None
     thumbnail_path: Optional[str] = None
     #: Clean peak frame with no annotation — what the exporters reference.
-    #: Null for events scanned before clean frames existed.
     frame_path: Optional[str] = None
 
     job: Optional[Job] = Relationship(back_populates="events")

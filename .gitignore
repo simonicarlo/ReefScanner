@@ -245,3 +245,6 @@ app/src/reefscanner/app/static/
 inputs/
 inputs_results/
 .DS_Store
+
+# Alembic autogenerate scratch database (see app/alembic.ini)
+app/migrations-dev.db

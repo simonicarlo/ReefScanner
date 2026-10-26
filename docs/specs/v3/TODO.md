@@ -23,7 +23,9 @@ holds. Feature specs and plans for any item go in [`features/`](features/).
   match v2 exactly. Boards that need a fixed shape get `export-onnx --static`,
   ideally at the camera's aspect ratio rather than a square, since padding to a
   square changed confidences by ~0.09 on average and found extra boxes.
-- **Database:** start fresh, no migration of v2 data. Tables mirror Camtrap DP
+- **No backward compatibility.** Nothing from v1 or v2 is imported or
+  migrated: no results CSVs, databases or manifests.
+- **Database:** start fresh. Tables mirror Camtrap DP
   through the ORM (SQLModel, as in v2), with Alembic migrations from day one.
 - **Hardware:** development targets a laptop; specific boards come later and
   only by benchmark.
@@ -48,11 +50,11 @@ Gate: replayed footage gives the same events as the v2 desktop scan.
 - [x] Host `sharktrack.onnx` as a GitHub release asset (`models-v1`) so an
       install without Ultralytics can fetch it; downloads are hash-checked
 - [ ] SAHI tiling for the ONNX backend (it needs Ultralytics today)
-- [ ] Camtrap DP data model: SQLModel tables for deployments, media and
+- [x] Camtrap DP data model: SQLModel tables for deployments, media and
       observations, the extension sidecar table, and Alembic set up
+      ([design](features/2026-10-26-camtrap-dp-data-model-design.md))
 - [ ] Camtrap DP writer and reader, validated against the official schema; one
       package folder per deployment
-- [ ] Legacy import of v2 results CSVs into a Camtrap DP package
 - [ ] Camera adapter interface, with file replay at real-time speed and USB
       webcam sources
 - [ ] Ring buffer of the encoded full-quality stream (default 30 s pre-roll)

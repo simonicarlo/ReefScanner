@@ -43,7 +43,7 @@ def create_app(
     allow_dev_origins: bool = True,
 ) -> FastAPI:
     database = Database(db_path)
-    database.create_all()
+    database.migrate()
     hub = ProgressHub()
     runner = JobRunner(database, on_update=hub.publish)
 

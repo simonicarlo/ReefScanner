@@ -24,20 +24,18 @@ from typing import Optional
 
 
 class Manifest:
-    #: Bumped when entry semantics change. v1 entries carry no scan fingerprint,
-    #: so their provenance is unknown and they are not trusted for skipping.
-    VERSION = 2
+    #: Format version, written into the file for whoever reads it next.
+    VERSION = 1
 
     def __init__(
         self,
         manifest_path: str | Path,
         input_root: str | Path,
-        scan_key: Optional[str] = None,
+        scan_key: str,
     ):
         self.manifest_path = Path(manifest_path)
         self.input_root = Path(input_root)
-        #: Fingerprint of the config for *this* run. None disables the check,
-        #: which keeps direct Manifest users (and old callers) working.
+        #: Fingerprint of the config for *this* run.
         self.scan_key = scan_key
         self._data: dict = {"version": self.VERSION, "videos": {}}
         self._load()
@@ -70,11 +68,6 @@ class Manifest:
         entry = self._data["videos"].get(self._key(video_path))
         if not entry or entry.get("status") != "complete":
             return False
-        if self.scan_key is None:
-            return True
-        # A pre-v2 entry has no fingerprint, so there's no way to know what
-        # settings produced it. Reprocess rather than silently skip: a wasted
-        # scan is cheaper than quietly wrong results.
         return entry.get("scan_key") == self.scan_key
 
     def mark_complete(

@@ -7,7 +7,7 @@ from pathlib import Path
 
 import pytest
 
-from reefscanner.core import ReefScannerConfig, fp_report, process_folder
+from reefscanner.core import ReefScannerConfig, process_folder
 from reefscanner.core.results import CSV_COLUMNS
 
 from conftest import make_video
@@ -85,35 +85,6 @@ def test_resume_skips_completed_videos(stub_detector, input_dir, output_dir):
     with open(cfg.output_folder + "/" + cfg.csv_name, newline="") as fh:
         rows = list(csv.DictReader(fh))
     assert len(rows) == n_events_first, "resume must not duplicate CSV rows"
-
-
-def test_report_fp_rate_from_labels(stub_detector, input_dir, output_dir):
-    input_dir.mkdir()
-    make_video(input_dir / "dive01.mp4", with_animal=True)
-    cfg = _cfg(input_dir, output_dir)
-    batch = process_folder(cfg, progress=False)
-    assert batch.n_events >= 1
-
-    # Before labeling: nothing labeled.
-    rep = fp_report(batch.csv_path)
-    assert rep.total_events == batch.n_events
-    assert rep.labeled == 0
-
-    # Simulate a human labeling the first event FP, rest TP.
-    with open(batch.csv_path, newline="") as fh:
-        rows = list(csv.DictReader(fh))
-    rows[0]["label"] = "FP"
-    for r in rows[1:]:
-        r["label"] = "TP"
-    with open(batch.csv_path, "w", newline="") as fh:
-        w = csv.DictWriter(fh, fieldnames=CSV_COLUMNS)
-        w.writeheader()
-        w.writerows(rows)
-
-    rep2 = fp_report(batch.csv_path)
-    assert rep2.labeled == len(rows)
-    assert rep2.false_positives == 1
-    assert rep2.false_positive_rate == pytest.approx(1 / len(rows))
 
 
 def test_on_frame_reports_progress_within_a_video(stub_detector, input_dir, output_dir):
@@ -223,27 +194,6 @@ def test_output_paths_do_not_invalidate_the_manifest(stub_detector, input_dir, o
         _cfg(input_dir, output_dir, clips_dirname="videos"), progress=False
     )
     assert all(r.skipped for r in again.results)
-
-
-def test_pre_v2_manifest_entries_are_reprocessed(stub_detector, input_dir, output_dir):
-    """An entry with no fingerprint has unknown provenance, so don't trust it."""
-    import json
-
-    input_dir.mkdir()
-    make_video(input_dir / "dive01.mp4", with_animal=True)
-    cfg = _cfg(input_dir, output_dir)
-    process_folder(cfg, progress=False)
-
-    # Rewrite the manifest the way v1 wrote it: no scan_key.
-    manifest_path = output_dir / cfg.manifest_name
-    data = json.loads(manifest_path.read_text())
-    for entry in data["videos"].values():
-        entry.pop("scan_key", None)
-    data["version"] = 1
-    manifest_path.write_text(json.dumps(data))
-
-    rerun = process_folder(cfg, progress=False)
-    assert not any(r.skipped for r in rerun.results)
 
 
 def test_writes_clean_frame_beside_annotated_thumbnail(

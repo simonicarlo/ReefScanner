@@ -116,12 +116,6 @@ export const api = {
   deleteLabel: (eventId: number) =>
     request<void>(`/api/events/${eventId}/label`, { method: "DELETE" }),
 
-  importCsv: (jobId: number) =>
-    request<{ imported: number; source: string }>(
-      `/api/jobs/${jobId}/import/csv`,
-      { method: "POST" },
-    ),
-
   thresholdAnalysis: (jobId: number) =>
     request<ThresholdAnalysis>(`/api/jobs/${jobId}/threshold-analysis`),
 

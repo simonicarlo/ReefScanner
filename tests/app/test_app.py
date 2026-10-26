@@ -243,7 +243,7 @@ def test_exports(client: TestClient, project_dirs) -> None:
     from reefscanner.core.results import CSV_COLUMNS
 
     header = csv_body.text.splitlines()[0]
-    assert header == ",".join(CSV_COLUMNS), "v1 CSV contract must be preserved"
+    assert header == ",".join(CSV_COLUMNS), "CSV columns must match the engine's"
     assert "reef shark" in csv_body.text
 
     coco = json.loads(client.get(f"/api/jobs/{job_id}/export/coco").text)
@@ -258,51 +258,6 @@ def test_exports(client: TestClient, project_dirs) -> None:
 
     # Only confirmed events are exportable — an unlabeled one is not training data.
     assert len(coco["images"]) < len(events) or len(events) == 1
-
-
-def test_csv_import_bridge(client: TestClient, tmp_path) -> None:
-    """A v1 output folder can be adopted into a project without re-running.
-
-    The input folder is deliberately empty: the point is to attach existing
-    results, not to reanalyse footage that may not even be on this machine any
-    more.
-    """
-    from reefscanner.core.results import CSV_COLUMNS
-
-    in_dir = tmp_path / "legacy_in"
-    in_dir.mkdir()
-    out_dir = tmp_path / "legacy_out"
-    out_dir.mkdir()
-    (out_dir / "reefscanner_results.csv").write_text(
-        ",".join(CSV_COLUMNS)
-        + "\n"
-        + "dive01_001,/x/dive01.mp4,4.0,8.0,4.0,,1200.0,,,,,yes,whitetip,seen it\n"
-    )
-
-    project_id = client.post(
-        "/api/projects",
-        json={
-            "name": "legacy",
-            "input_folder": str(in_dir),
-            "output_folder": str(out_dir),
-        },
-    ).json()["id"]
-    job_id = client.post(f"/api/projects/{project_id}/jobs").json()["id"]
-    _wait_for_job(client, job_id)
-
-    resp = client.post(f"/api/jobs/{job_id}/import/csv")
-    assert resp.status_code == 200, resp.text
-    assert resp.json()["imported"] == 1
-
-    # Re-importing is a no-op rather than a duplicate.
-    assert client.post(f"/api/jobs/{job_id}/import/csv").json()["imported"] == 0
-
-    page = client.get(f"/api/jobs/{job_id}/events").json()
-    imported = [e for e in page["items"] if e["event_id"] == "dive01_001"]
-    assert len(imported) == 1
-    # The hand-typed 'yes' should have been carried over as a TP verdict.
-    assert imported[0]["label"]["verdict"] == "TP"
-    assert imported[0]["label"]["species"] == "whitetip"
 
 
 def test_media_rejects_path_outside_project(client, project_dirs, tmp_path) -> None:

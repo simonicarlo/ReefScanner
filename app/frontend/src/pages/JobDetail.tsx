@@ -1,6 +1,5 @@
 import { useState } from "react";
 import { Link, useParams } from "react-router-dom";
-import { useMutation } from "@tanstack/react-query";
 import { api } from "../lib/api";
 import {
   useClasses,
@@ -32,8 +31,6 @@ export function JobDetail() {
   const { data: classes } = useClasses(id);
   const { data: thresholds } = useThresholdAnalysis(id);
 
-  const importCsv = useMutation({ mutationFn: () => api.importCsv(id) });
-
   const patch = (next: Partial<EventFilters>) =>
     setFilters((prev) => ({ ...prev, ...next, offset: 0 }));
 
@@ -62,9 +59,6 @@ export function JobDetail() {
         </div>
 
         <div className="flex flex-wrap items-center gap-2">
-          <Button size="sm" onClick={() => importCsv.mutate()}>
-            {importCsv.isPending ? "Importing…" : "Import existing CSV"}
-          </Button>
           {(["csv", "coco", "yolo"] as const).map((format) => (
             <a key={format} href={api.exportUrl(id, format)} download>
               <Button size="sm" variant="ghost">
@@ -74,13 +68,6 @@ export function JobDetail() {
           ))}
         </div>
       </div>
-
-      {importCsv.data && (
-        <div className="rounded-[3px] border border-signal/40 bg-signal/10 px-3 py-2 text-sm text-signal">
-          Imported {importCsv.data.imported} event(s) from {importCsv.data.source}
-        </div>
-      )}
-      <ErrorNote error={importCsv.error} />
 
       {/* Review progress. The one number that says how much work is left. */}
       {page && page.total > 0 && (

@@ -20,6 +20,9 @@ dependencies = [
     "tqdm>=4.65,<5",
     "PyYAML>=6.0,<7",
     "onnxruntime>=1.18",
+    # Camtrap DP tables (reefscanner.core.camtrap). SQLAlchemy and pydantic,
+    # no web stack: the edge agent uses them as plain objects, the app stores them.
+    "sqlmodel>=0.0.22,<0.1",
 ]
 
 [project.optional-dependencies]

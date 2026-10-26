@@ -20,6 +20,11 @@ import imageio_ffmpeg  # noqa: E402  (resolved at build time, from the build ven
 datas = [
     # The built React UI. Missing it gives a window with an API error in it.
     *collect_data_files("reefscanner.app", includes=["static/**/*"]),
+    # Alembic reads its scripts (env.py, versions/*.py) from disk at startup,
+    # so they ship as files, not only as compiled modules in the archive.
+    *collect_data_files(
+        "reefscanner.app", includes=["migrations/**/*"], include_py_files=True
+    ),
     # pywebview's JavaScript bridge.
     *collect_data_files("webview"),
     # SharkTrack as ONNX, found by core/weights.py via sys._MEIPASS/weights.

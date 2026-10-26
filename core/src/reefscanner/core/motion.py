@@ -20,7 +20,7 @@ import cv2
 import numpy as np
 
 from .config import ReefScannerConfig
-from .events import Candidate, MotionCandidate  # noqa: F401 (alias re-export)
+from .events import Candidate
 from .videoio import SampledFrame
 
 

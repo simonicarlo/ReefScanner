@@ -16,7 +16,7 @@ survives only as an optional cheap pre-skip of dead-static frames
     batch = process_folder(cfg)
 
 See ``reefscanner.core.cli`` for the command line: ``process``, ``report``,
-``serve``, ``desktop``.
+``serve``, ``desktop``, ``export-onnx``.
 """
 
 from __future__ import annotations
@@ -30,7 +30,7 @@ from .config import (
 )
 from .detection import Detection
 from .discovery import discover_videos
-from .events import Candidate, Event, MotionCandidate, aggregate_events
+from .events import Candidate, Event, aggregate_events
 from .manifest import Manifest
 from .motion import MotionGate
 from .pipeline import (
@@ -40,7 +40,6 @@ from .pipeline import (
     process_folder,
     process_video,
 )
-from .report import FpReport, fp_report
 from .results import CSV_COLUMNS, CsvWriter, event_to_row
 from .videoio import VideoInfo, probe_video
 
@@ -62,7 +61,6 @@ __all__ = [
     "probe_video",
     "VideoInfo",
     "MotionGate",
-    "MotionCandidate",
     "Candidate",
     "Detection",
     "Event",
@@ -71,6 +69,4 @@ __all__ = [
     "CSV_COLUMNS",
     "CsvWriter",
     "event_to_row",
-    "fp_report",
-    "FpReport",
 ]

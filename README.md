@@ -39,7 +39,7 @@ uv sync
 #    the build is not committed to the repo.
 cd app/frontend && npm install && npm run build && cd ../..
 
-# 3. Check the install: should end with "84 passed"
+# 3. Check the install: should end with "89 passed"
 uv run pytest
 
 # 4. Some synthetic footage to try it on, if you have no dives at hand
@@ -84,7 +84,6 @@ Headless, no UI required:
 
 ```bash
 uv run reefscanner process ~/footage --out ~/results
-uv run reefscanner report ~/results   # false-positive rate once you've labeled
 ```
 
 ### Packages
@@ -195,8 +194,8 @@ chosen and what the alternatives were.
 
 ```
 core/src/reefscanner/core/       reefscanner-core: the detection engine, no web
-                                 dependencies; cli.py is process | report |
-                                 serve | desktop
+                                 dependencies; cli.py is process | serve |
+                                 desktop | export-onnx
 edge/src/reefscanner/edge/       reefscanner-edge: the on-rig agent (v3)
 app/src/reefscanner/app/         reefscanner-app: FastAPI service + SQLite store
 app/src/reefscanner/desktop/     PyWebView shell — starts the service, opens a window
@@ -216,13 +215,12 @@ Two separate pieces of state, on purpose:
   which videos have finished processing. It's what makes an interrupted run
   resumable, and it lives next to the clips so a results folder stays
   self-describing even without the database.
-- The **database** (SQLite, in your OS's app-data directory) holds projects,
-  job history, and your labels.
+- The **database** (SQLite, `reefscanner.db` in your OS's app-data
+  directory) holds projects, job history, and your labels. It migrates itself
+  on start.
 
-`reefscanner_results.csv` is still written, and is still the same column
-contract as v1 — but it's now an export format rather than the source of truth.
-An old results folder can be adopted into a project without re-running
-anything (`POST /api/jobs/{id}/import/csv`).
+`reefscanner_results.csv` is still written, but only as an export; the
+database is the source of truth.
 
 ## Output
 
@@ -241,7 +239,7 @@ Once you've labeled events, confirmed ones can leave as training data:
 
 | Endpoint | Format |
 |---|---|
-| `/api/jobs/{id}/export/csv` | The v1 CSV, label columns filled in |
+| `/api/jobs/{id}/export/csv` | The results CSV, label columns filled in |
 | `/api/jobs/{id}/export/coco` | COCO detection JSON |
 | `/api/jobs/{id}/export/yolo` | YOLO label files + `classes.txt`, zipped |
 
@@ -269,6 +267,10 @@ uv run pytest
 uv run reefscanner serve --reload
 cd app/frontend && npm run dev    # http://localhost:5173, proxies /api
 ```
+
+Database changes go through Alembic. After changing a model, write a migration
+from `app/` with `uv run alembic revision --autogenerate -m "what changed"` and
+read it before committing; a test fails while models and migrations disagree.
 
 Fonts are bundled rather than loaded from a CDN — the app has to work with no
 internet. `npm run build` writes into `app/src/reefscanner/app/static/`, which is

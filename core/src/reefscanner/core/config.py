@@ -14,7 +14,7 @@ from typing import Any, Mapping
 
 # Detector names recognised by the pluggable detector interface.
 #
-# Motion-only recall (the old ``none``) was removed: on real footage the motion
+# Motion-only recall was removed: on real footage the motion
 # gate cannot separate a small fish close to the camera from a large animal far
 # away, because monocular video carries no depth cue. ``MotionGate`` survives as
 # an optional pre-filter, not as the thing that decides what matters.

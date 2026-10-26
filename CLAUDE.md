@@ -20,3 +20,8 @@ never import from `app` or `edge`.
 
 - `uv sync` installs every member editable, plus the dev group.
 - `uv run pytest` runs `tests/core/` and `tests/app/`.
+- Database schema changes need an Alembic migration: from `app/`, run
+  `uv run alembic revision --autogenerate -m "..."` and review the file.
+  `tests/app/test_migration.py` fails if models and migrations disagree.
+- Camtrap DP tables live in `core/src/reefscanner/core/camtrap/`, with field
+  names exactly as in the standard (camelCase).

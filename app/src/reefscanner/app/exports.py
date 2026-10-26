@@ -1,20 +1,10 @@
-"""Getting data in and out of the database.
+"""Getting data out of the database.
 
-Three jobs:
-
-* ``import_csv_events`` — adopt a ``reefscanner_results.csv`` from a v1 run so
-  those results aren't orphaned by the move to SQLite.
-* ``export_csv`` — write the same format back out, now with the human label
-  columns actually filled in. This keeps the v1 CSV contract
-  (``core.results.CSV_COLUMNS``) intact as an interchange format.
+* ``export_csv`` — the engine's results CSV (``core.results.CSV_COLUMNS``),
+  with the human label columns filled in.
 * ``export_coco`` / ``export_yolo`` — turn confirmed events into a detection
-  training set, which is the whole reason for collecting labels.
-
-**Known limitation of the annotation exports:** the images they reference are
-the engine's thumbnails, which have the detection box *drawn onto them* in red
-(``core.clips.save_thumbnail``). That burned-in box is fine for human triage
-but is a visible artifact for a model to learn from. Re-extract clean peak
-frames before actually fine-tuning on this data.
+  training set, which is the whole reason for collecting labels. They reference
+  the clean peak frames, never the thumbnails with the box drawn on them.
 """
 
 from __future__ import annotations
@@ -26,93 +16,12 @@ import json
 from pathlib import Path
 from typing import Iterable, Optional, Sequence
 
-from sqlmodel import Session, select
-
 from reefscanner.core.results import CSV_COLUMNS
 from .models import VERDICT_TP, Event, Label
 
 #: Events with these verdicts become training annotations. Explicitly not
 #: ``unsure`` — a box a human couldn't call is not a box to train on.
 EXPORTABLE_VERDICTS = (VERDICT_TP,)
-
-
-def _f(value: str) -> Optional[float]:
-    """Parse a CSV cell that may legitimately be blank."""
-    if value is None or value == "":
-        return None
-    try:
-        return float(value)
-    except ValueError:
-        return None
-
-
-def import_csv_events(session: Session, job_id: int, csv_path: str | Path) -> int:
-    """Load a v1 results CSV into ``job_id``. Returns the number of new events.
-
-    Idempotent: events already present for this job (matched on the engine's
-    ``event_id``) are skipped rather than duplicated, so re-importing after a
-    partial run is safe. A filled-in ``label`` column is carried across too —
-    that's hand-done work and losing it would defeat the point of the bridge.
-    """
-    csv_path = Path(csv_path)
-    if not csv_path.exists():
-        return 0
-
-    stmt = select(Event.event_id).where(Event.job_id == job_id)
-    existing = set(session.exec(stmt).all())
-
-    added = 0
-    with open(csv_path, "r", newline="") as fh:
-        for row in csv.DictReader(fh):
-            eid = (row.get("event_id") or "").strip()
-            if not eid or eid in existing:
-                continue
-
-            event = Event(
-                job_id=job_id,
-                event_id=eid,
-                source_video=row.get("source_video", ""),
-                start_seconds=_f(row.get("start_seconds", "")) or 0.0,
-                end_seconds=_f(row.get("end_seconds", "")) or 0.0,
-                duration_seconds=_f(row.get("duration_s", "")) or 0.0,
-                start_timestamp=row.get("start_timestamp", "") or "",
-                motion_score=_f(row.get("motion_score", "")),
-                ml_confidence=_f(row.get("ml_confidence", "")),
-                detected_class=(row.get("detected_class") or "") or None,
-                clip_path=(row.get("clip_path") or "") or None,
-                thumbnail_path=(row.get("thumbnail_path") or "") or None,
-            )
-            # The v1 CSV has no peak columns; the clip itself is the record.
-            event.peak_timestamp = event.start_seconds
-            event.peak_score = event.ml_confidence or event.motion_score or 0.0
-            session.add(event)
-            session.flush()  # need event.id to hang a label off
-
-            verdict = (row.get("label") or "").strip()
-            if verdict:
-                session.add(
-                    Label(
-                        event_id=event.id,
-                        verdict=_normalise_verdict(verdict),
-                        species=(row.get("species") or "") or None,
-                        notes=(row.get("notes") or "") or None,
-                    )
-                )
-            existing.add(eid)
-            added += 1
-
-    session.commit()
-    return added
-
-
-def _normalise_verdict(raw: str) -> str:
-    """Map the free-text labels a human typed into a v1 CSV onto our verdicts."""
-    v = raw.strip().lower()
-    if v in ("tp", "true", "yes", "y", "1", "shark", "animal"):
-        return "TP"
-    if v in ("fp", "false", "no", "n", "0"):
-        return "FP"
-    return "unsure"
 
 
 def _rows_for(pairs: Sequence[tuple[Event, Optional[Label]]]) -> list[dict]:
@@ -144,7 +53,7 @@ def _rows_for(pairs: Sequence[tuple[Event, Optional[Label]]]) -> list[dict]:
 
 
 def export_csv(pairs: Sequence[tuple[Event, Optional[Label]]]) -> str:
-    """Render events + labels as a v1-compatible results CSV."""
+    """Render events + labels as a results CSV."""
     buf = io.StringIO()
     writer = csv.DictWriter(buf, fieldnames=CSV_COLUMNS)
     writer.writeheader()
@@ -175,31 +84,14 @@ def _category_of(label: Optional[Label], event: Event) -> str:
 
 
 def annotation_image(event: Event) -> Optional[str]:
-    """The image an annotation should point at.
-
-    The clean frame when we have one; the thumbnail otherwise, for events
-    scanned before clean frames existed. The thumbnail has the detection box
-    drawn on it, which is why it is the fallback and not the choice.
-    """
-    return event.frame_path or event.thumbnail_path
+    """The image an annotation points at: the clean peak frame."""
+    return event.frame_path
 
 
 def _frame_size(event: Event) -> Optional[tuple[int, int]]:
-    """Resolution of the coordinate space ``peak_bbox`` lives in.
-
-    Prefer what we recorded at ingest; fall back to measuring the thumbnail,
-    which is a full-resolution peak frame, for events imported from a v1 CSV.
-    """
+    """Resolution of the coordinate space ``peak_bbox`` lives in, recorded at ingest."""
     if event.frame_width and event.frame_height:
         return event.frame_width, event.frame_height
-    image = annotation_image(event)
-    if image and Path(image).exists():
-        import cv2  # local import: keep the exporter importable without OpenCV
-
-        img = cv2.imread(image)
-        if img is not None:
-            h, w = img.shape[:2]
-            return int(w), int(h)
     return None
 
 

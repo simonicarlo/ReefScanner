@@ -16,9 +16,8 @@ from ..exports import (
     export_coco,
     export_csv,
     export_yolo,
-    import_csv_events,
 )
-from ..models import Event, Job, Label, Project
+from ..models import Event, Job, Label
 
 router = APIRouter(prefix="/api", tags=["exports"])
 
@@ -69,8 +68,7 @@ def export_job_yolo(job_id: int, session: Session = Depends(get_session)) -> Res
     per-image label files are meaningless without their images, or without the
     ``classes.txt`` that fixes the class-index order.
 
-    Images are the clean frames, so the model never sees the drawn box. Events
-    scanned before clean frames existed fall back to their thumbnail, and an
+    Images are the clean frames, so the model never sees the drawn box. An
     image missing from disk is skipped rather than failing the whole export.
     """
     pairs = _pairs(session, job_id)
@@ -95,28 +93,3 @@ def export_job_yolo(job_id: int, session: Session = Depends(get_session)) -> Res
             "Content-Disposition": f'attachment; filename="yolo_job{job_id}.zip"'
         },
     )
-
-
-@router.post("/jobs/{job_id}/import/csv", response_model=dict)
-def import_job_csv(job_id: int, session: Session = Depends(get_session)) -> dict:
-    """Adopt the results CSV sitting in the project's output folder.
-
-    This is the bridge for runs made before the database existed: point a
-    project at an old output folder, create a job, and import.
-    """
-    job = session.get(Job, job_id)
-    if job is None:
-        raise HTTPException(status.HTTP_404_NOT_FOUND, "Job not found")
-    project = session.get(Project, job.project_id)
-    if project is None:
-        raise HTTPException(status.HTTP_404_NOT_FOUND, "Project not found")
-
-    csv_name = (project.config or {}).get("csv_name", "reefscanner_results.csv")
-    csv_path = Path(project.output_folder).expanduser() / csv_name
-    if not csv_path.exists():
-        raise HTTPException(
-            status.HTTP_404_NOT_FOUND, f"No results CSV at {csv_path}"
-        )
-
-    added = import_csv_events(session, job_id, csv_path)
-    return {"imported": added, "source": str(csv_path)}

@@ -8,6 +8,9 @@ both are set on every connection:
   while request handlers read from the event loop's threadpool.
 * WAL journal mode — lets those readers proceed while a job is mid-write,
   instead of blocking the UI behind ``database is locked``.
+
+The schema is owned by Alembic (``migrations/``) and brought up to date on
+every start.
 """
 
 from __future__ import annotations
@@ -19,11 +22,11 @@ from collections.abc import Iterator
 from contextlib import contextmanager
 from pathlib import Path
 
+from alembic import command
 from sqlalchemy import event as sa_event
-from sqlalchemy import inspect, text
-from sqlmodel import Session, SQLModel, create_engine
+from sqlmodel import Session, create_engine
 
-from . import models as _models  # noqa: F401 — import registers the tables
+from .migrations import alembic_config
 
 logger = logging.getLogger("reefscanner.app.db")
 
@@ -68,40 +71,13 @@ class Database:
             cur.execute("PRAGMA foreign_keys=ON")
             cur.close()
 
-    def create_all(self) -> None:
-        """Create missing tables, then add any missing nullable columns.
-
-        Not a migration framework. It handles exactly one kind of change —
-        adding a nullable column — because that is what a young schema mostly
-        does, and the alternative is telling someone to delete a database full
-        of hand-made labels. Drops, renames and type changes still need Alembic;
-        this will not attempt them.
-        """
-        SQLModel.metadata.create_all(self.engine)
-        self._add_missing_columns()
-
-    def _add_missing_columns(self) -> None:
-        inspector = inspect(self.engine)
-        present_tables = set(inspector.get_table_names())
-
-        for table in SQLModel.metadata.sorted_tables:
-            if table.name not in present_tables:
-                continue  # create_all just made it, so it's already complete
-            existing = {col["name"] for col in inspector.get_columns(table.name)}
-            for column in table.columns:
-                # A NOT NULL column can't be added to rows that already exist
-                # without a default, so those are left for a real migration.
-                if column.name in existing or not column.nullable:
-                    continue
-                type_sql = column.type.compile(self.engine.dialect)
-                with self.engine.begin() as conn:
-                    conn.execute(
-                        text(
-                            f'ALTER TABLE "{table.name}" '
-                            f'ADD COLUMN "{column.name}" {type_sql}'
-                        )
-                    )
-                logger.info("Added column %s.%s", table.name, column.name)
+    def migrate(self) -> None:
+        """Bring the schema up to the latest migration. Safe to run every start."""
+        cfg = alembic_config()
+        with self.engine.begin() as conn:
+            cfg.attributes["connection"] = conn
+            command.upgrade(cfg, "head")
+        logger.info("Database at %s is up to date", self.path)
 
     @contextmanager
     def session(self) -> Iterator[Session]:

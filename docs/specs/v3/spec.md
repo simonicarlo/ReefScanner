@@ -98,7 +98,7 @@ Every tier speaks [Camtrap DP](https://camtrap-dp.tdwg.org/): one `datapackage.j
 - **Human verdicts** from the review UI are written back as observations classified by a human, next to the machine ones.
 - **Large tables** can be gzipped as `.csv.gz`, which the standard supports.
 
-The v2 results CSV stays supported as a legacy import, so earlier runs are not orphaned.
+No backward compatibility: earlier results CSVs and databases are not imported.
 
 ## Field app
 

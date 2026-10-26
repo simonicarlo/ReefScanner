@@ -20,12 +20,6 @@ def test_detector_defaults_to_marine():
     assert ReefScannerConfig().detector == "marine"
 
 
-def test_none_detector_is_gone():
-    """Motion-only was removed; asking for it must fail loudly, not silently."""
-    with pytest.raises(ValueError, match="detector must be one of"):
-        ReefScannerConfig(detector="none")
-
-
 def test_invalid_detector_rejected():
     with pytest.raises(ValueError):
         ReefScannerConfig(detector="sharknet")

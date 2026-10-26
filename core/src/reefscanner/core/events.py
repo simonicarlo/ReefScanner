@@ -37,10 +37,6 @@ class Candidate:
     motion_score: Optional[float] = None
 
 
-# Back-compat alias: v1 callers/tests refer to MotionCandidate.
-MotionCandidate = Candidate
-
-
 @dataclass
 class Event:
     """A merged run of candidates — one clip is emitted per event."""

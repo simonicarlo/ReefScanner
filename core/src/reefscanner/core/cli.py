@@ -2,12 +2,11 @@
 
     reefscanner process <input_folder> --out <output_folder> [--fps 1.0]
                         [--detector marine] [...]
-    reefscanner report  <output_folder>   # false-positive rate
     reefscanner export-onnx [--weights x.pt] [--out x.onnx]
     reefscanner serve   [--port 8000]     # the local service + review UI
     reefscanner desktop                   # the same thing in a native window
 
-``process`` and ``report`` are the headless engine and need no web
+``process`` is the headless engine and needs no web
 dependencies. ``serve`` needs ``pip install reefscanner-app`` and is what the
 desktop shell wraps.
 
@@ -26,7 +25,6 @@ from typing import Optional, Sequence
 from . import __version__
 from .config import VALID_BACKENDS, VALID_DETECTORS, ReefScannerConfig
 from .pipeline import process_folder
-from .report import fp_report
 
 
 def _add_process_args(p: argparse.ArgumentParser) -> None:
@@ -125,11 +123,6 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
     p_process = sub.add_parser("process", help="Scan a folder of videos.")
     _add_process_args(p_process)
 
-    p_report = sub.add_parser(
-        "report", help="Report false-positive rate from a labeled results CSV.")
-    p_report.add_argument("output_folder", help="Output folder containing the CSV.")
-    p_report.add_argument("--csv", help="Explicit CSV path (overrides default).")
-
     p_export = sub.add_parser(
         "export-onnx",
         help="Convert a YOLO .pt checkpoint to ONNX (needs the ultralytics extra).")
@@ -206,15 +199,6 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
             return 2
 
         return run(db_path=args.db, debug=args.debug)
-
-    if args.command == "report":
-        csv_path = (
-            Path(args.csv) if args.csv
-            else Path(args.output_folder) / ReefScannerConfig().csv_name
-        )
-        report = fp_report(csv_path)
-        print(report.summary())
-        return 0
 
     parser.error(f"Unknown command: {args.command}")
     return 2
