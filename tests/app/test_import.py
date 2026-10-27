@@ -268,3 +268,25 @@ def test_a_fifo_in_the_package_is_refused_without_hanging(client, rig_package, t
     assert resp.status_code == 422
     assert any(clip.name in p for p in resp.json()["detail"]["problems"])
 
+
+def test_an_import_brings_the_package_team(client, rig_package, tmp_path) -> None:
+    project, _ = _import(client, rig_package, tmp_path / "results")
+    meta = project["package_metadata"]
+    assert meta["project"]["title"] == "Tofo survey"
+    assert [c["title"] for c in meta["contributors"]] == ["Rig"]
+
+
+def test_package_metadata_is_checked_like_any_input(client, rig_package, tmp_path) -> None:
+    path = rig_package / "datapackage.json"
+    descriptor = json.loads(path.read_text())
+    descriptor["project"] = {"title": "x" * 10_000, "acronym": "dropped"}
+    descriptor["contributors"] = [{"title": "Rig", "role": "overlord"}]
+    path.write_text(json.dumps(descriptor))
+
+    resp = client.post("/api/projects/import", json={
+        "package_folder": str(rig_package), "output_folder": str(tmp_path / "results"),
+    })
+    assert resp.status_code == 422
+    problems = resp.json()["detail"]["problems"]
+    assert any("project.title" in p for p in problems), problems
+    assert any("contributors.0.role" in p for p in problems), problems

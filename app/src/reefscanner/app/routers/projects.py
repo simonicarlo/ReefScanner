@@ -11,7 +11,7 @@ from sqlmodel import Session, func, select
 
 from reefscanner.core.camtrap import Deployment, PackageError
 from reefscanner.core.config import ReefScannerConfig
-from .. import imports
+from .. import imports, metadata
 from ..deps import get_runner, get_session
 from ..jobs import JobRunner
 from ..models import JOB_PENDING, Job, Project
@@ -38,6 +38,7 @@ def _read(session: Session, project: Project) -> ProjectRead:
         config=project.config or {},
         created_at=project.created_at,
         job_count=count,
+        package_metadata=metadata.project_metadata(session, project),
         deployment=_deployment_read(session.get(Deployment, project.deployment_id)),
     )
 
@@ -117,6 +118,9 @@ def create_project(
         input_folder=input_folder,
         output_folder=str(Path(payload.output_folder).expanduser()),
         config=payload.config,
+        package_metadata=metadata.stored(
+            payload.package_metadata or metadata.default_metadata(session, payload.name)
+        ),
     )
     session.add(project)
     session.commit()
@@ -158,6 +162,7 @@ def import_package(
         input_folder=str(checked.folder),
         output_folder=str(Path(payload.output_folder).expanduser()),
         config=checked.config,
+        package_metadata=checked.metadata,
     )
     session.add(project)
     session.flush()
@@ -196,6 +201,10 @@ def update_project(
         data["input_folder"] = folder
     if "output_folder" in data and data["output_folder"]:
         data["output_folder"] = str(Path(data["output_folder"]).expanduser())
+    if data.get("package_metadata") is not None:
+        data["package_metadata"] = metadata.stored(payload.package_metadata)
+    else:
+        data.pop("package_metadata", None)  # it can be replaced, not removed
     for key, value in data.items():
         setattr(project, key, value)
     session.add(project)

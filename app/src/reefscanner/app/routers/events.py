@@ -13,7 +13,6 @@ one request rather than one per widget.
 from __future__ import annotations
 
 import datetime as _dt
-import getpass
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy import ColumnElement
@@ -30,6 +29,7 @@ from reefscanner.core.camtrap import (
     verdict_from_tags,
     verdict_tag,
 )
+from .. import metadata
 from ..deps import get_session
 from ..models import Job, scan_id
 from ..schemas import EventPage, EventRead, ReviewRead, ReviewWrite
@@ -229,7 +229,7 @@ def put_review(
     box = (payload.bbox or _box(machine)) if verdict in (VERDICT_TP, VERDICT_FP_OTHER) else None
     human.bboxX, human.bboxY, human.bboxWidth, human.bboxHeight = box or (None,) * 4
     human.classificationMethod = "human"
-    human.classifiedBy = getpass.getuser()
+    human.classifiedBy = metadata.signed_as(session)
     human.classificationTimestamp = _dt.datetime.now(_dt.timezone.utc).replace(microsecond=0)
     human.classificationProbability = None
     human.observationTags = verdict_tag(verdict)

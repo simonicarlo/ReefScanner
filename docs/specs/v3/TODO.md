@@ -87,8 +87,10 @@ Gate: replayed footage gives the same events as the v2 desktop scan.
 - [x] Field app imports Camtrap DP packages (from the rig) into the review flow
       as a new project with an import run; files copied, paths checked
       ([design](features/2026-10-26-package-import-design.md))
-- [ ] Contributors and project metadata for packages (a settings page); today
-      the contributor is the local user name
+- [x] Contributors and project metadata for packages: a Settings page for
+      the person on the laptop (signs reviews), and each project's title,
+      description and contributors, carried through import and export
+      ([design](features/2026-10-27-package-metadata-design.md))
 
 ## Phase 1 · Bench prototype
 

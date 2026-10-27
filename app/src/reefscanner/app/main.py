@@ -25,7 +25,7 @@ from reefscanner.core import __version__
 from .db import Database
 from .jobs import JobRunner
 from .progress import ProgressHub
-from .routers import analysis, events, exports, jobs, media, projects, ws
+from .routers import analysis, events, exports, jobs, media, projects, settings, ws
 
 logger = logging.getLogger("reefscanner.app")
 
@@ -82,6 +82,7 @@ def create_app(
     app.include_router(events.router)
     app.include_router(exports.router)
     app.include_router(media.router)
+    app.include_router(settings.router)
     app.include_router(ws.router)
 
     @app.get("/api/health", tags=["meta"])

@@ -12,6 +12,7 @@ import {
   useStartJob,
 } from "../lib/queries";
 import { JobRow } from "../components/JobRow";
+import { MetadataPanel } from "../components/MetadataPanel";
 import { Button, Empty, ErrorNote, Field, Input, Spinner, cx } from "../components/ui";
 
 /**
@@ -279,6 +280,8 @@ export function ProjectDetail() {
           </div>
         )}
       </section>
+
+      <MetadataPanel projectId={id} saved={project.package_metadata} />
 
       <section className="flex items-center justify-between gap-4 border-t border-rule pt-5">
         <p className="text-xs text-faint">

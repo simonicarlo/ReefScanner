@@ -30,6 +30,7 @@ from sqlmodel import Session
 
 from reefscanner.core.camtrap import Deployment, Package, PackageError, read_package, validate
 from reefscanner.core.config import ReefScannerConfig
+from . import metadata
 
 #: Settings a package may carry into a project: detection and event tuning
 #: only, every one a number, flag or validated choice. Anything that names a
@@ -57,6 +58,8 @@ class CheckedPackage:
     files: dict[str, str]
     #: The engine config its observations were made with.
     config: dict[str, Any]
+    #: Its project and contributors, as a project's ``package_metadata``.
+    metadata: dict[str, Any]
 
 
 def check_package(folder: str | Path) -> CheckedPackage:
@@ -94,9 +97,12 @@ def check_package(folder: str | Path) -> CheckedPackage:
             files[m.mediaID] = rel
 
     config = _config(list(extras.values()), problems)
+    meta = metadata.from_package(package.metadata, problems)
     if problems:
         raise PackageError(problems)
-    return CheckedPackage(folder=root, package=package, files=files, config=config)
+    return CheckedPackage(
+        folder=root, package=package, files=files, config=config, metadata=meta
+    )
 
 
 def _inside(root: Path, file_path: str) -> str | None:

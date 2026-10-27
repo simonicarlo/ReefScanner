@@ -6,12 +6,13 @@ import {
 } from "@tanstack/react-query";
 import { useEffect, useRef } from "react";
 import { api } from "./api";
-import type { EventFilters, Job, JobProgress, Verdict } from "./types";
+import type { EventFilters, Job, JobProgress, PackageMetadata, Verdict } from "./types";
 
 export const keys = {
   projects: ["projects"] as const,
   project: (id: number) => ["project", id] as const,
   defaults: ["config-defaults"] as const,
+  settings: ["settings"] as const,
   jobs: (projectId: number) => ["jobs", projectId] as const,
   job: (id: number) => ["job", id] as const,
   events: (jobId: number, filters: EventFilters) =>
@@ -31,6 +32,26 @@ export const useProject = (id: number) =>
     // Pages that learn the project from a job pass 0 until the job loads.
     enabled: id > 0,
   });
+
+export const useSettings = () =>
+  useQuery({ queryKey: keys.settings, queryFn: api.getSettings });
+
+export function useSaveSettings() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: api.saveSettings,
+    onSuccess: (saved) => qc.setQueryData(keys.settings, saved),
+  });
+}
+
+export function useSaveMetadata(projectId: number) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (metadata: PackageMetadata) =>
+      api.updateProject(projectId, { package_metadata: metadata }),
+    onSuccess: (saved) => qc.setQueryData(keys.project(projectId), saved),
+  });
+}
 
 export const useConfigDefaults = () =>
   useQuery({

@@ -3,6 +3,7 @@ import type {
   EventPage,
   Job,
   DeploymentWrite,
+  Settings,
   Project,
   ReefEvent,
   ThresholdAnalysis,
@@ -67,6 +68,10 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
 
 export const api = {
   health: () => request<{ status: string; version: string }>("/api/health"),
+
+  getSettings: () => request<Settings>("/api/settings"),
+  saveSettings: (body: Omit<Settings, "signed_as">) =>
+    request<Settings>("/api/settings", { method: "PUT", body: JSON.stringify(body) }),
 
   configDefaults: () => request<Record<string, unknown>>("/api/projects/defaults"),
 

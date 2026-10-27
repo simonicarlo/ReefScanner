@@ -536,3 +536,58 @@ def test_only_a_stopped_run_can_resume(client, project_dirs) -> None:
     _, job_id = _project_with_job(client, *project_dirs, "done")
     assert client.post(f"/api/jobs/{job_id}/resume").status_code == 409
     assert client.post("/api/jobs/999/resume").status_code == 404
+
+
+def test_settings_sign_reviews_and_start_new_projects(client, project_dirs) -> None:
+    from reefscanner.core.camtrap import Observation
+
+    you = client.get("/api/settings").json()
+    assert you["name"] is None and you["signed_as"], "the login name stands in"
+
+    resp = client.put("/api/settings", json={
+        "name": "  Ana Reef ", "email": "ana@example.org", "organization": "MMF",
+    })
+    assert resp.status_code == 200 and resp.json()["signed_as"] == "Ana Reef"
+    assert client.put("/api/settings", json={"email": "Ana Reef"}).status_code == 422
+
+    project_id, job_id = _project_with_job(client, *project_dirs, "signed")
+    meta = client.get(f"/api/projects/{project_id}").json()["package_metadata"]
+    assert meta == {
+        "project": {"title": "signed", "description": None},
+        "contributors": [{"title": "Ana Reef", "email": "ana@example.org",
+                          "organization": "MMF", "role": "contributor"}],
+    }
+    event = _events(client, job_id)["items"][0]
+    _review(client, event, verdict="TP")
+    with client.app.state.db.session() as session:
+        assert session.get(Observation, f"{event['id']}:human").classifiedBy == "Ana Reef"
+
+
+def test_project_metadata_is_edited_and_exported(client, project_dirs) -> None:
+    from reefscanner.core.camtrap import read_package
+
+    in_dir, out_dir = project_dirs
+    project_id, job_id = _project_with_job(client, in_dir, out_dir, "meta")
+    team = {
+        "project": {"title": "Tofo megafauna", "description": "Baited reef cameras"},
+        "contributors": [
+            {"title": "A. Lead", "role": "principalInvestigator", "email": "lead@example.org"},
+            {"title": "Marine Megafauna Foundation", "role": "rightsHolder"},
+        ],
+    }
+    resp = client.patch(f"/api/projects/{project_id}", json={"package_metadata": team})
+    assert resp.status_code == 200, resp.text
+
+    for bad in (
+        {**team, "contributors": []},  # Camtrap needs one
+        {**team, "contributors": [{"title": "X", "role": "boss"}]},
+        {**team, "project": {"title": ""}},
+    ):
+        resp = client.patch(f"/api/projects/{project_id}", json={"package_metadata": bad})
+        assert resp.status_code == 422, bad
+
+    folder = Path(client.post(f"/api/jobs/{job_id}/package").json()["path"])
+    meta = read_package(folder).metadata
+    assert team["project"].items() <= meta["project"].items()  # core adds required defaults
+    assert [c["title"] for c in meta["contributors"]] == ["A. Lead", "Marine Megafauna Foundation"]
+    assert "email" not in meta["contributors"][1], "unset fields are left out, not null"

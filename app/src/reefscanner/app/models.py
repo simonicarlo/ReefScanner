@@ -7,6 +7,7 @@ needs around them.
 
 * A **project** is one Camtrap deployment — a folder of footage from one place
   — plus the config it is scanned with.
+* **App settings** hold the one person using this laptop.
 * A **job** is one scan run, or one imported package (``source`` set). Its
   observations carry its id as ``scanID``, and its files live in
   ``<output folder>/scan-<id>/``, which is also where its Camtrap DP package
@@ -57,12 +58,28 @@ class Project(SQLModel, table=True):
     #: A full ``ReefScannerConfig.to_dict()``. Stored whole rather than as
     #: columns so adding an engine tunable needs no migration.
     config: dict[str, Any] = Field(default_factory=dict, sa_column=Column(JSON))
+    #: Who made the data and for what, in Camtrap's own shape (``project``,
+    #: ``contributors``) so an export copies it as is. See ``metadata.py``.
+    package_metadata: dict[str, Any] | None = Field(default=None, sa_column=Column(JSON))
     created_at: _dt.datetime = Field(default_factory=_utcnow)
 
     jobs: list["Job"] = Relationship(
         back_populates="project",
         sa_relationship_kwargs={"cascade": "all, delete-orphan"},
     )
+
+
+class AppSettings(SQLModel, table=True):
+    """The person using this laptop. A single row (``id`` 1).
+
+    Reviews are signed with ``name``, and new projects start with this person
+    as their contributor. Unset, the login name stands in.
+    """
+
+    id: int = Field(default=1, primary_key=True)
+    name: str | None = None
+    email: str | None = None
+    organization: str | None = None
 
 
 class Job(SQLModel, table=True):
