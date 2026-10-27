@@ -135,7 +135,9 @@ def open_inside(root: Path, parts: tuple[str, ...]) -> int:
             nxt = os.open(part, flags | os.O_DIRECTORY, dir_fd=fd)
             os.close(fd)
             fd = nxt
-        file_fd = os.open(parts[-1], flags, dir_fd=fd)
+        # O_NONBLOCK so a FIFO or device in the package can't hang the open
+        # waiting for a writer; it changes nothing for a regular file.
+        file_fd = os.open(parts[-1], flags | os.O_NONBLOCK, dir_fd=fd)
     finally:
         os.close(fd)
     if not stat.S_ISREG(os.fstat(file_fd).st_mode):

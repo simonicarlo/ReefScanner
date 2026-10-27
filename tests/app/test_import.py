@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import csv
 import json
+import os
 import shutil
 import time
 from pathlib import Path
@@ -254,3 +255,16 @@ def test_rows_go_only_to_the_deployment_that_was_checked(rig_package) -> None:
     with pytest.raises(PackageError):
         # Refused before the session is touched, so none is needed.
         imports.insert_rows(None, checked, "scan-1", "someone-elses-deployment")
+
+
+def test_a_fifo_in_the_package_is_refused_without_hanging(client, rig_package, tmp_path) -> None:
+    """Opening a FIFO for reading waits for a writer; the check must not."""
+    clip = next((rig_package / "clips").iterdir())
+    clip.unlink()
+    os.mkfifo(clip)
+    resp = client.post("/api/projects/import", json={
+        "package_folder": str(rig_package), "output_folder": str(tmp_path / "results"),
+    })
+    assert resp.status_code == 422
+    assert any(clip.name in p for p in resp.json()["detail"]["problems"])
+
