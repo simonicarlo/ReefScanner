@@ -91,6 +91,7 @@ def run(db_path: str | Path | None = None, debug: bool = False) -> int:
     try:
         import uvicorn
 
+        from ..app.db import SchemaMismatch
         from ..app.main import STATIC_DIR, create_app
     except ImportError as exc:
         print(
@@ -110,7 +111,11 @@ def run(db_path: str | Path | None = None, debug: bool = False) -> int:
     port = _free_port()
     url = f"http://127.0.0.1:{port}"
 
-    app = create_app(db_path=db_path, allow_dev_origins=False)
+    try:
+        app = create_app(db_path=db_path, allow_dev_origins=False)
+    except SchemaMismatch as exc:
+        print(f"error: {exc}")
+        return 2
     server = uvicorn.Server(
         uvicorn.Config(
             app,

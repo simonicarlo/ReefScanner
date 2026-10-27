@@ -52,6 +52,7 @@ holds. Feature specs and plans for any item go in [`features/`](features/).
 ## Phase 0 · Core refactor
 
 Gate: replayed footage gives the same events as the v2 desktop scan.
+**Complete (2026-10-27):** every item below is done and the gate holds.
 
 - [x] Monorepo: uv workspace with `core/`, `edge/`, `app/`; move `engine/` into
       `core/`; CLI and existing tests keep working
