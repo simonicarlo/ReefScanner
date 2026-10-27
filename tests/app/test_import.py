@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import csv
 import json
+import shutil
 import time
 from pathlib import Path
 from urllib.parse import quote
@@ -186,3 +187,70 @@ def test_a_folder_that_is_not_a_package_is_refused(client, tmp_path) -> None:
     })
     assert resp.status_code == 422
     assert "datapackage.json" in resp.json()["detail"]["problems"][0]
+
+
+def test_a_package_cannot_choose_what_a_rescan_runs(client, rig_package, tmp_path) -> None:
+    """Only tuning settings come from a package; programs, models and file
+    names stay at this laptop's defaults (a rescan would run ffmpeg_path)."""
+    path = rig_package / "reefscanner-observations.csv"
+    with open(path, newline="") as fh:
+        rows = list(csv.DictReader(fh))
+    for row in rows:
+        config = json.loads(row["detectorConfig"])
+        config.update(
+            ffmpeg_path="/tmp/evil.sh", detector_weights="/tmp/evil.onnx",
+            detector_options={"weights": "/tmp/evil.onnx"}, clips_dirname="../../out",
+            thumbnail_ext="/../../x.jpg", merge_gap_seconds=5.0,
+        )
+        row["detectorConfig"] = json.dumps(config)
+    with open(path, "w", newline="") as fh:
+        writer = csv.DictWriter(fh, fieldnames=list(rows[0]))
+        writer.writeheader()
+        writer.writerows(rows)
+
+    project, job = _import(client, rig_package, tmp_path / "results")
+    assert job["status"] == JOB_DONE, job
+    defaults = ReefScannerConfig().to_dict()
+    for key in ("ffmpeg_path", "detector_weights", "detector_options",
+                "clips_dirname", "thumbnail_ext"):
+        assert project["config"].get(key, defaults[key]) == defaults[key], key
+    assert project["config"]["merge_gap_seconds"] == 5.0  # tuning still comes along
+
+
+@pytest.mark.parametrize("swap", ["file", "folder"])
+def test_a_link_swapped_in_after_the_check_is_not_followed(rig_package, tmp_path, swap) -> None:
+    """Checked once, copied later: the copy must not follow a link that
+    appeared in between (time-of-check to time-of-use)."""
+    from reefscanner.app import imports
+
+    checked = imports.check_package(rig_package)
+    outside = tmp_path / "outside"
+    outside.mkdir()
+    clips = rig_package / "clips"
+    for clip in clips.iterdir():
+        (outside / clip.name).write_text("not yours")
+    if swap == "file":
+        clip = next(clips.iterdir())
+        clip.unlink()
+        clip.symlink_to(outside / clip.name)
+    else:
+        shutil.rmtree(clips)
+        clips.symlink_to(outside, target_is_directory=True)
+
+    dest = tmp_path / "copy"
+    with pytest.raises(OSError):
+        imports.copy_files(checked, dest)
+    copied = [p for p in dest.rglob("*") if p.is_file()]
+    assert all(p.read_bytes() != b"not yours" for p in copied)
+
+
+def test_rows_go_only_to_the_deployment_that_was_checked(rig_package) -> None:
+    """The import job rereads the package; if it has become another deployment
+    meanwhile, it must not write into that one (perhaps another project's)."""
+    from reefscanner.app import imports
+    from reefscanner.core.camtrap import PackageError
+
+    checked = imports.check_package(rig_package)
+    with pytest.raises(PackageError):
+        # Refused before the session is touched, so none is needed.
+        imports.insert_rows(None, checked, "scan-1", "someone-elses-deployment")

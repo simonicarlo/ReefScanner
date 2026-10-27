@@ -40,9 +40,17 @@ starts over cleanly.
 The package is read with core's `read_package` and checked with `validate`.
 On top of that it must be ReefScanner-shaped: every machine observation needs
 its sidecar row and its clip and frame media. Every media `filePath` has to
-resolve, symlinks included, to a file inside the package folder. All problems
+name a regular file inside the package folder through no symlink at all (the
+rig never writes one). Files are opened one path component at a time with
+`O_NOFOLLOW`, again when copying, so a link swapped in after the check fails
+instead of pulling in an outside file. The import job also rereads the package
+and refuses it if it has become a different deployment. All problems
 are returned together (422). Only files named by media rows are copied, to
 the same relative path.
+The project's settings take only tuning values from the package (an explicit
+allowlist). Programs, model files and output file names (`ffmpeg_path`,
+`detector_weights`, `detector_options`, the folder and file names) stay at the
+laptop's defaults, so a package can't choose what a later rescan runs.
 
 ### 4. Human observations come along
 

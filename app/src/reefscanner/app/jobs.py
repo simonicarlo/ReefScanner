@@ -212,11 +212,12 @@ class JobRunner:
             source = job.source
             if source is not None:
                 folder = run_folder(project, job_id)
+                deployment_id = project.deployment_id
             else:
                 cfg = run_config(project, job_id)
 
         if source is not None:
-            self._import(job_id, source, folder, cancel)
+            self._import(job_id, source, folder, deployment_id, cancel)
             return
 
         self._patch(
@@ -322,7 +323,12 @@ class JobRunner:
         )
 
     def _import(
-        self, job_id: int, source: str, folder: Path, cancel: threading.Event
+        self,
+        job_id: int,
+        source: str,
+        folder: Path,
+        deployment_id: str,
+        cancel: threading.Event,
     ) -> None:
         """Copy a package's files into the run folder, then add its rows.
 
@@ -361,7 +367,9 @@ class JobRunner:
                 finish(JOB_CANCELLED, "Cancelled")
                 return
             with self.db.session() as session:
-                events = imports.insert_rows(session, checked, scan_id(job_id))
+                events = imports.insert_rows(
+                    session, checked, scan_id(job_id), deployment_id
+                )
                 session.commit()
         except PackageError as exc:
             finish(JOB_FAILED, "The package is not valid", error="\n".join(exc.problems))
