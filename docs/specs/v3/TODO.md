@@ -15,8 +15,9 @@ holds. Feature specs and plans for any item go in [`features/`](features/).
   board runtimes.
 - **Detector runtime:** ONNX Runtime is the default backend everywhere (CPU,
   CUDA or TensorRT when present; CoreML on request, as it was slower on an M2).
-  Ultralytics is an optional backend kept for training, export, SAHI, and as
-  the reference to check ONNX output against. Board backends (TensorRT, Hailo,
+  Ultralytics is an optional backend kept for training, export, and as the
+  reference to check ONNX output against (with the `sahi` package, for
+  tiling). SAHI tiling itself is core's own, so it runs on any backend. Board backends (TensorRT, Hailo,
   RKNN) all start from the same ONNX export.
 - **ONNX input shape:** the laptop export is dynamic, padding frames only to a
   multiple of 32 as Ultralytics does with a `.pt`; that is what makes ONNX
@@ -61,7 +62,10 @@ Gate: replayed footage gives the same events as the v2 desktop scan.
       the four test dives: 72/72 detections, same 7 events as v2
 - [x] Host `sharktrack.onnx` as a GitHub release asset (`models-v1`) so an
       install without Ultralytics can fetch it; downloads are hash-checked
-- [ ] SAHI tiling for the ONNX backend (it needs Ultralytics today)
+- [x] SAHI tiling for the ONNX backend: core's own tiling around any detector,
+      mirroring the `sahi` package ([design](features/2026-10-27-onnx-sahi-design.md)).
+      Matches Ultralytics + `sahi` on the four test dives: 1650/1651
+      detections, no frame where only one backend saw anything
 - [x] Camtrap DP data model: SQLModel tables for deployments, media and
       observations, the extension sidecar table, and Alembic set up
       ([design](features/2026-10-26-camtrap-dp-data-model-design.md))

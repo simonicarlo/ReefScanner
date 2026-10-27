@@ -5,7 +5,10 @@ Runs both backends over the same sampled frames of real footage and compares
 their detections box by box. Needs the ultralytics extra (the dev install has
 it). Synthetic footage is no use here: SharkTrack finds nothing in it.
 
-    uv run python scripts/check_onnx_parity.py inputs/*.mp4 [--fps 1] [--conf 0.2]
+    uv run python scripts/check_onnx_parity.py inputs/*.mp4 [--fps 1] [--conf 0.2] [--sahi]
+
+With --sahi both backends tile: ONNX through core's tiling, Ultralytics
+through the sahi package, which is the reference.
 
 A detection counts as matched when the other backend has a box of the same
 class overlapping it by IoU >= 0.5. What matters for recall is the last
@@ -61,16 +64,20 @@ def main() -> int:
     ap.add_argument("videos", nargs="+")
     ap.add_argument("--fps", type=float, default=1.0)
     ap.add_argument("--conf", type=float, default=0.2)
+    ap.add_argument("--sahi", action="store_true",
+                    help="tile both backends (SAHI) with the default tile settings")
     ap.add_argument("--providers", nargs="+",
                     help="ONNX Runtime providers (default: best available)")
     args = ap.parse_args()
 
     opts = {"providers": args.providers} if args.providers else {}
     onnx = get_detector(ReefScannerConfig(
-        ml_confidence_threshold=args.conf, detector_options=opts))
+        ml_confidence_threshold=args.conf, detector_options=opts, use_sahi=args.sahi))
     ref = get_detector(ReefScannerConfig(
-        ml_confidence_threshold=args.conf, detector_backend="ultralytics"))
-    print(f"onnx providers: {onnx._session.get_providers()}")
+        ml_confidence_threshold=args.conf, detector_backend="ultralytics",
+        use_sahi=args.sahi))
+    session = getattr(onnx, "_inner", onnx)._session
+    print(f"onnx providers: {session.get_providers()}; sahi: {args.sahi}")
 
     totals = dict(frames=0, ref=0, onnx=0, matched=0, ref_only_frames=0,
                   onnx_only_frames=0)

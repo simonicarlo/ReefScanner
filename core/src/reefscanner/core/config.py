@@ -128,7 +128,8 @@ class ReefScannerConfig:
     #: frame (maximum recall). Recall-safe: never skips during warm-up.
     motion_prefilter: bool = False
     #: SAHI tiled inference — improves recall on distant/small animals (the
-    #: missed-distant-shark failure mode). Needs the optional `sahi` package.
+    #: missed-distant-shark failure mode). Core's own tiling on the onnx
+    #: backend; the `sahi` package on the ultralytics one.
     use_sahi: bool = False
     sahi_slice_height: int = 512
     sahi_slice_width: int = 512
@@ -160,12 +161,15 @@ class ReefScannerConfig:
                 f"detector_backend must be one of {VALID_BACKENDS}, "
                 f"got {self.detector_backend!r}"
             )
+        # Tile count grows fast as tiles shrink or overlap grows, and these
+        # can arrive in an imported package, so they're bounded.
+        for key in ("sahi_slice_height", "sahi_slice_width"):
+            value = getattr(self, key)
+            if type(value) is not int or not 64 <= value <= 4096:
+                raise ValueError(f"{key} must be a whole number from 64 to 4096 pixels")
+        if not isinstance(self.sahi_overlap, (int, float)) or not 0 <= self.sahi_overlap <= 0.5:
+            raise ValueError("sahi_overlap must be from 0 to 0.5")
         if self.detector_backend == BACKEND_ONNX:
-            if self.use_sahi:
-                raise ValueError(
-                    "use_sahi needs detector_backend='ultralytics' "
-                    "(SAHI tiling is not implemented for ONNX yet)"
-                )
             if self.detector_weights and not self.detector_weights.endswith(".onnx"):
                 raise ValueError(
                     f"detector_backend='onnx' needs an .onnx model, got "

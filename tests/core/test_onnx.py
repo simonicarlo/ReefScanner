@@ -150,12 +150,6 @@ def test_onnx_backend_rejects_a_pt_checkpoint_with_a_way_out() -> None:
         ReefScannerConfig(detector_weights="my-model.pt")
 
 
-def test_sahi_needs_the_ultralytics_backend() -> None:
-    with pytest.raises(ValueError, match="use_sahi"):
-        ReefScannerConfig(use_sahi=True)
-    ReefScannerConfig(use_sahi=True, detector_backend="ultralytics")
-
-
 def test_marine_builds_the_onnx_detector_from_given_weights(monkeypatch) -> None:
     built = {}
 

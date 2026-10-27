@@ -31,9 +31,23 @@ def get_detector(cfg: ReefScannerConfig) -> Detector:
     if name == DETECTOR_MARINE:
         from .marine_detector import build_marine
 
-        return build_marine(cfg)
-    if name == DETECTOR_GENERIC:
+        detector = build_marine(cfg)
+    elif name == DETECTOR_GENERIC:
         from .generic_detector import build_generic
 
-        return build_generic(cfg)
-    raise ValueError(f"Unknown detector: {name!r}")
+        detector = build_generic(cfg)
+    else:
+        raise ValueError(f"Unknown detector: {name!r}")
+
+    # The ultralytics backend tiles through the sahi package itself (the
+    # reference); every other backend through core's own tiling.
+    if cfg.use_sahi and cfg.detector_backend == BACKEND_ONNX:
+        from .tiling import TiledDetector
+
+        detector = TiledDetector(
+            detector,
+            slice_height=cfg.sahi_slice_height,
+            slice_width=cfg.sahi_slice_width,
+            overlap=cfg.sahi_overlap,
+        )
+    return detector
