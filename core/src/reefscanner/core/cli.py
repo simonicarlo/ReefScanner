@@ -239,6 +239,7 @@ def _serve(args: argparse.Namespace) -> int:
     try:
         import uvicorn
 
+        from reefscanner.app.db import SchemaMismatch
         from reefscanner.app.main import create_app
     except ImportError as exc:
         print(
@@ -258,9 +259,9 @@ def _serve(args: argparse.Namespace) -> int:
         )
 
     url = f"http://{args.host}:{args.port}"
-    print(f"ReefScanner service on {url}  (API docs at {url}/docs)")
 
     if args.reload:
+        print(f"ReefScanner service on {url}  (API docs at {url}/docs)")
         # --reload needs an import string, so the DB override travels by env.
         import os
 
@@ -271,7 +272,13 @@ def _serve(args: argparse.Namespace) -> int:
             factory=True, host=args.host, port=args.port, reload=True,
         )
     else:
-        uvicorn.run(create_app(db_path=args.db), host=args.host, port=args.port)
+        try:
+            app = create_app(db_path=args.db)
+        except SchemaMismatch as exc:
+            print(f"error: {exc}", file=sys.stderr)
+            return 2
+        print(f"ReefScanner service on {url}  (API docs at {url}/docs)")
+        uvicorn.run(app, host=args.host, port=args.port)
     return 0
 
 

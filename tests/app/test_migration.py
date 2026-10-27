@@ -4,13 +4,15 @@ from __future__ import annotations
 
 import sqlite3
 
+import pytest
 from alembic import command
 from alembic.autogenerate import compare_metadata
 from alembic.migration import MigrationContext
 from alembic.script import ScriptDirectory
 from sqlmodel import SQLModel
 
-from reefscanner.app.db import Database
+from reefscanner.app.db import Database, SchemaMismatch
+from reefscanner.app.main import create_app
 from reefscanner.app.migrations import alembic_config
 
 
@@ -74,3 +76,21 @@ def test_migrations_downgrade_cleanly(tmp_path) -> None:
         command.downgrade(cfg, "base")
     db.dispose()
     assert _tables(tmp_path / "x.db") == {"alembic_version"}
+
+
+def test_a_database_that_differs_from_the_models_stops_the_app(tmp_path) -> None:
+    """It can say it is up to date and still differ: one made by a development
+    build before migration 0001 was rewritten kept its old tables, and the
+    first project failed with a 500 instead of the app saying why."""
+    path = tmp_path / "stale.db"
+    db = Database(path)
+    db.migrate()
+    db.dispose()
+    conn = sqlite3.connect(path)
+    conn.execute("CREATE TABLE label (id INTEGER PRIMARY KEY)")  # a v2 leftover
+    conn.commit()
+    conn.close()
+
+    with pytest.raises(SchemaMismatch, match="stale.db") as exc:
+        create_app(db_path=path)
+    assert "label" in str(exc.value)
