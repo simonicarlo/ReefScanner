@@ -13,7 +13,7 @@ they drift apart.
 from __future__ import annotations
 
 import datetime as _dt
-from typing import Any
+from typing import Any, Literal
 
 from pydantic import BaseModel, Field, field_validator
 
@@ -60,6 +60,56 @@ class DeploymentRead(DeploymentWrite):
     timestamp_issues: bool = False
 
 
+#: Enough to catch a name typed into the email box; not a full RFC check.
+_EMAIL = r"^[^@\s]+@[^@\s]+\.[^@\s]+$"
+
+
+class Contributor(BaseModel):
+    """A person or organisation behind the data (Camtrap ``contributors``).
+
+    Unknown keys are dropped rather than refused, since packages from other
+    tools may carry more (an ORCID ``path``, say) and none of it is needed.
+    """
+
+    title: str = Field(min_length=1, max_length=200)
+    email: str | None = Field(default=None, max_length=200, pattern=_EMAIL)
+    organization: str | None = Field(default=None, max_length=200)
+    #: The roles Camtrap DP allows.
+    role: Literal[
+        "contact", "principalInvestigator", "rightsHolder", "publisher", "contributor"
+    ] = "contributor"
+
+
+class ProjectInfo(BaseModel):
+    """Camtrap ``project``: the study the data was collected for."""
+
+    title: str = Field(min_length=1, max_length=300)
+    description: str | None = Field(default=None, max_length=5000)
+
+
+class PackageMetadata(BaseModel):
+    """What an exported package says about who made it and why.
+
+    Shaped as in ``datapackage.json``. Camtrap requires a contributor.
+    """
+
+    project: ProjectInfo
+    contributors: list[Contributor] = Field(min_length=1, max_length=100)
+
+
+class SettingsWrite(BaseModel):
+    """The person using this laptop."""
+
+    name: str | None = Field(default=None, max_length=200)
+    email: str | None = Field(default=None, max_length=200, pattern=_EMAIL)
+    organization: str | None = Field(default=None, max_length=200)
+
+
+class SettingsRead(SettingsWrite):
+    #: Who reviews are signed as: ``name``, or the login name while unset.
+    signed_as: str
+
+
 class ProjectCreate(BaseModel):
     name: str = Field(min_length=1, max_length=200)
     input_folder: str = Field(min_length=1)
@@ -68,6 +118,8 @@ class ProjectCreate(BaseModel):
     #: Partial or full engine config; unset keys take the engine's defaults,
     #: except camera_timezone, which has to be given.
     config: dict[str, Any]
+    #: Defaults to the project's name as title and you as the contributor.
+    package_metadata: PackageMetadata | None = None
 
     @field_validator("config")
     @classmethod
@@ -85,6 +137,7 @@ class ProjectUpdate(BaseModel):
     input_folder: str | None = None
     output_folder: str | None = None
     config: dict[str, Any] | None = None
+    package_metadata: PackageMetadata | None = None
 
     @field_validator("config")
     @classmethod
@@ -106,7 +159,18 @@ class ProjectRead(BaseModel):
     config: dict[str, Any]
     created_at: _dt.datetime
     job_count: int = 0
+    package_metadata: PackageMetadata
     deployment: DeploymentRead
+
+
+class ProjectImport(BaseModel):
+    """A Camtrap DP package folder to import as a new project."""
+
+    package_folder: str = Field(min_length=1)
+    #: Where the import run copies the package's clips and frames.
+    output_folder: str = Field(min_length=1)
+    #: Defaults to the deployment's location name, or its ID.
+    name: str | None = Field(default=None, min_length=1, max_length=200)
 
 
 class JobRead(BaseModel):
@@ -121,6 +185,8 @@ class JobRead(BaseModel):
     started_at: _dt.datetime | None = None
     finished_at: _dt.datetime | None = None
     error: str | None = None
+    #: The package folder an import run came from; None for a scan.
+    source: str | None = None
 
 
 def _check_relative_bbox(v: list[float] | None) -> list[float] | None:

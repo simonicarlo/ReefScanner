@@ -15,8 +15,9 @@ holds. Feature specs and plans for any item go in [`features/`](features/).
   board runtimes.
 - **Detector runtime:** ONNX Runtime is the default backend everywhere (CPU,
   CUDA or TensorRT when present; CoreML on request, as it was slower on an M2).
-  Ultralytics is an optional backend kept for training, export, SAHI, and as
-  the reference to check ONNX output against. Board backends (TensorRT, Hailo,
+  Ultralytics is an optional backend kept for training, export, and as the
+  reference to check ONNX output against (with the `sahi` package, for
+  tiling). SAHI tiling itself is core's own, so it runs on any backend. Board backends (TensorRT, Hailo,
   RKNN) all start from the same ONNX export.
 - **ONNX input shape:** the laptop export is dynamic, padding frames only to a
   multiple of 32 as Ultralytics does with a `.pt`; that is what makes ONNX
@@ -61,27 +62,39 @@ Gate: replayed footage gives the same events as the v2 desktop scan.
       the four test dives: 72/72 detections, same 7 events as v2
 - [x] Host `sharktrack.onnx` as a GitHub release asset (`models-v1`) so an
       install without Ultralytics can fetch it; downloads are hash-checked
-- [ ] SAHI tiling for the ONNX backend (it needs Ultralytics today)
+- [x] SAHI tiling for the ONNX backend: core's own tiling around any detector,
+      mirroring the `sahi` package ([design](features/2026-10-27-onnx-sahi-design.md)).
+      Matches Ultralytics + `sahi` on the four test dives: 1650/1651
+      detections, no frame where only one backend saw anything
 - [x] Camtrap DP data model: SQLModel tables for deployments, media and
       observations, the extension sidecar table, and Alembic set up
       ([design](features/2026-10-26-camtrap-dp-data-model-design.md))
 - [x] Camtrap DP writer and reader, validated against the official schema; one
       package folder per deployment
-- [ ] Camera adapter interface, with file replay at real-time speed and USB
-      webcam sources
-- [ ] Ring buffer of the encoded full-quality stream (default 30 s pre-roll)
-- [ ] Scheduler: 2–5 fps while idle, full frame rate in a burst after a
+- [x] Camera adapter interface, with file replay at real-time speed and USB
+      webcam sources ([design](features/2026-10-26-edge-agent-design.md))
+- [x] Ring buffer of the encoded full-quality stream (default 30 s pre-roll):
+      2 s MPEG-TS segments from ffmpeg, clips joined without re-encoding
+- [x] Scheduler: 2–5 fps while idle, full frame rate in a burst after a
       detection, then back to idle
-- [ ] Event writer: clip (pre-roll + event + post-roll), clean peak frame,
+- [x] Event writer: clip (pre-roll + event + post-roll), clean peak frame,
       annotated thumbnail, Camtrap DP rows
-- [ ] Replay simulator: run the whole agent on a laptop against the baseline
+- [x] Replay simulator: run the whole agent on a laptop against the baseline
       footage, write a package, and diff its events against the v2 reference
+      (`reefscanner-edge replay`). **Gate holds on the four test dives:** all
+      7 laptop-scan events found, none missed or extra, with the full frame
+      and with the 640 px low-res copy; in real time on the dev laptop, 12 of 853
+      frames dropped during bursts
 - [x] Field app on Camtrap DP: scans write media and machine observations,
       reviews write human observations, a run exports as a package
       ([design](features/2026-10-26-app-on-camtrap-design.md))
-- [ ] Field app imports Camtrap DP packages (from the rig) into the review flow
-- [ ] Contributors and project metadata for packages (a settings page); today
-      the contributor is the local user name
+- [x] Field app imports Camtrap DP packages (from the rig) into the review flow
+      as a new project with an import run; files copied, paths checked
+      ([design](features/2026-10-26-package-import-design.md))
+- [x] Contributors and project metadata for packages: a Settings page for
+      the person on the laptop (signs reviews), and each project's title,
+      description and contributors, carried through import and export
+      ([design](features/2026-10-27-package-metadata-design.md))
 
 ## Phase 1 · Bench prototype
 

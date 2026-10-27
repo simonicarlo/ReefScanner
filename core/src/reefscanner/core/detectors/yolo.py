@@ -133,8 +133,11 @@ class UltralyticsYoloDetector:
     def _detect_sahi(self, frame: np.ndarray) -> list[Detection]:
         from sahi.predict import get_sliced_prediction  # type: ignore
 
+        # sahi takes NumPy images as RGB (and flips them back for Ultralytics);
+        # OpenCV frames are BGR.
         result = get_sliced_prediction(
-            frame, self._sahi, verbose=0, **self._sahi_kwargs
+            np.ascontiguousarray(frame[:, :, ::-1]), self._sahi, verbose=0,
+            **self._sahi_kwargs,
         )
         out: list[Detection] = []
         for obj in result.object_prediction_list:

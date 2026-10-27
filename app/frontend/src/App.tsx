@@ -1,16 +1,20 @@
 import { useQueryClient } from "@tanstack/react-query";
-import { NavLink, Route, Routes } from "react-router-dom";
+import { NavLink, Route, Routes, useLocation } from "react-router-dom";
 import { useJobProgressSocket } from "./lib/queries";
 import { Projects } from "./pages/Projects";
 import { ProjectDetail } from "./pages/ProjectDetail";
 import { JobDetail } from "./pages/JobDetail";
 import { EventReview } from "./pages/EventReview";
+import { Settings } from "./pages/Settings";
 import { cx } from "./components/ui";
 
 export default function App() {
   const queryClient = useQueryClient();
   // One socket for the whole app; it writes progress into the query cache.
   useJobProgressSocket(queryClient);
+  // "/" matches every page, so Projects stays lit through a project's runs
+  // and reviews, but not on Settings.
+  const onSettings = useLocation().pathname.startsWith("/settings");
 
   return (
     <div className="flex min-h-full flex-col">
@@ -29,14 +33,19 @@ export default function App() {
           </NavLink>
 
           <nav className="flex items-center gap-1">
-            {[{ to: "/", label: "Projects" }].map((item) => (
+            {[
+              { to: "/", label: "Projects" },
+              { to: "/settings", label: "Settings" },
+            ].map((item) => (
               <NavLink
                 key={item.to}
                 to={item.to}
                 className={({ isActive }) =>
                   cx(
                     "legend rounded-[3px] px-2.5 py-1 transition-colors",
-                    isActive ? "bg-panel-hi text-signal" : "hover:text-read",
+                    isActive && !(item.to === "/" && onSettings)
+                      ? "bg-panel-hi text-signal"
+                      : "hover:text-read",
                   )
                 }
               >
@@ -55,6 +64,7 @@ export default function App() {
           <Route path="/projects/:projectId" element={<ProjectDetail />} />
           <Route path="/jobs/:jobId" element={<JobDetail />} />
           <Route path="/jobs/:jobId/events/:eventId" element={<EventReview />} />
+          <Route path="/settings" element={<Settings />} />
         </Routes>
       </main>
     </div>

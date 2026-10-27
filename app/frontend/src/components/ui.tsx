@@ -1,4 +1,5 @@
 import type { ReactNode, ButtonHTMLAttributes, InputHTMLAttributes } from "react";
+import { ApiError } from "../lib/api";
 
 /** Tiny classname joiner. A dependency for this would be silly. */
 export function cx(...parts: (string | false | null | undefined)[]): string {
@@ -142,9 +143,17 @@ export function Empty({
 export function ErrorNote({ error }: { error: unknown }) {
   if (!error) return null;
   const message = error instanceof Error ? error.message : String(error);
+  const problems = error instanceof ApiError ? error.problems : [];
   return (
     <div className="rounded-[3px] border border-reject/40 bg-reject/10 px-3 py-2 text-sm text-reject">
       {message}
+      {problems.length > 0 && (
+        <ul className="mt-1.5 list-disc space-y-0.5 pl-5 font-mono text-xs">
+          {problems.map((p, i) => (
+            <li key={i}>{p}</li>
+          ))}
+        </ul>
+      )}
     </div>
   );
 }

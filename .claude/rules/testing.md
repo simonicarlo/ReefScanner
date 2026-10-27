@@ -29,8 +29,8 @@ silently drop detections, events or observations gets a test.
 - Implementation details that couple tests to internal structure
 
 ## Stack and Fixtures
-- **pytest**, run with `uv run pytest`; tests live in `tests/core/` and
-  `tests/app/`, shared helpers in `tests/` (`conftest.py`, `camtrap_check.py`)
+- **pytest**, run with `uv run pytest`; tests live in `tests/core/`,
+  `tests/edge/` and `tests/app/`, shared helpers in `tests/` (`conftest.py`, `camtrap_check.py`)
 - **No network, no real model, no real footage.** Use the `stub_detector`
   fixture instead of weights, `make_video` for synthetic footage, `tmp_path`
   for files and databases, and fake sessions for ONNX Runtime

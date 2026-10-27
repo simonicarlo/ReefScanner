@@ -43,7 +43,7 @@ export function JobRow({
           to={`/jobs/${job.id}`}
           className="tabular text-sm text-read after:absolute after:inset-0 group-hover:text-signal"
         >
-          Run #{job.id}
+          {job.source ? "Import" : "Run"} #{job.id}
         </Link>
 
         <Tag tone={TONE[job.status]}>

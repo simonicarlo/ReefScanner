@@ -25,11 +25,12 @@ from typing import Any, Callable
 
 from sqlmodel import func, select
 
-from reefscanner.core.camtrap import Deployment, Observation, ObservationExtra
+from reefscanner.core.camtrap import Deployment, Observation, ObservationExtra, PackageError
 from reefscanner.core.camtrap.build import ScanContext, rows_for_video
 from reefscanner.core.config import ReefScannerConfig
 from reefscanner.core.detectors import describe_model
 from reefscanner.core.pipeline import process_folder
+from . import imports
 from .db import Database
 from .models import (
     JOB_CANCELLED,
@@ -38,6 +39,7 @@ from .models import (
     JOB_RUNNING,
     Job,
     Project,
+    run_folder,
     scan_id,
 )
 
@@ -206,7 +208,17 @@ class JobRunner:
                 session.add(job)
                 session.commit()
                 return
-            cfg = run_config(project, job_id)
+            # An import run copies a package instead of scanning footage.
+            source = job.source
+            if source is not None:
+                folder = run_folder(project, job_id)
+                deployment_id = project.deployment_id
+            else:
+                cfg = run_config(project, job_id)
+
+        if source is not None:
+            self._import(job_id, source, folder, deployment_id, cancel)
+            return
 
         self._patch(
             job_id,
@@ -308,6 +320,70 @@ class JobRunner:
             videos_done=state["videos_done"],
             error="\n".join(errors) if errors else None,
             finished_at=_dt.datetime.now(_dt.timezone.utc),
+        )
+
+    def _import(
+        self,
+        job_id: int,
+        source: str,
+        folder: Path,
+        deployment_id: str,
+        cancel: threading.Event,
+    ) -> None:
+        """Copy a package's files into the run folder, then add its rows.
+
+        Rows go in one transaction after every file is in place, so a failed
+        or cancelled import leaves no events behind and a retry starts clean.
+        """
+        self._patch(
+            job_id, status=JOB_RUNNING, message="Checking the package…",
+            started_at=_dt.datetime.now(_dt.timezone.utc), error=None,
+        )
+        last_write = 0.0
+
+        def on_file(done: int, total: int) -> None:
+            nonlocal last_write
+            now = time.monotonic()
+            if now - last_write < PROGRESS_INTERVAL_S and done < total:
+                return
+            last_write = now
+            self._patch(
+                job_id, progress=round(0.95 * done / total, 4),
+                message=f"Copying files ({done}/{total})",
+            )
+
+        def finish(status: str, message: str, **fields: Any) -> None:
+            self._patch(
+                job_id, status=status, message=message,
+                finished_at=_dt.datetime.now(_dt.timezone.utc), **fields,
+            )
+
+        try:
+            # Checked again here: the folder may have changed since the request.
+            checked = imports.check_package(source)
+            sources = {Path(m.sourceVideo or "") for m in checked.package.observation_extras}
+            self._patch(job_id, videos_total=len(sources))
+            if not imports.copy_files(checked, folder, on_file, cancel.is_set):
+                finish(JOB_CANCELLED, "Cancelled")
+                return
+            with self.db.session() as session:
+                events = imports.insert_rows(
+                    session, checked, scan_id(job_id), deployment_id
+                )
+                session.commit()
+        except PackageError as exc:
+            finish(JOB_FAILED, "The package is not valid", error="\n".join(exc.problems))
+            return
+        except Exception:
+            logger.exception("import job %s failed", job_id)
+            finish(JOB_FAILED, "Failed", error="The import failed; see the app log.")
+            return
+        finally:
+            with self._lock:
+                self._cancels.pop(job_id, None)
+        finish(
+            JOB_DONE, f"Imported from {Path(source).name}",
+            progress=1.0, videos_done=len(sources), events_found=events,
         )
 
     def _count_events(self, job_id: int) -> int:

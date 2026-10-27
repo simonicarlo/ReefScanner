@@ -123,6 +123,26 @@ def _collect_candidates(
     return candidates
 
 
+def find_events(
+    video: Path,
+    cfg: ReefScannerConfig,
+    info: VideoInfo,
+    detector,
+    on_frame: Callable[[float], None] | None = None,
+    should_cancel: Callable[[], bool] | None = None,
+) -> list[Event]:
+    """The laptop scan's events for one video, with nothing written.
+
+    Also the reference the edge agent's replay is checked against.
+    """
+    candidates = _collect_candidates(
+        video, cfg, info, detector, on_frame=on_frame, should_cancel=should_cancel
+    )
+    return aggregate_events(
+        candidates, cfg, video_stem=video.stem, source_video=str(video)
+    )
+
+
 def process_video(
     video: Path,
     cfg: ReefScannerConfig,
@@ -142,11 +162,8 @@ def process_video(
     thumbs_dir = out_dir / cfg.thumbnails_dirname
     frames_dir = out_dir / cfg.frames_dirname
 
-    candidates = _collect_candidates(
+    events = find_events(
         video, cfg, info, detector, on_frame=on_frame, should_cancel=should_cancel
-    )
-    events = aggregate_events(
-        candidates, cfg, video_stem=video.stem, source_video=str(video)
     )
 
     rows: list[dict] = []

@@ -12,7 +12,6 @@
 from __future__ import annotations
 
 import datetime as _dt
-import getpass
 import json
 from dataclasses import dataclass
 from pathlib import Path
@@ -30,6 +29,7 @@ from reefscanner.core.camtrap import (
     Package,
     verdict_tag,
 )
+from . import metadata
 from .models import Job, Project, run_folder, scan_id
 
 
@@ -68,10 +68,7 @@ def build_package(session: Session, project: Project, job: Job) -> Package:
         detections=sorted(detections, key=lambda d: (d.observationID, d.frameTimestamp)),
         metadata={
             "title": f"{project.name} — scan {job.id}",
-            "project": {"title": project.name},
-            # The person running the app on this machine. Camtrap DP needs at
-            # least one contributor; naming the team is for a later settings page.
-            "contributors": [{"title": getpass.getuser(), "role": "contributor"}],
+            **metadata.stored(metadata.project_metadata(session, project)),
         },
     )
 

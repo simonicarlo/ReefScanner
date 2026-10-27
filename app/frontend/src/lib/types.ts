@@ -34,6 +34,40 @@ export interface Deployment extends DeploymentWrite {
   timestamp_issues: boolean;
 }
 
+/** The roles Camtrap DP allows a contributor. */
+export const CONTRIBUTOR_ROLES = [
+  "contributor",
+  "contact",
+  "principalInvestigator",
+  "rightsHolder",
+  "publisher",
+] as const;
+
+export type ContributorRole = (typeof CONTRIBUTOR_ROLES)[number];
+
+/** A person or organisation behind the data (Camtrap `contributors`). */
+export interface Contributor {
+  title: string;
+  email?: string | null;
+  organization?: string | null;
+  role: ContributorRole;
+}
+
+/** What a project's exported packages say about the study and its team. */
+export interface PackageMetadata {
+  project: { title: string; description?: string | null };
+  contributors: Contributor[];
+}
+
+/** The person using this laptop. */
+export interface Settings {
+  name: string | null;
+  email: string | null;
+  organization: string | null;
+  /** Who reviews are signed as: name, or the login name while unset. */
+  signed_as: string;
+}
+
 export interface Project {
   id: number;
   name: string;
@@ -42,6 +76,7 @@ export interface Project {
   config: Record<string, unknown>;
   created_at: string;
   job_count: number;
+  package_metadata: PackageMetadata;
   deployment: Deployment;
 }
 
@@ -57,6 +92,8 @@ export interface Job {
   started_at: string | null;
   finished_at: string | null;
   error: string | null;
+  /** The package folder an import run came from; null for a scan. */
+  source: string | null;
 }
 
 export interface Review {
