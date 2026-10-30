@@ -18,7 +18,7 @@ import { useToast } from "../lib/toast";
 import { VERDICT_INFO, VERDICT_ORDER } from "../lib/verdicts";
 import { BboxOverlay } from "../components/BboxOverlay";
 import { Page } from "../components/Page";
-import { SegmentedControl } from "../components/SegmentedControl";
+import { Timeline } from "../components/Timeline";
 import { VerdictSymbol } from "../components/VerdictSymbol";
 import { Button, Empty, ErrorNote, Kbd, Spinner, cx } from "../components/ui";
 import styles from "./EventReview.module.css";
@@ -27,6 +27,13 @@ const VIEWS = [
   { value: "clip", label: "Clip" },
   { value: "peak", label: "Peak frame" },
 ] as const;
+
+/** Something known about one clip, kept with its URL so a new event's clip
+ * never shows the last one's. */
+interface ClipState<T> {
+  url: string;
+  value: T;
+}
 
 const SHORTCUTS = [
   ["T", "Confirmed"],
@@ -82,9 +89,15 @@ export function EventReview() {
   // overlay's percentages land on the picture rather than on letterbox bars.
   const [aspect, setAspect] = useState(16 / 9);
 
+  // The clip's length and playhead, learned from the video element.
+  const [clipLength, setClipLength] = useState<ClipState<number> | null>(null);
+  const [clipTime, setClipTime] = useState<ClipState<number> | null>(null);
+  const [playing, setPlaying] = useState(false);
+  // A seek asked for from the peak-frame view, applied once the clip loads.
+  const pendingSeek = useRef<number | null>(null);
+
   const videoRef = useRef<HTMLVideoElement>(null);
   const speciesRef = useRef<HTMLInputElement>(null);
-  const currentRowRef = useRef<HTMLAnchorElement>(null);
 
   const siblings = useMemo(() => page?.items ?? [], [page]);
   const index = siblings.findIndex((e) => e.id === eid);
@@ -144,18 +157,45 @@ export function EventReview() {
     [event, species, notes, saveReview, goTo, nextUnreviewed, next, siblings, toast],
   );
 
-  // Keep the current event centred in the filmstrip as the reviewer moves
-  // along. Scrolls the strip itself: scrollIntoView would also nudge every
-  // clipping ancestor, shifting the whole window.
+  // The playhead follows the video every frame while it plays; timeupdate
+  // alone fires only a few times a second and the head would jump.
+  const clipUrl = event?.clip_url ?? "";
   useEffect(() => {
-    const chip = currentRowRef.current;
-    const strip = chip?.parentElement;
-    if (!chip || !strip) return;
-    strip.scrollTo({
-      left: chip.offsetLeft - (strip.clientWidth - chip.offsetWidth) / 2,
-      behavior: "smooth",
-    });
-  }, [eid, siblings.length]);
+    if (!playing) return;
+    let frame = 0;
+    const follow = () => {
+      const video = videoRef.current;
+      if (video) setClipTime({ url: clipUrl, value: video.currentTime });
+      frame = requestAnimationFrame(follow);
+    };
+    frame = requestAnimationFrame(follow);
+    return () => cancelAnimationFrame(frame);
+  }, [playing, clipUrl]);
+
+  const seek = useCallback(
+    (clipSeconds: number) => {
+      const video = videoRef.current;
+      if (view === "clip" && video) {
+        video.currentTime = clipSeconds;
+        setClipTime({ url: clipUrl, value: clipSeconds });
+      } else {
+        // The peak frame has no video to seek: show the clip, then seek.
+        pendingSeek.current = clipSeconds;
+        setView("clip");
+      }
+    },
+    [view, clipUrl],
+  );
+
+  const togglePlay = useCallback(() => {
+    const video = videoRef.current;
+    if (view !== "clip" || !video) {
+      setView("clip");
+      return;
+    }
+    if (video.paused) void video.play();
+    else video.pause();
+  }, [view]);
 
   // Keyboard is the primary interface here: the mouse is for the odd correction,
   // not for six hundred verdicts.
@@ -211,18 +251,16 @@ export function EventReview() {
           e.preventDefault();
           goTo(next);
           break;
-        case " ": {
+        case " ":
           e.preventDefault();
-          const video = videoRef.current;
-          if (video) video.paused ? void video.play() : video.pause();
+          togglePlay();
           break;
-        }
       }
     };
 
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [record, goTo, previous, next, event?.review?.verdict]);
+  }, [record, goTo, previous, next, event?.review?.verdict, togglePlay]);
 
   if (isLoading)
     return (
@@ -244,6 +282,24 @@ export function EventReview() {
     reviewedBox !== null && JSON.stringify(reviewedBox) !== JSON.stringify(event.bbox);
   const reviewedCount = siblings.filter((e) => e.review).length;
 
+  const clipStart = event.clip_start_seconds;
+  // Before the clip has loaded (or on the peak frame), its length follows from
+  // the padding: as much after the event as before it.
+  const length =
+    clipLength?.url === event.clip_url
+      ? clipLength.value
+      : clipStart !== null
+        ? event.end_seconds - clipStart + (event.start_seconds - clipStart)
+        : null;
+  const playhead =
+    view === "peak"
+      ? clipStart !== null
+        ? event.peak_seconds - clipStart
+        : null
+      : clipTime?.url === event.clip_url
+        ? clipTime.value
+        : 0;
+
   return (
     <div className={styles.review}>
       <header className={styles.toolbar}>
@@ -263,15 +319,6 @@ export function EventReview() {
         </div>
 
         <div className={styles.tools}>
-          <SegmentedControl label="Show" options={VIEWS} value={view} onChange={setView} />
-          <button
-            type="button"
-            className={styles.toggle}
-            aria-pressed={showBox}
-            onClick={() => setShowBox((v) => !v)}
-          >
-            Box <Kbd>B</Kbd>
-          </button>
           <div className={styles.stepper}>
             <button
               type="button"
@@ -314,8 +361,21 @@ export function EventReview() {
                   onLoadedMetadata={(e) => {
                     const v = e.currentTarget;
                     if (v.videoWidth && v.videoHeight) setAspect(v.videoWidth / v.videoHeight);
+                    if (Number.isFinite(v.duration)) {
+                      setClipLength({ url: event.clip_url, value: v.duration });
+                    }
+                    if (pendingSeek.current !== null) {
+                      v.currentTime = pendingSeek.current;
+                      pendingSeek.current = null;
+                    }
                   }}
-                  controls
+                  onTimeUpdate={(e) => {
+                    const v = e.currentTarget;
+                    setClipTime({ url: event.clip_url, value: v.currentTime });
+                  }}
+                  onPlay={() => setPlaying(true)}
+                  onPause={() => setPlaying(false)}
+                  onClick={togglePlay}
                   autoPlay
                   loop
                   muted
@@ -347,45 +407,55 @@ export function EventReview() {
               />
             </div>
           </div>
-          {view === "clip" && showBox && (
-            <p className={styles.caption}>
-              The box marks the peak frame. On the clip it shows where to look, not
-              where the animal goes.
-            </p>
-          )}
-
-          {/* The run as a filmstrip, under the footage so the footage keeps the
-              width between the sidebar and the inspector. */}
-          <nav className={styles.strip} aria-label="Events in this run">
-            {siblings.map((e) => {
-              const current = e.id === eid;
-              const v = e.review?.verdict;
-              return (
-                <Link
-                  key={e.id}
-                  ref={current ? currentRowRef : undefined}
-                  to={`/jobs/${jid}/events/${encodeURIComponent(e.id)}`}
-                  className={styles.chip}
-                  aria-current={current ? "page" : undefined}
-                  title={`${basename(e.source_video)} at ${timecode(e.start_seconds)}`}
-                >
-                  <span className={styles.chipThumb}>
-                    <img src={e.frame_url} alt="" loading="lazy" />
-                    <span
-                      className={cx(styles.dot, v && styles.judged)}
-                      style={v ? { background: VERDICT_INFO[v].mark } : undefined}
-                      role="img"
-                      aria-label={v ? VERDICT_INFO[v].label : "Not reviewed"}
-                    />
-                  </span>
-                  <span className={styles.chipText}>
-                    <span>{timeOfDay(e.start_time)}</span>
-                    <span className={styles.chipScore}>{score(e.confidence)}</span>
-                  </span>
-                </Link>
-              );
-            })}
-          </nav>
+          <div className={styles.controls}>
+            <div className={styles.controlRow}>
+              <button
+                type="button"
+                className={styles.play}
+                onClick={togglePlay}
+                aria-label={view === "clip" && playing ? "Pause" : "Play"}
+              >
+                <svg viewBox="0 0 16 16" fill="currentColor" aria-hidden="true">
+                  {view === "clip" && playing ? (
+                    <path d="M4.5 3h2.2v10H4.5zM9.3 3h2.2v10H9.3z" />
+                  ) : (
+                    <path d="M5 3.2v9.6c0 .4.4.6.7.4l7.4-4.8a.5.5 0 0 0 0-.8L5.7 2.8c-.3-.2-.7 0-.7.4z" />
+                  )}
+                </svg>
+              </button>
+              <div className={styles.tabs} role="group" aria-label="Show">
+                {VIEWS.map((v) => (
+                  <button
+                    key={v.value}
+                    type="button"
+                    className={styles.tab}
+                    aria-pressed={view === v.value}
+                    onClick={() => setView(v.value)}
+                  >
+                    {v.label}
+                  </button>
+                ))}
+              </div>
+              <button
+                type="button"
+                className={styles.tab}
+                aria-pressed={showBox}
+                onClick={() => setShowBox((v) => !v)}
+                title="The box marks the peak frame. On the clip it shows where to look, not where the animal goes."
+              >
+                Box {showBox ? "on" : "off"} <Kbd>B</Kbd>
+              </button>
+            </div>
+            <Timeline
+              clipStart={clipStart}
+              duration={length}
+              current={playhead}
+              start={event.start_seconds}
+              end={event.end_seconds}
+              peak={event.peak_seconds}
+              onSeek={seek}
+            />
+          </div>
         </section>
 
         <aside className={styles.inspector} aria-label="Verdict">
@@ -514,6 +584,42 @@ export function EventReview() {
           </details>
         </aside>
       </div>
+
+      <section className={styles.events} aria-label="Events in this run">
+        <div className={cx(styles.eventRow, styles.eventHead)} aria-hidden="true">
+          <span>Start</span>
+          <span>Source video</span>
+          <span className={styles.right}>Length</span>
+          <span className={styles.right}>Score</span>
+          <span>Verdict</span>
+        </div>
+        {siblings.map((e) => {
+          const current = e.id === eid;
+          const v = e.review?.verdict;
+          return (
+            <Link
+              key={e.id}
+              to={`/jobs/${jid}/events/${encodeURIComponent(e.id)}`}
+              className={styles.eventRow}
+              aria-current={current ? "page" : undefined}
+            >
+              <span className={styles.num}>{timeOfDay(e.start_time)}</span>
+              <span className={styles.source} title={e.source_video}>
+                {basename(e.source_video)}
+              </span>
+              <span className={cx(styles.num, styles.right)}>{duration(e.duration_seconds)}</span>
+              <span className={cx(styles.num, styles.right)}>{score(e.confidence, 3)}</span>
+              <span className={cx(styles.verdictCell, !v && styles.unreviewed)}>
+                <span
+                  className={cx(styles.dot, v && styles.judged)}
+                  style={v ? { background: VERDICT_INFO[v].color } : undefined}
+                />
+                {v ? VERDICT_INFO[v].label : "Not reviewed"}
+              </span>
+            </Link>
+          );
+        })}
+      </section>
     </div>
   );
 }

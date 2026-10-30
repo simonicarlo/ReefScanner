@@ -9,6 +9,16 @@ export function timecode(seconds: number): string {
   return `${h > 0 ? `${h}:` : ""}${mm}:${String(s).padStart(2, "0")}`;
 }
 
+/** Seconds -> 00:00:11.01, for times read to the frame. */
+export function preciseTimecode(seconds: number): string {
+  if (!Number.isFinite(seconds) || seconds < 0) seconds = 0;
+  const h = Math.floor(seconds / 3600);
+  const m = Math.floor((seconds % 3600) / 60);
+  const s = seconds % 60;
+  const pad = (n: number) => String(n).padStart(2, "0");
+  return `${pad(h)}:${pad(m)}:${s.toFixed(2).padStart(5, "0")}`;
+}
+
 /** Duration in the compact form used on event cards. */
 export function duration(seconds: number): string {
   if (seconds < 60) return `${seconds.toFixed(1)}s`;

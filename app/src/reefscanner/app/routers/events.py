@@ -73,6 +73,15 @@ def _job_id(extra: ObservationExtra) -> int:
     return int((extra.scanID or "scan-0").removeprefix("scan-"))
 
 
+def _clip_start(extra: ObservationExtra, start: float) -> float | None:
+    """Where the event's clip starts in the source video, as core's
+    extract_clip cuts it: the event start less the run's padding."""
+    pad = (extra.detectorConfig or {}).get("pad_seconds")
+    if not isinstance(pad, (int, float)) or isinstance(pad, bool):
+        return None
+    return max(0.0, start - float(pad))
+
+
 def _event_read(
     machine: Observation, extra: ObservationExtra, human: Observation | None
 ) -> EventRead:
@@ -86,6 +95,7 @@ def _event_read(
         end_seconds=end,
         duration_seconds=end - start,
         peak_seconds=extra.peakSeconds or start,
+        clip_start_seconds=_clip_start(extra, start),
         start_time=machine.eventStart,
         confidence=machine.classificationProbability,
         detected_class=extra.detectorClass,

@@ -150,12 +150,17 @@ Translucency is **on by default**. It is what makes the app feel like water.
   count and a thin progress bar split by verdict. Progress and cover come
   from the project's latest run with events (`latest_run` in the API), not
   a sum over runs: rescans of the same footage find the same animals again.
-- **Review:** the footage with the run as a filmstrip under it (thumbnail,
-  time, score, verdict dot; the current event outlined and kept centred),
-  and the inspector on the right (time, facts, the 2×2 verdict cards with
-  keys, species, notes). The list sits under the footage rather than beside
-  it, so the footage keeps the width between sidebar and inspector. The
-  inspector drops under the footage when the content area is narrow.
+- **Review:** the first screen is the footage with its controls, and the
+  inspector beside it (time, facts, the 2×2 verdict cards with keys,
+  species, notes), under a pinned toolbar. Under the footage: play/pause,
+  Clip and Peak frame as text tabs, the box toggle, and the clip's timeline
+  outside the player (event window, peak tick, playhead; click or drag to
+  seek) with Start, Peak and End to the hundredth. The run's events follow
+  below as a list (start, source video, length, score, verdict), so the
+  footage keeps the width between sidebar and inspector. The timeline
+  places the event using `clip_start_seconds` from the API; without it only
+  the playhead shows. The inspector drops under the footage when the
+  content area is narrow.
 - Keyboard shortcuts are unchanged.
 
 ### 9. Appearance settings

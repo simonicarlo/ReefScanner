@@ -538,6 +538,16 @@ def test_only_a_stopped_run_can_resume(client, project_dirs) -> None:
     assert client.post("/api/jobs/999/resume").status_code == 404
 
 
+def test_event_says_where_its_clip_starts(client, project_dirs) -> None:
+    project_id, job_id = _project_with_job(client, *project_dirs, "clipstart")
+    pad = {
+        **client.get("/api/projects/defaults").json(),
+        **client.get(f"/api/projects/{project_id}").json()["config"],
+    }["pad_seconds"]
+    for event in _events(client, job_id)["items"]:
+        assert event["clip_start_seconds"] == max(0.0, event["start_seconds"] - pad)
+
+
 def test_project_shows_its_latest_run_review(client, project_dirs) -> None:
     project_id, job_id = _project_with_job(client, *project_dirs, "summary")
     events = _events(client, job_id)["items"]

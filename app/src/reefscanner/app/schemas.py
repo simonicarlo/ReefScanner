@@ -271,6 +271,11 @@ class EventRead(BaseModel):
     end_seconds: float
     duration_seconds: float
     peak_seconds: float
+    #: Where the clip file starts in the source video, so the UI can place the
+    #: event and its peak on the clip's timeline. From the run's padding; None
+    #: when unknown (e.g. a rig's clip with its own pre-roll). Approximate: a
+    #: stream-copied clip starts at the keyframe before this.
+    clip_start_seconds: float | None = None
     #: Wall-clock start, in the camera's timezone.
     start_time: _dt.datetime
     confidence: float | None = None

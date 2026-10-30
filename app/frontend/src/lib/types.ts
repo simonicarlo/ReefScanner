@@ -137,6 +137,8 @@ export interface ReefEvent {
   end_seconds: number;
   duration_seconds: number;
   peak_seconds: number;
+  /** Where the clip file starts in the source video; null when unknown. */
+  clip_start_seconds: number | null;
   /** Wall-clock start, with the camera timezone's offset. */
   start_time: string;
   confidence: number | null;
