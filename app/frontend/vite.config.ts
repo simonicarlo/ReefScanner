@@ -1,6 +1,5 @@
 import { defineConfig } from "vite";
 import react from "@vitejs/plugin-react";
-import tailwindcss from "@tailwindcss/vite";
 import path from "node:path";
 
 // The build lands inside the Python package so `pip install reefscanner-app`
@@ -11,7 +10,7 @@ const PACKAGE_STATIC = path.resolve(__dirname, "../src/reefscanner/app/static");
 const BACKEND = process.env.REEFSCANNER_API ?? "http://127.0.0.1:8000";
 
 export default defineConfig({
-  plugins: [react(), tailwindcss()],
+  plugins: [react()],
   resolve: {
     alias: { "@": path.resolve(__dirname, "src") },
   },

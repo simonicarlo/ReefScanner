@@ -1,7 +1,5 @@
-// Styles before any component: Tailwind declares the cascade layers
-// (theme, base, components, utilities), and a component's CSS module loaded
-// earlier would declare `components` first and sink below the reset.
-import "./index.css";
+// Styles before any component: base.css declares the cascade layers, and a
+// component's CSS module loaded earlier would declare `components` first.
 import "./styles/tokens.css";
 import "./styles/base.css";
 import { StrictMode } from "react";

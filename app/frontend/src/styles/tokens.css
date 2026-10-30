@@ -7,8 +7,6 @@
   appearance settings (lib/appearance.ts): data-mode="light|dark" and
   data-glass="on|off".
 
-  Names avoid Tailwind's (--color-*, --text-*, --radius-*, --shadow-*) while
-  the old pages still use it.
 */
 :root {
   color-scheme: light;

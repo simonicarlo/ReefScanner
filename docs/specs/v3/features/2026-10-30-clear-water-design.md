@@ -63,7 +63,10 @@ is a review finding.
 - A verdict button is a card. Selected, it fills with its colour, with white
   text and a soft coloured shadow.
 - The detection box is white until the event has a verdict, then takes the
-  verdict's colour.
+  verdict's colour. Marks drawn on footage (`--mark-*`) keep the brighter
+  dark-mode colours in both modes, because the footage doesn't change with
+  the mode and the light-mode green is weak on blue-green water. A
+  reviewer's corrected box is dashed.
 - Lists show the verdict as a small dot: filled when judged, a hollow ring
   when not reviewed.
 
@@ -133,8 +136,10 @@ Translucency is **on by default**. It is what makes the app feel like water.
   title and context (`Test · scan-1`). A "Waiting for review" group listing
   projects with unreviewed events follows with the project cards, which need
   the same per-project review counts from the API.
-- **Projects:** cards with the project's cover frame, deployment id, scan
-  count and a thin progress bar split by verdict.
+- **Projects:** cards with the project's cover frame, footage folder, run
+  count and a thin progress bar split by verdict. Progress and cover come
+  from the project's latest run with events (`latest_run` in the API), not
+  a sum over runs: rescans of the same footage find the same animals again.
 - **Review:** three columns. The event list on the left, the frame with its
   scrubber in the middle, and the inspector on the right (time, facts, the 2×2
   verdict cards with keys, species, notes). The list collapses below about

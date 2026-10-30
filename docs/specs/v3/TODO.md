@@ -112,7 +112,7 @@ translucent, in light and dark ([design](features/2026-10-30-clear-water-design.
 - [x] Pages: event review, job, project, projects (cards with a cover
       frame and review counts from the project's latest run, and the
       sidebar's "Waiting for review"), settings
-- [ ] Remove Tailwind and `@fontsource`; rewrite the frontend styling rules
+- [x] Remove Tailwind and `@fontsource`; rewrite the frontend styling rules
 
 ## Phase 1 · Bench prototype
 
