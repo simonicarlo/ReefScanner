@@ -1,6 +1,7 @@
 import { useState, type ReactNode } from "react";
 import { NavLink, useLocation } from "react-router-dom";
 import { BackdropContext } from "../lib/backdrop";
+import { useProjects } from "../lib/queries";
 import { Backdrop } from "./Backdrop";
 import { ToastProvider } from "./Toast";
 import styles from "./AppShell.module.css";
@@ -34,9 +35,16 @@ const NAV = [
  */
 export function AppShell({ children }: { children: ReactNode }) {
   const [backdrop, setBackdrop] = useState<string | null>(null);
+  const { pathname } = useLocation();
+  // Projects whose latest run still has events without a verdict.
+  const waiting = (useProjects().data ?? []).filter(
+    (p) => p.latest_run && p.latest_run.reviewed < p.latest_run.events,
+  );
   // "/" matches every page, so Projects stays lit through a project's runs
-  // and reviews, but not on Settings.
-  const onSettings = useLocation().pathname.startsWith("/settings");
+  // and reviews, but not on Settings or on a run lit below it.
+  const projectsLit =
+    !pathname.startsWith("/settings") &&
+    !waiting.some((p) => pathname === `/jobs/${p.latest_run?.job_id}`);
 
   return (
     <BackdropContext value={setBackdrop}>
@@ -61,7 +69,7 @@ export function AppShell({ children }: { children: ReactNode }) {
                   key={item.to}
                   to={item.to}
                   className={({ isActive }) =>
-                    isActive && !(item.to === "/" && onSettings)
+                    isActive && (item.to !== "/" || projectsLit)
                       ? `${styles.navItem} ${styles.active}`
                       : styles.navItem
                   }
@@ -71,6 +79,33 @@ export function AppShell({ children }: { children: ReactNode }) {
                 </NavLink>
               ))}
             </nav>
+
+            {waiting.length > 0 && (
+              <nav className={styles.nav} aria-labelledby="waiting-title">
+                <h2 id="waiting-title" className={styles.groupTitle}>
+                  Waiting for review
+                </h2>
+                {waiting.map((p) => {
+                  const run = p.latest_run!;
+                  return (
+                    <NavLink
+                      key={p.id}
+                      to={`/jobs/${run.job_id}`}
+                      end
+                      className={({ isActive }) =>
+                        isActive ? `${styles.navItem} ${styles.active}` : styles.navItem
+                      }
+                    >
+                      <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5">
+                        <circle cx="8" cy="8" r="5.5" />
+                      </svg>
+                      <span className={styles.navLabel}>{p.name}</span>
+                      <span className={styles.count}>{run.events - run.reviewed}</span>
+                    </NavLink>
+                  );
+                })}
+              </nav>
+            )}
 
             <p className={styles.status}>Local · works offline</p>
           </aside>

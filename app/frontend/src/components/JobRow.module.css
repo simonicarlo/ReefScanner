@@ -1,0 +1,117 @@
+@layer components {
+  .row {
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-2);
+    margin: 0 calc(var(--space-2) * -1);
+    padding: var(--space-3) var(--space-2);
+    border-radius: var(--corner-button);
+    transition: background-color var(--dur-press) var(--ease-settle);
+
+    &:hover,
+    &:focus-within {
+      background: var(--fill);
+    }
+    & + & {
+      box-shadow: 0 -0.5px 0 var(--sep);
+    }
+  }
+  .line {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: var(--space-2) var(--space-4);
+  }
+  .title {
+    color: var(--label);
+    font-weight: 600;
+    text-decoration: none;
+
+    &::after {
+      content: "";
+      position: absolute;
+      inset: 0;
+    }
+  }
+  .message {
+    flex: 1;
+    min-width: 0;
+    overflow: hidden;
+    color: var(--secondary);
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .date {
+    color: var(--secondary);
+    font-size: var(--type-caption);
+    font-variant-numeric: tabular-nums;
+  }
+  .count {
+    color: var(--label);
+    font-variant-numeric: tabular-nums;
+
+    & b {
+      font-weight: 600;
+    }
+  }
+  .none {
+    color: var(--secondary);
+  }
+  .chevron {
+    width: 14px;
+    height: 14px;
+    color: var(--tertiary);
+  }
+  .above {
+    position: relative;
+    z-index: 1;
+  }
+
+  .progress {
+    display: flex;
+    align-items: center;
+    gap: var(--space-3);
+  }
+  .track {
+    flex: 1;
+    height: 5px;
+    overflow: hidden;
+    border-radius: 999px;
+    background: var(--fill-2);
+
+    & i {
+      display: block;
+      height: 100%;
+      border-radius: 999px;
+      background: var(--accent);
+      transition: width var(--dur-move) var(--ease-settle);
+    }
+  }
+  .percent,
+  .videos {
+    color: var(--secondary);
+    font-size: var(--type-caption);
+    font-variant-numeric: tabular-nums;
+  }
+  .percent {
+    min-width: 3ch;
+    color: var(--accent);
+    text-align: right;
+  }
+
+  .error {
+    position: relative;
+    z-index: 1;
+    max-height: 6rem;
+    margin: 0;
+    overflow: auto;
+    padding: var(--space-2) var(--space-3);
+    border-radius: var(--corner-button);
+    background: color-mix(in srgb, var(--red) 10%, transparent);
+    color: var(--red);
+    font-family: var(--face-mono);
+    font-size: var(--type-caption);
+    white-space: pre-wrap;
+  }
+}

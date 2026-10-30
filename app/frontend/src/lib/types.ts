@@ -77,6 +77,18 @@ export interface Appearance {
   translucency: boolean;
 }
 
+/** Where a project's review stands: its latest run with events. */
+export interface RunSummary {
+  job_id: number;
+  events: number;
+  reviewed: number;
+  confirmed: number;
+  /** "Nothing there" and "something else" together. */
+  rejected: number;
+  /** Its most recent confirmed event's frame, otherwise its first event's. */
+  cover_url: string | null;
+}
+
 export interface Project {
   id: number;
   name: string;
@@ -85,6 +97,7 @@ export interface Project {
   config: Record<string, unknown>;
   created_at: string;
   job_count: number;
+  latest_run: RunSummary | null;
   package_metadata: PackageMetadata;
   deployment: Deployment;
 }

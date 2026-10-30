@@ -1,4 +1,9 @@
-import type { ReactNode, ButtonHTMLAttributes, InputHTMLAttributes } from "react";
+import type {
+  ReactNode,
+  ButtonHTMLAttributes,
+  InputHTMLAttributes,
+  SelectHTMLAttributes,
+} from "react";
 import { ApiError } from "../lib/api";
 import styles from "./ui.module.css";
 
@@ -23,26 +28,38 @@ export function Button({ variant = "quiet", size = "md", className, ...props }: 
   );
 }
 
+/**
+ * A labelled control. `group` is for controls made of several buttons
+ * (segmented, switch): a <label> around them would send a click on the label
+ * text to the first button.
+ */
 export function Field({
   label,
   hint,
+  group,
   children,
 }: {
   label: string;
   hint?: string;
+  group?: boolean;
   children: ReactNode;
 }) {
+  const Tag = group ? "div" : "label";
   return (
-    <label className={styles.field}>
+    <Tag className={styles.field}>
       <span className={styles.fieldLabel}>{label}</span>
       {children}
       {hint && <span className={styles.hint}>{hint}</span>}
-    </label>
+    </Tag>
   );
 }
 
 export function Input({ className, ...props }: InputHTMLAttributes<HTMLInputElement>) {
   return <input {...props} className={cx(styles.input, className)} />;
+}
+
+export function Select({ className, ...props }: SelectHTMLAttributes<HTMLSelectElement>) {
+  return <select {...props} className={cx(styles.input, styles.select, className)} />;
 }
 
 export type Tone = "neutral" | "accent" | "green" | "red" | "orange";
@@ -119,11 +136,13 @@ export function ErrorNote({ error }: { error: unknown }) {
 /** A group of related content on a page: a soft card. */
 export function Panel({
   title,
+  description,
   aside,
   children,
   className,
 }: {
   title?: string;
+  description?: ReactNode;
   /** Shown on the title's line, at the right: a count, a source, an action. */
   aside?: ReactNode;
   children: ReactNode;
@@ -133,7 +152,10 @@ export function Panel({
     <section className={cx(styles.panel, className)}>
       {(title || aside) && (
         <div className={styles.panelHead}>
-          {title && <h2 className={styles.panelTitle}>{title}</h2>}
+          <div className={styles.panelHeading}>
+            {title && <h2 className={styles.panelTitle}>{title}</h2>}
+            {description && <p className={styles.panelDescription}>{description}</p>}
+          </div>
           {aside && <div className={styles.panelAside}>{aside}</div>}
         </div>
       )}

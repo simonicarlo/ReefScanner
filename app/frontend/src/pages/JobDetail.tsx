@@ -13,8 +13,10 @@ import {
 import type { EventFilters, Job, ReefEvent, Verdict } from "../lib/types";
 import { basename, duration, percent, score, timecode } from "../lib/format";
 import { VERDICT_INFO } from "../lib/verdicts";
+import { useBackdrop } from "../lib/backdrop";
 import { BboxOverlay } from "../components/BboxOverlay";
 import { PageHeader } from "../components/PageHeader";
+import { ReviewBar } from "../components/ReviewBar";
 import { SegmentedControl } from "../components/SegmentedControl";
 import { ThresholdPanel } from "../components/ThresholdPanel";
 import { Button, Empty, ErrorNote, Notice, Panel, Spinner, Tag } from "../components/ui";
@@ -33,6 +35,7 @@ export function JobDetail() {
   const { data: thresholds } = useThresholdAnalysis(id);
   const { data: project } = useProject(job?.project_id ?? 0);
   const writePackage = useMutation({ mutationFn: () => api.writePackage(id) });
+  useBackdrop(project?.latest_run?.cover_url);
 
   const patch = (next: Partial<EventFilters>) =>
     setFilters((prev) => ({ ...prev, ...next, offset: 0 }));
@@ -91,11 +94,12 @@ export function JobDetail() {
               <div className={styles.progressLabel}>
                 Reviewed {reviewed} of {totalEvents}
               </div>
-              <div className={styles.bar}>
-                <i style={{ width: `${(page.n_tp / totalEvents) * 100}%`, background: "var(--green)" }} />
-                <i style={{ width: `${(page.n_fp / totalEvents) * 100}%`, background: "var(--red)" }} />
-                <i style={{ width: `${(unsure / totalEvents) * 100}%`, background: "var(--orange)" }} />
-              </div>
+              <ReviewBar
+                total={totalEvents}
+                confirmed={page.n_tp}
+                rejected={page.n_fp}
+                unsure={unsure}
+              />
             </div>
             <dl className={styles.stats}>
               <Stat label="Confirmed" value={page.n_tp} color="var(--green)" />

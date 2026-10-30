@@ -2,7 +2,15 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { api } from "../lib/api";
-import { keys, useEvents, useJob, useProject, useSaveReview, useSpecies } from "../lib/queries";
+import {
+  invalidateProjects,
+  keys,
+  useEvents,
+  useJob,
+  useProject,
+  useSaveReview,
+  useSpecies,
+} from "../lib/queries";
 import type { ReefEvent, Verdict } from "../lib/types";
 import { basename, clockTime, duration, eventLabel, localDate, score, timecode, timeOfDay } from "../lib/format";
 import { useBackdrop } from "../lib/backdrop";
@@ -61,6 +69,7 @@ export function EventReview() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: keys.event(eid) });
       queryClient.invalidateQueries({ queryKey: ["events", jid] });
+      invalidateProjects(queryClient);
     },
   });
 

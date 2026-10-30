@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react";
-import { Link, useNavigate, useParams } from "react-router-dom";
+import { useNavigate, useParams } from "react-router-dom";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { api } from "../lib/api";
 import {
@@ -11,9 +11,15 @@ import {
   useResumeJob,
   useStartJob,
 } from "../lib/queries";
+import { tailPath } from "../lib/format";
+import { useBackdrop } from "../lib/backdrop";
 import { JobRow } from "../components/JobRow";
 import { MetadataPanel } from "../components/MetadataPanel";
-import { Button, Empty, ErrorNote, Field, Input, Spinner, cx } from "../components/ui";
+import { PageHeader } from "../components/PageHeader";
+import { SegmentedControl } from "../components/SegmentedControl";
+import { Switch } from "../components/Switch";
+import { Button, Empty, ErrorNote, Field, Input, Panel, Spinner } from "../components/ui";
+import styles from "./ProjectDetail.module.css";
 
 /**
  * The tunables worth putting in front of someone, in the order they'd think
@@ -134,6 +140,9 @@ export function ProjectDetail() {
     },
   });
 
+  // The project's cover frame, blurred behind the window.
+  useBackdrop(project?.latest_run?.cover_url);
+
   if (isLoading) return <Spinner label="Reading project" />;
   if (!project) return <Empty title="Project not found" />;
 
@@ -152,57 +161,41 @@ export function ProjectDetail() {
     .sort();
 
   return (
-    <div className="rise space-y-7">
-      <div className="flex flex-wrap items-end justify-between gap-4">
-        <div className="min-w-0">
-          <Link to="/" className="legend hover:text-signal">
-            ← Projects
-          </Link>
-          <h1 className="mt-1 truncate text-2xl font-semibold tracking-tight">
-            {project.name}
-          </h1>
-          <p className="mt-1 truncate font-mono text-xs text-faint">
-            {project.input_folder} → {project.output_folder}
-          </p>
-        </div>
-
-        <div className="flex items-center gap-2">
-          {activeJob ? (
+    <div className={styles.page}>
+      <PageHeader
+        back={{ to: "/", label: "Projects" }}
+        title={project.name}
+        subtitle={
+          <span className={styles.folders} title={`${project.input_folder} → ${project.output_folder}`}>
+            {tailPath(project.input_folder)} → {tailPath(project.output_folder)}
+          </span>
+        }
+        actions={
+          activeJob ? (
             <Button variant="danger" onClick={() => cancelJob.mutate(activeJob.id)}>
               Stop run
             </Button>
           ) : (
-            <Button
-              variant="primary"
-              onClick={() => startJob.mutate()}
-              disabled={startJob.isPending}
-            >
+            <Button variant="primary" onClick={() => startJob.mutate()} disabled={startJob.isPending}>
               {startJob.isPending ? "Starting…" : "Scan footage"}
             </Button>
-          )}
-        </div>
-      </div>
+          )
+        }
+      />
 
       <ErrorNote error={startJob.error} />
       <ErrorNote error={cancelJob.error} />
       <ErrorNote error={resumeJob.error} />
       <ErrorNote error={remove.error} />
 
-      <section>
-        <div className="mb-3 flex items-center justify-between">
-          <h2 className="legend">Runs</h2>
-          {jobs?.length ? (
-            <span className="legend">{jobs.length} total</span>
-          ) : null}
-        </div>
+      <Panel title="Runs" aside={jobs?.length ? `${jobs.length} in total` : undefined}>
         {!jobs?.length ? (
           <Empty title="Nothing scanned yet">
-            Press <strong className="text-dim">Scan footage</strong> to work
-            through the folder. You can watch progress here and review events as
-            soon as the run finishes.
+            Press Scan footage to work through the folder. You can watch progress here
+            and review events as soon as the run finishes.
           </Empty>
         ) : (
-          <div className="space-y-2">
+          <div>
             {jobs.map((job) => (
               <JobRow
                 key={job.id}
@@ -213,37 +206,27 @@ export function ProjectDetail() {
             ))}
           </div>
         )}
-      </section>
+      </Panel>
 
-      <section className="panel p-5">
-        <div className="mb-4 flex items-center justify-between gap-4">
-          <div>
-            <h2 className="text-sm font-medium">Scan settings</h2>
-            <p className="mt-0.5 text-xs text-faint">
-              Defaults favour recall — they over-flag rather than miss an animal.
-              Changes apply to the next run.
-            </p>
-          </div>
-          {dirty && (
-            <div className="flex shrink-0 gap-2">
+      <Panel
+        title="Scan settings"
+        description="Defaults favour recall: they over-flag rather than miss an animal. Changes apply to the next run."
+        aside={
+          dirty && (
+            <>
               <Button size="sm" variant="ghost" onClick={() => setDraft(null)}>
                 Revert
               </Button>
-              <Button
-                size="sm"
-                variant="primary"
-                onClick={() => save.mutate()}
-                disabled={save.isPending}
-              >
+              <Button size="sm" variant="primary" onClick={() => save.mutate()} disabled={save.isPending}>
                 Save
               </Button>
-            </div>
-          )}
-        </div>
-
+            </>
+          )
+        }
+      >
         <ErrorNote error={save.error} />
 
-        <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+        <div className={styles.settings}>
           {PRIMARY.map((field) => (
             <ConfigField
               key={field.key}
@@ -257,16 +240,18 @@ export function ProjectDetail() {
           ))}
         </div>
 
-        <button
-          type="button"
+        <Button
+          variant="ghost"
+          size="sm"
+          className={styles.more}
           onClick={() => setShowAll((v) => !v)}
-          className="legend mt-5 hover:text-signal"
+          aria-expanded={showAll}
         >
-          {showAll ? "− Hide" : "+ Show"} all settings ({otherKeys.length})
-        </button>
+          {showAll ? "Hide other settings" : `Show all settings (${otherKeys.length} more)`}
+        </Button>
 
         {showAll && (
-          <div className="mt-4 grid gap-4 border-t border-rule pt-4 md:grid-cols-2 xl:grid-cols-3">
+          <div className={`${styles.settings} ${styles.others}`}>
             {otherKeys.map((key) => (
               <ConfigField
                 key={key}
@@ -279,14 +264,14 @@ export function ProjectDetail() {
             ))}
           </div>
         )}
-      </section>
+      </Panel>
 
       <MetadataPanel projectId={id} saved={project.package_metadata} />
 
-      <section className="flex items-center justify-between gap-4 border-t border-rule pt-5">
-        <p className="text-xs text-faint">
-          Deleting removes this project's runs and labels from the database.
-          Clips and thumbnails on disk are left alone.
+      <div className={styles.danger}>
+        <p>
+          Deleting removes this project's runs and labels from the database. Clips and
+          thumbnails on disk are left alone.
         </p>
         <Button
           variant="danger"
@@ -299,7 +284,7 @@ export function ProjectDetail() {
         >
           Delete project
         </Button>
-      </section>
+      </div>
     </div>
   );
 }
@@ -324,23 +309,14 @@ function ConfigField({
 
   if (choices) {
     return (
-      <Field label={label} hint={hint}>
-        <div className="flex flex-wrap gap-1">
-          {choices.map((choice) => (
-            <button
-              key={choice}
-              type="button"
-              onClick={() => onChange(choice)}
-              className={cx(
-                "rounded-[3px] border px-2.5 py-1 font-mono text-xs transition-colors",
-                value === choice
-                  ? "border-signal/60 bg-signal/15 text-signal"
-                  : "border-rule text-dim hover:border-rule-hi hover:text-read",
-              )}
-            >
-              {choice}
-            </button>
-          ))}
+      <Field label={label} hint={hint} group>
+        <div>
+          <SegmentedControl
+            label={label}
+            options={choices.map((choice) => ({ value: choice, label: choice }))}
+            value={typeof value === "string" ? value : ""}
+            onChange={onChange}
+          />
         </div>
       </Field>
     );
@@ -348,25 +324,8 @@ function ConfigField({
 
   if (typeof reference === "boolean") {
     return (
-      <Field label={label} hint={hint}>
-        <button
-          type="button"
-          onClick={() => onChange(!value)}
-          className={cx(
-            "flex items-center gap-2 rounded-[3px] border px-2.5 py-1.5 text-xs transition-colors",
-            value
-              ? "border-signal/60 bg-signal/10 text-signal"
-              : "border-rule text-faint hover:text-dim",
-          )}
-        >
-          <span
-            className={cx(
-              "h-2 w-2 rounded-full",
-              value ? "bg-signal" : "bg-rule-hi",
-            )}
-          />
-          {value ? "On" : "Off"}
-        </button>
+      <Field label={label} hint={hint} group>
+        <Switch label={label} hideLabel checked={Boolean(value)} onChange={onChange} />
       </Field>
     );
   }
@@ -378,9 +337,7 @@ function ConfigField({
           type="number"
           step="any"
           value={value === null || value === undefined ? "" : String(value)}
-          onChange={(e) =>
-            onChange(e.target.value === "" ? null : Number(e.target.value))
-          }
+          onChange={(e) => onChange(e.target.value === "" ? null : Number(e.target.value))}
         />
       </Field>
     );
@@ -390,9 +347,7 @@ function ConfigField({
   if (typeof reference === "object" && reference !== null) {
     return (
       <Field label={label} hint={hint}>
-        <div className="truncate rounded-[3px] border border-rule bg-abyss/40 px-2.5 py-1.5 font-mono text-xs text-faint">
-          {JSON.stringify(reference)}
-        </div>
+        <div className={styles.readonly}>{JSON.stringify(reference)}</div>
       </Field>
     );
   }
@@ -400,7 +355,7 @@ function ConfigField({
   return (
     <Field label={label} hint={hint}>
       <Input
-        className="font-mono text-xs"
+        className={styles.mono}
         value={value === null || value === undefined ? "" : String(value)}
         onChange={(e) => onChange(e.target.value === "" ? null : e.target.value)}
       />

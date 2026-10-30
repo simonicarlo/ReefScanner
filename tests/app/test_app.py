@@ -538,6 +538,28 @@ def test_only_a_stopped_run_can_resume(client, project_dirs) -> None:
     assert client.post("/api/jobs/999/resume").status_code == 404
 
 
+def test_project_shows_its_latest_run_review(client, project_dirs) -> None:
+    project_id, job_id = _project_with_job(client, *project_dirs, "summary")
+    events = _events(client, job_id)["items"]
+    assert events, "the fixture footage has events"
+
+    summary = client.get(f"/api/projects/{project_id}").json()["latest_run"]
+    assert summary == {
+        "job_id": job_id, "events": len(events), "reviewed": 0,
+        "confirmed": 0, "rejected": 0, "cover_url": events[0]["frame_url"],
+    }
+
+    # A confirmed event becomes the cover; a rejection only counts.
+    _review(client, events[-1], verdict="TP")
+    if len(events) > 1:
+        _review(client, events[0], verdict="FP")
+    summary = client.get("/api/projects").json()[0]["latest_run"]
+    assert summary["cover_url"] == events[-1]["frame_url"]
+    assert summary["confirmed"] == 1
+    assert summary["reviewed"] == min(2, len(events))
+    assert summary["rejected"] == (1 if len(events) > 1 else 0)
+
+
 def test_appearance_defaults_and_saves(client) -> None:
     assert client.get("/api/settings/appearance").json() == {
         "mode": "system", "translucency": True,

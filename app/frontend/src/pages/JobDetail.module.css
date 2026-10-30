@@ -46,17 +46,6 @@
     margin-bottom: var(--space-2);
     font-weight: 600;
   }
-  .bar {
-    display: flex;
-    height: 6px;
-    overflow: hidden;
-    border-radius: 999px;
-    background: var(--fill-2);
-
-    & i {
-      transition: width var(--dur-move) var(--ease-settle);
-    }
-  }
   .stats {
     display: flex;
     flex-wrap: wrap;

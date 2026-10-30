@@ -109,9 +109,9 @@ translucent, in light and dark ([design](features/2026-10-30-clear-water-design.
       appearance settings (mode, translucency) in `AppSettings`; old pages
       follow light and dark through their Tailwind names
 - [x] Primitives in `components/ui.tsx`, plus segmented control, switch, toast
-- [ ] Pages: event review, job, project, projects (cards with a cover
-      frame and review counts, and the sidebar's "Waiting for review"),
-      settings
+- [x] Pages: event review, job, project, projects (cards with a cover
+      frame and review counts from the project's latest run, and the
+      sidebar's "Waiting for review"), settings
 - [ ] Remove Tailwind and `@fontsource`; rewrite the frontend styling rules
 
 ## Phase 1 · Bench prototype

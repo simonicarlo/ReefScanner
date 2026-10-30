@@ -104,6 +104,17 @@
     }
   }
 
+  .select {
+    width: auto;
+    padding-right: 28px;
+    appearance: none;
+    background-image: var(--chevron-down);
+    background-position: right 9px center;
+    background-repeat: no-repeat;
+    background-size: 10px;
+    cursor: pointer;
+  }
+
   /* Tag */
   .tag {
     --tone: var(--tertiary);
@@ -223,6 +234,16 @@
     justify-content: space-between;
     gap: var(--space-2) var(--space-4);
   }
+  .panelHeading {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    min-width: 0;
+  }
+  .panelDescription {
+    margin: 0;
+    color: var(--secondary);
+  }
   .panelTitle {
     margin: 0;
     font-family: var(--face-display);
@@ -230,6 +251,9 @@
     font-weight: 600;
   }
   .panelAside {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
     color: var(--secondary);
     font-size: var(--type-caption);
   }

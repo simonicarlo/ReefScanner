@@ -15,6 +15,7 @@ from .. import imports, metadata
 from ..deps import get_runner, get_session
 from ..jobs import JobRunner
 from ..models import JOB_PENDING, Job, Project
+from .events import run_summary
 from ..schemas import (
     DeploymentRead,
     ProjectCreate,
@@ -30,6 +31,12 @@ def _read(session: Session, project: Project) -> ProjectRead:
     count = session.exec(
         select(func.count()).select_from(Job).where(Job.project_id == project.id)
     ).one()
+    latest = session.exec(
+        select(Job)
+        .where(Job.project_id == project.id, Job.events_found > 0)
+        .order_by(Job.id.desc())
+        .limit(1)
+    ).first()
     return ProjectRead(
         id=project.id,
         name=project.name,
@@ -38,6 +45,7 @@ def _read(session: Session, project: Project) -> ProjectRead:
         config=project.config or {},
         created_at=project.created_at,
         job_count=count,
+        latest_run=run_summary(session, latest) if latest else None,
         package_metadata=metadata.project_metadata(session, project),
         deployment=_deployment_read(session.get(Deployment, project.deployment_id)),
     )

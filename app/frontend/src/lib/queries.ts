@@ -23,6 +23,12 @@ export const keys = {
   event: (id: string) => ["event", id] as const,
 };
 
+/** The project list and every project page, e.g. after a verdict moves their progress. */
+export function invalidateProjects(qc: QueryClient): void {
+  qc.invalidateQueries({ queryKey: keys.projects });
+  qc.invalidateQueries({ queryKey: ["project"] });
+}
+
 export const useProjects = () =>
   useQuery({ queryKey: keys.projects, queryFn: api.listProjects });
 
@@ -125,6 +131,8 @@ export function useSaveReview(jobId: number) {
       qc.invalidateQueries({ queryKey: keys.species(jobId) });
       // Every verdict moves the recommendation.
       qc.invalidateQueries({ queryKey: thresholdKey(jobId) });
+      // And the projects' review progress and covers.
+      invalidateProjects(qc);
     },
   });
 }

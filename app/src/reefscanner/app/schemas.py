@@ -159,6 +159,24 @@ class ProjectUpdate(BaseModel):
         return v
 
 
+class RunSummary(BaseModel):
+    """Where a project's review stands: its latest run with events.
+
+    One run rather than a sum over runs, because rescans of the same footage
+    find the same animals again.
+    """
+
+    job_id: int
+    events: int
+    reviewed: int
+    confirmed: int
+    #: "Nothing there" and "something else" together.
+    rejected: int
+    #: The frame that stands for the project: its most recent confirmed event,
+    #: otherwise its first event.
+    cover_url: str | None
+
+
 class ProjectRead(BaseModel):
     id: int
     name: str
@@ -167,6 +185,7 @@ class ProjectRead(BaseModel):
     config: dict[str, Any]
     created_at: _dt.datetime
     job_count: int = 0
+    latest_run: RunSummary | None = None
     package_metadata: PackageMetadata
     deployment: DeploymentRead
 
