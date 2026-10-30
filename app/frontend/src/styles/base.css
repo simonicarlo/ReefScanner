@@ -1,0 +1,46 @@
+/* Page-wide defaults. Component styles live in each component's .module.css,
+   in the `components` layer. */
+@layer base {
+  html,
+  body,
+  #root {
+    height: 100%;
+  }
+
+  body {
+    margin: 0;
+    background: var(--win);
+    color: var(--label);
+    font-family: var(--face-text);
+    font-size: var(--type-body);
+    line-height: 1.4;
+    -webkit-font-smoothing: antialiased;
+    transition:
+      background-color var(--dur-move) var(--ease-settle),
+      color var(--dur-move) var(--ease-settle);
+  }
+
+  ::selection {
+    background: color-mix(in srgb, var(--accent) 30%, transparent);
+  }
+
+  :focus-visible {
+    outline: 3px solid color-mix(in srgb, var(--accent) 55%, transparent);
+    outline-offset: 1px;
+  }
+
+  * {
+    scrollbar-width: thin;
+    scrollbar-color: var(--fill-2) transparent;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    *,
+    *::before,
+    *::after {
+      transition-duration: 0s !important;
+      animation-duration: 0s !important;
+      animation-iteration-count: 1 !important;
+    }
+  }
+}

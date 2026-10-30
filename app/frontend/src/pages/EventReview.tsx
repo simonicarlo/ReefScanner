@@ -6,6 +6,7 @@ import { keys, useEvents, useSaveReview, useSpecies } from "../lib/queries";
 import type { ReefEvent, Verdict } from "../lib/types";
 import { clockTime, duration, eventLabel, score, timecode } from "../lib/format";
 import { BboxOverlay } from "../components/BboxOverlay";
+import { useBackdrop } from "../lib/backdrop";
 import { Button, Empty, ErrorNote, Readout, Spinner, cx } from "../components/ui";
 
 const VERDICT_STYLE: Record<
@@ -49,6 +50,8 @@ export function EventReview() {
     queryFn: () => api.getEvent(eid),
   });
   const { data: speciesOptions } = useSpecies(jid);
+  // The frame under review, blurred behind the window.
+  useBackdrop(event?.frame_url);
   const saveReview = useSaveReview(jid);
   const queryClient = useQueryClient();
 

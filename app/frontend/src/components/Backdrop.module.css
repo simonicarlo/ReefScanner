@@ -1,0 +1,42 @@
+@layer components {
+  .backdrop {
+    position: fixed;
+    inset: 0;
+    z-index: -1;
+    overflow: hidden;
+    pointer-events: none;
+  }
+
+  .entering,
+  .leaving {
+    position: absolute;
+    inset: 0;
+  }
+  .entering {
+    animation: fade-in 600ms var(--ease-settle) both;
+  }
+  .leaving {
+    animation: fade-out 600ms var(--ease-settle) both;
+  }
+
+  .image {
+    position: absolute;
+    inset: -80px;
+    background-size: cover;
+    background-position: center;
+    filter: blur(80px) saturate(1.25);
+    opacity: var(--ambient-opacity);
+    transition: opacity var(--dur-move) var(--ease-settle);
+  }
+
+  @keyframes fade-in {
+    from {
+      opacity: 0;
+    }
+  }
+  @keyframes fade-out {
+    to {
+      opacity: 0;
+    }
+  }
+}

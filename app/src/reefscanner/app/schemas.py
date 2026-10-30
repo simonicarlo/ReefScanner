@@ -110,6 +110,14 @@ class SettingsRead(SettingsWrite):
     signed_as: str
 
 
+class Appearance(BaseModel):
+    """How the app looks on this laptop. Separate from the person, so changing
+    the mode never resubmits their details."""
+
+    mode: Literal["system", "light", "dark"] = "system"
+    translucency: bool = True
+
+
 class ProjectCreate(BaseModel):
     name: str = Field(min_length=1, max_length=200)
     input_folder: str = Field(min_length=1)

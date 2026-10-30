@@ -1,4 +1,5 @@
 import type {
+  Appearance,
   EventFilters,
   EventPage,
   Job,
@@ -72,6 +73,12 @@ export const api = {
   getSettings: () => request<Settings>("/api/settings"),
   saveSettings: (body: Omit<Settings, "signed_as">) =>
     request<Settings>("/api/settings", { method: "PUT", body: JSON.stringify(body) }),
+  getAppearance: () => request<Appearance>("/api/settings/appearance"),
+  saveAppearance: (body: Appearance) =>
+    request<Appearance>("/api/settings/appearance", {
+      method: "PUT",
+      body: JSON.stringify(body),
+    }),
 
   configDefaults: () => request<Record<string, unknown>>("/api/projects/defaults"),
 

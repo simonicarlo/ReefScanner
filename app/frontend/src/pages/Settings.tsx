@@ -2,6 +2,7 @@ import { useState } from "react";
 import { useSaveSettings, useSettings } from "../lib/queries";
 import type { Settings as SettingsData } from "../lib/types";
 import { Button, ErrorNote, Field, Input, Spinner } from "../components/ui";
+import { AppearancePanel } from "../components/AppearancePanel";
 
 /** The person using this laptop: who signs reviews and starts new projects. */
 export function Settings() {
@@ -32,6 +33,8 @@ function SettingsForm({ saved }: { saved: SettingsData }) {
           edited on its page.
         </p>
       </div>
+
+      <AppearancePanel />
 
       <form
         className="panel space-y-4 p-5"

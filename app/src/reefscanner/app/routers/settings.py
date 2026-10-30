@@ -1,4 +1,5 @@
-"""Settings: the person using this laptop, who signs reviews."""
+"""Settings: the person using this laptop, who signs reviews, and how the
+app looks."""
 
 from __future__ import annotations
 
@@ -8,7 +9,7 @@ from sqlmodel import Session
 from .. import metadata
 from ..deps import get_session
 from ..models import AppSettings
-from ..schemas import SettingsRead, SettingsWrite
+from ..schemas import Appearance, SettingsRead, SettingsWrite
 
 router = APIRouter(prefix="/api/settings", tags=["settings"])
 
@@ -38,3 +39,21 @@ def put_settings(
     session.add(you)
     session.commit()
     return _read(session)
+
+
+@router.get("/appearance", response_model=Appearance)
+def get_appearance(session: Session = Depends(get_session)) -> Appearance:
+    you = metadata.settings(session)
+    return Appearance(mode=you.appearance_mode, translucency=you.translucency)
+
+
+@router.put("/appearance", response_model=Appearance)
+def put_appearance(
+    payload: Appearance, session: Session = Depends(get_session)
+) -> Appearance:
+    you = session.get(AppSettings, 1) or AppSettings(id=1)
+    you.appearance_mode = payload.mode
+    you.translucency = payload.translucency
+    session.add(you)
+    session.commit()
+    return payload

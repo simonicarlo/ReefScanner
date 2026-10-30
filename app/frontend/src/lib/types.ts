@@ -68,6 +68,15 @@ export interface Settings {
   signed_as: string;
 }
 
+export const APPEARANCE_MODES = ["system", "light", "dark"] as const;
+export type AppearanceMode = (typeof APPEARANCE_MODES)[number];
+
+/** How the app looks on this laptop. */
+export interface Appearance {
+  mode: AppearanceMode;
+  translucency: boolean;
+}
+
 export interface Project {
   id: number;
   name: string;

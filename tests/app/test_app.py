@@ -538,6 +538,20 @@ def test_only_a_stopped_run_can_resume(client, project_dirs) -> None:
     assert client.post("/api/jobs/999/resume").status_code == 404
 
 
+def test_appearance_defaults_and_saves(client) -> None:
+    assert client.get("/api/settings/appearance").json() == {
+        "mode": "system", "translucency": True,
+    }
+    saved = client.put("/api/settings/appearance", json={"mode": "dark", "translucency": False})
+    assert saved.status_code == 200
+    assert client.get("/api/settings/appearance").json() == {
+        "mode": "dark", "translucency": False,
+    }
+    assert client.put("/api/settings/appearance", json={"mode": "sepia"}).status_code == 422
+    # The person's details are saved separately and stay as they were.
+    assert client.get("/api/settings").json()["name"] is None
+
+
 def test_settings_sign_reviews_and_start_new_projects(client, project_dirs) -> None:
     from reefscanner.core.camtrap import Observation
 
