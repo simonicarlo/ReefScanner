@@ -1,4 +1,9 @@
 @layer components {
+  .surface {
+    min-height: 100%;
+    background: var(--content-bg);
+    transition: background-color var(--dur-move) var(--ease-settle);
+  }
   .page {
     max-width: 1500px;
     margin: 0 auto;

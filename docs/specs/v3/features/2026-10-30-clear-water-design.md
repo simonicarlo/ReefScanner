@@ -81,8 +81,14 @@ Translucency is **on by default**. It is what makes the app feel like water.
   otherwise its first event). With no frame, the backdrop is plain `--win`.
   Opacity is 0.3 in light mode and 0.7 in dark mode.
 - **Glass panes** (`--glass` plus `backdrop-filter: blur(30px)
-  saturate(180%)`) are used only for chrome: the title bar, sidebars, the
-  inspector, toasts and popovers. Content areas are solid or nearly solid.
+  saturate(180%)`) are used only for chrome: the sidebar, the review
+  toolbar, event list and inspector, toasts and popovers. Content areas are
+  solid or nearly solid.
+- **Two tints, never more:** all chrome is the same glass, straight over the
+  backdrop, and content has one calm surface (the page background, or the
+  stage around the footage). Glass is never layered over the content
+  surface, which would read as a third tint. So the window's content area
+  is transparent and each page brings its own surface (`Page`).
 - **Never over the footage**, except the small label pill on the detection
   box.
 - **Performance:** the backdrop is a still image, never the playing video.

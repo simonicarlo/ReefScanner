@@ -110,10 +110,10 @@
     font-size: var(--type-caption);
   }
 
+  /* Transparent: each page brings its own surface (see Page), so the review
+     screen's panes can be glass over the backdrop like the sidebar. */
   .main {
     overflow-y: auto;
-    background: var(--content-bg);
-    transition: background-color var(--dur-move) var(--ease-settle);
   }
 
   /* The desktop window has a minimum width; this is for a narrow browser. */

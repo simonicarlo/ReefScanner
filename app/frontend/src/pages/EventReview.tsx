@@ -17,6 +17,7 @@ import { useBackdrop } from "../lib/backdrop";
 import { useToast } from "../lib/toast";
 import { VERDICT_INFO, VERDICT_ORDER } from "../lib/verdicts";
 import { BboxOverlay } from "../components/BboxOverlay";
+import { Page } from "../components/Page";
 import { SegmentedControl } from "../components/SegmentedControl";
 import { VerdictSymbol } from "../components/VerdictSymbol";
 import { Button, Empty, ErrorNote, Kbd, Spinner, cx } from "../components/ui";
@@ -215,8 +216,18 @@ export function EventReview() {
     return () => window.removeEventListener("keydown", onKey);
   }, [record, goTo, previous, next, event?.review?.verdict]);
 
-  if (isLoading) return <Spinner label="Loading event" />;
-  if (!event) return <Empty title="Event not found" />;
+  if (isLoading)
+    return (
+      <Page>
+        <Spinner label="Loading event" />
+      </Page>
+    );
+  if (!event)
+    return (
+      <Page>
+        <Empty title="Event not found" />
+      </Page>
+    );
 
   const verdict = event.review?.verdict;
   const reviewedBox = event.review?.bbox ?? null;
