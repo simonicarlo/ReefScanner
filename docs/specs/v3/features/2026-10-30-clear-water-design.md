@@ -91,7 +91,10 @@ Translucency is **on by default**. It is what makes the app feel like water.
 - **Two tints, never more:** all chrome is the same glass, straight over the
   backdrop, and content has one calm surface (the page background, or the
   stage around the footage). Glass is never layered over the content
-  surface, which would read as a third tint. So the window's content area
+  surface, which would read as a third tint. The stage around the footage
+  (`--stage-bg`) lets a little of the blurred frame through (more in dark
+  mode), so it reads as darker water next to the glass rather than a black
+  hole; with translucency off it is solid. So the window's content area
   is transparent and each page brings its own surface (`Page`).
 - **Never over the footage**, except the small label pill on the detection
   box.

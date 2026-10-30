@@ -92,7 +92,7 @@
     min-width: 0;
     min-height: 0;
     padding: var(--space-5);
-    background: color-mix(in srgb, var(--stage) 90%, transparent);
+    background: var(--stage-bg);
   }
   /* Sized by its own box, so the media fits both its width and its height. */
   .fit {
@@ -409,7 +409,7 @@
   .events {
     padding: var(--space-2) var(--space-5) var(--space-8);
     border-top: 0.5px solid var(--sep);
-    background: color-mix(in srgb, var(--stage) 90%, transparent);
+    background: var(--stage-bg);
   }
   .eventRow {
     display: grid;

@@ -37,6 +37,9 @@
   --glass-bg: var(--glass);
   --glass-filter: blur(30px) saturate(180%);
   --content-bg: color-mix(in srgb, var(--win) 88%, transparent);
+  /* Around the footage: the stage colour with a little of the blurred frame
+     through it, so it reads as darker water next to the glass, not a hole. */
+  --stage-bg: color-mix(in srgb, var(--stage) 90%, transparent);
   --ambient-opacity: 0.3;
 
   /* Type */
@@ -116,6 +119,7 @@
   --orange: #ff9f0a;
 
   --ambient-opacity: 0.7;
+  --stage-bg: color-mix(in srgb, var(--stage) 62%, transparent);
 
   --lift-card: 0 8px 24px rgba(0, 0, 0, 0.45), 0 0 0 0.5px rgba(255, 255, 255, 0.08);
   --lift-thumb: 0 3px 8px rgba(0, 0, 0, 0.3);
@@ -129,6 +133,7 @@
   --glass-bg: var(--glass-solid);
   --glass-filter: none;
   --content-bg: var(--win);
+  --stage-bg: var(--stage);
   --ambient-opacity: 0;
 }
 @media (prefers-reduced-transparency: reduce) {
@@ -136,6 +141,7 @@
     --glass-bg: var(--glass-solid);
     --glass-filter: none;
     --content-bg: var(--win);
+    --stage-bg: var(--stage);
     --ambient-opacity: 0;
   }
 }
