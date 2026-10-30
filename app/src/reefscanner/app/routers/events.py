@@ -32,7 +32,7 @@ from reefscanner.core.camtrap import (
 from .. import metadata
 from ..deps import get_session
 from ..models import Job, scan_id
-from ..schemas import EventPage, EventRead, ReviewRead, ReviewWrite
+from ..schemas import EventPage, EventRead, ReviewRead, ReviewWrite, RunSummary
 
 router = APIRouter(prefix="/api", tags=["events"])
 
@@ -45,6 +45,10 @@ def _human_join() -> ColumnElement[bool]:
         Human.eventID == Observation.eventID,
         Human.classificationMethod == "human",
     )
+
+
+def _frame_url(event_id: str) -> str:
+    return f"/api/media/frame/{event_id}"
 
 
 def _box(o: Observation | None) -> list[float] | None:
@@ -69,6 +73,15 @@ def _job_id(extra: ObservationExtra) -> int:
     return int((extra.scanID or "scan-0").removeprefix("scan-"))
 
 
+def _clip_start(extra: ObservationExtra, start: float) -> float | None:
+    """Where the event's clip starts in the source video, as core's
+    extract_clip cuts it: the event start less the run's padding."""
+    pad = (extra.detectorConfig or {}).get("pad_seconds")
+    if not isinstance(pad, (int, float)) or isinstance(pad, bool):
+        return None
+    return max(0.0, start - float(pad))
+
+
 def _event_read(
     machine: Observation, extra: ObservationExtra, human: Observation | None
 ) -> EventRead:
@@ -82,13 +95,14 @@ def _event_read(
         end_seconds=end,
         duration_seconds=end - start,
         peak_seconds=extra.peakSeconds or start,
+        clip_start_seconds=_clip_start(extra, start),
         start_time=machine.eventStart,
         confidence=machine.classificationProbability,
         detected_class=extra.detectorClass,
         scientific_name=machine.scientificName,
         bbox=_box(machine),
         clip_url=f"/api/media/clip/{machine.eventID}",
-        frame_url=f"/api/media/frame/{machine.eventID}",
+        frame_url=_frame_url(machine.eventID),
         review=_review(human),
     )
 
@@ -150,27 +164,58 @@ def list_events(
 
     # Counts describe the whole run, not the filtered page — they're a progress
     # readout ("340 of 900 reviewed"), so a filter must not move them.
-    def _count(*tags: str) -> int:
-        stmt = (
-            select(func.count())
-            .select_from(Observation)
-            .join(ObservationExtra, ObservationExtra.observationID == Observation.observationID)
-            .join(Human, _human_join())
-            .where(ObservationExtra.scanID == scan_id(job_id))
-            .where(Observation.classificationMethod == "machine")
-        )
-        if tags:
-            stmt = stmt.where(Human.observationTags.in_([verdict_tag(t) for t in tags]))
-        return session.exec(stmt).one()
-
     return EventPage(
         items=[_event_read(m, e, h) for m, e, h in rows],
         total=total,
         limit=limit,
         offset=offset,
-        n_labeled=_count(),
-        n_tp=_count(VERDICT_TP),
-        n_fp=_count(VERDICT_FP, VERDICT_FP_OTHER),
+        n_labeled=_reviewed(session, job_id),
+        n_tp=_reviewed(session, job_id, VERDICT_TP),
+        n_fp=_reviewed(session, job_id, VERDICT_FP, VERDICT_FP_OTHER),
+    )
+
+
+def _machine_in_run(job_id: int):
+    """A run's machine observations, with their sidecar rows."""
+    return (
+        select(Observation)
+        .join(ObservationExtra, ObservationExtra.observationID == Observation.observationID)
+        .where(ObservationExtra.scanID == scan_id(job_id))
+        .where(Observation.classificationMethod == "machine")
+    )
+
+
+def _reviewed(session: Session, job_id: int, *verdicts: str) -> int:
+    """How many of a run's events have a verdict, or one of ``verdicts``."""
+    stmt = _machine_in_run(job_id).join(Human, _human_join())
+    if verdicts:
+        stmt = stmt.where(Human.observationTags.in_([verdict_tag(v) for v in verdicts]))
+    return session.exec(select(func.count()).select_from(stmt.subquery())).one()
+
+
+def run_summary(session: Session, job: Job) -> RunSummary:
+    """Where the review of one run stands, and the frame that stands for it."""
+    events = session.exec(
+        select(func.count()).select_from(_machine_in_run(job.id).subquery())
+    ).one()
+    cover = session.exec(
+        _machine_in_run(job.id)
+        .join(Human, _human_join())
+        .where(Human.observationTags == verdict_tag(VERDICT_TP))
+        .order_by(Observation.eventStart.desc())
+        .limit(1)
+    ).first() or session.exec(
+        _machine_in_run(job.id)
+        .order_by(ObservationExtra.sourceVideo, ObservationExtra.videoStartSeconds)
+        .limit(1)
+    ).first()
+    return RunSummary(
+        job_id=job.id,
+        events=events,
+        reviewed=_reviewed(session, job.id),
+        confirmed=_reviewed(session, job.id, VERDICT_TP),
+        rejected=_reviewed(session, job.id, VERDICT_FP, VERDICT_FP_OTHER),
+        cover_url=_frame_url(cover.eventID) if cover else None,
     )
 
 

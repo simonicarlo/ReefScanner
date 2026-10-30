@@ -1,0 +1,147 @@
+/*
+  Clear Water design tokens. See
+  docs/specs/v3/features/2026-10-30-clear-water-design.md.
+
+  Every colour, size, corner, duration and shadow a component uses comes from
+  here. The mode and translucency are attributes on <html>, set from the
+  appearance settings (lib/appearance.ts): data-mode="light|dark" and
+  data-glass="on|off".
+
+*/
+:root {
+  color-scheme: light;
+
+  /* Colour, light */
+  --win: #f5f5f7;
+  --surface: #ffffff;
+  --label: #1d1d1f;
+  --secondary: rgba(60, 60, 67, 0.62);
+  --tertiary: rgba(60, 60, 67, 0.32);
+  --sep: rgba(60, 60, 67, 0.14);
+  /* Fills and highlights take the accent's hue rather than grey, so on the
+     blue-green glass they read as water instead of smudges. */
+  --fill: color-mix(in srgb, var(--accent) 8%, transparent);
+  --fill-2: color-mix(in srgb, var(--accent) 15%, transparent);
+  --glass: rgba(250, 250, 252, 0.66);
+  --glass-solid: #ececf0;
+  --stage: #ebebef;
+  --accent: #0071e3;
+  --on-accent: #ffffff;
+
+  /* Verdicts */
+  --green: #28a745;
+  --red: #ff3b30;
+  --orange: #ff9500;
+
+  /* Translucency: panes, the content area, and the blurred frame behind them */
+  --glass-bg: var(--glass);
+  --glass-filter: blur(30px) saturate(180%);
+  --content-bg: color-mix(in srgb, var(--win) 88%, transparent);
+  /* Around the footage: the stage colour with a little of the blurred frame
+     through it, so it reads as darker water next to the glass, not a hole. */
+  --stage-bg: color-mix(in srgb, var(--stage) 90%, transparent);
+  --ambient-opacity: 0.3;
+
+  /* Type */
+  --face-text: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Helvetica Neue", system-ui, sans-serif;
+  --face-display: -apple-system, BlinkMacSystemFont, "SF Pro Display", "Helvetica Neue", system-ui, sans-serif;
+  --face-mono: ui-monospace, "SF Mono", Menlo, monospace;
+  --type-caption: 11px;
+  --type-body: 13px;
+  --type-callout: 15px;
+  --type-headline: 17px;
+  --type-title3: 22px;
+  --type-title: 28px;
+  --type-large: 32px;
+
+  /* Shape and space */
+  --corner-control: 7px;
+  --corner-button: 8px;
+  --corner-group: 10px;
+  --corner-card: 12px;
+  --corner-window: 14px;
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 20px;
+  --space-6: 24px;
+  --space-8: 32px;
+
+  /* Motion */
+  --ease-settle: cubic-bezier(0.32, 0.72, 0, 1);
+  --dur-press: 200ms;
+  --dur-color: 300ms;
+  --dur-move: 450ms;
+
+  /* Elevation, only for things that float */
+  --lift-card: 0 8px 24px rgba(0, 0, 0, 0.12), 0 0 0 0.5px rgba(0, 0, 0, 0.06);
+  --lift-control: 0 1px 2px rgba(0, 0, 0, 0.06), 0 0 0 0.5px var(--sep);
+  --lift-thumb: 0 3px 8px rgba(0, 0, 0, 0.12), 0 0 0 0.5px rgba(0, 0, 0, 0.04);
+  --seg-thumb: #ffffff;
+  --knob: #ffffff;
+  /* A drawn chevron for dropdowns, in the secondary text colour. */
+  --chevron-down: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 10 6'%3E%3Cpath d='M1 1l4 4 4-4' fill='none' stroke='%238a8a8e' stroke-width='1.6' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+  --lift-knob: 0 2px 4px rgba(0, 0, 0, 0.2);
+  --lift-primary: 0 1px 2px rgba(0, 0, 0, 0.12);
+  --lift-field: inset 0 0 0 0.5px var(--sep), 0 1px 1px rgba(0, 0, 0, 0.03);
+  --lift-toast: 0 10px 30px rgba(0, 0, 0, 0.16), inset 0 0 0 0.5px var(--sep);
+  --lift-media: 0 10px 30px rgba(0, 0, 0, 0.25);
+
+  /* Drawn over footage, so the same in both modes. Verdict marks use the
+     brighter dark-mode colours, which hold up on blue-green water. */
+  --mark-green: #30d158;
+  --mark-red: #ff453a;
+  --mark-orange: #ff9f0a;
+  --lift-overlay: 0 0 0 1px rgba(0, 0, 0, 0.18), 0 4px 18px rgba(0, 0, 0, 0.18);
+  --overlay-glass: rgba(30, 30, 32, 0.45);
+  --overlay-edge: inset 0 0 0 0.5px rgba(255, 255, 255, 0.25);
+}
+
+:root[data-mode="dark"] {
+  color-scheme: dark;
+
+  --win: #1e1e20;
+  --surface: #2c2c2e;
+  --label: #f5f5f7;
+  --secondary: rgba(235, 235, 245, 0.62);
+  --tertiary: rgba(235, 235, 245, 0.3);
+  --sep: rgba(84, 84, 88, 0.55);
+  --fill: color-mix(in srgb, var(--accent) 14%, transparent);
+  --fill-2: color-mix(in srgb, var(--accent) 24%, transparent);
+  --glass: rgba(36, 36, 38, 0.58);
+  --glass-solid: #2a2a2c;
+  --stage: #0e0e10;
+  --accent: #0a84ff;
+
+  --green: #30d158;
+  --red: #ff453a;
+  --orange: #ff9f0a;
+
+  --ambient-opacity: 0.7;
+  --stage-bg: color-mix(in srgb, var(--stage) 62%, transparent);
+
+  --lift-card: 0 8px 24px rgba(0, 0, 0, 0.45), 0 0 0 0.5px rgba(255, 255, 255, 0.08);
+  --lift-thumb: 0 3px 8px rgba(0, 0, 0, 0.3);
+  --lift-toast: 0 10px 30px rgba(0, 0, 0, 0.5), inset 0 0 0 0.5px var(--sep);
+  --seg-thumb: color-mix(in srgb, var(--accent) 45%, var(--surface));
+}
+
+/* Translucency off: solid panes and no frame behind them. macOS's "Reduce
+   transparency" does the same where the engine reports it. */
+:root[data-glass="off"] {
+  --glass-bg: var(--glass-solid);
+  --glass-filter: none;
+  --content-bg: var(--win);
+  --stage-bg: var(--stage);
+  --ambient-opacity: 0;
+}
+@media (prefers-reduced-transparency: reduce) {
+  :root {
+    --glass-bg: var(--glass-solid);
+    --glass-filter: none;
+    --content-bg: var(--win);
+    --stage-bg: var(--stage);
+    --ambient-opacity: 0;
+  }
+}

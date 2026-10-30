@@ -1,0 +1,54 @@
+@layer components {
+  .page {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-6);
+  }
+  .folders {
+    font-family: var(--face-mono);
+    font-size: var(--type-caption);
+  }
+
+  .settings {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+    gap: var(--space-5) var(--space-6);
+  }
+  .others {
+    padding-top: var(--space-5);
+    border-top: 0.5px solid var(--sep);
+  }
+  .more {
+    align-self: flex-start;
+    margin-left: -10px;
+  }
+  .mono {
+    font-family: var(--face-mono);
+  }
+  .readonly {
+    overflow: hidden;
+    padding: 6px 10px;
+    border-radius: var(--corner-button);
+    background: var(--fill);
+    color: var(--secondary);
+    font-family: var(--face-mono);
+    font-size: var(--type-caption);
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .danger {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--space-4);
+    padding-top: var(--space-5);
+    border-top: 0.5px solid var(--sep);
+
+    & p {
+      margin: 0;
+      color: var(--secondary);
+    }
+  }
+}

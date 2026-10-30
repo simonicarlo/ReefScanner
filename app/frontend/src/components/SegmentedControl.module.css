@@ -1,0 +1,42 @@
+@layer components {
+  .seg {
+    position: relative;
+    display: inline-flex;
+    padding: 2px;
+    border-radius: calc(var(--corner-control) + 2px);
+    background: var(--fill);
+  }
+
+  .thumb {
+    position: absolute;
+    top: 2px;
+    bottom: 2px;
+    left: 2px;
+    border-radius: var(--corner-control);
+    background: var(--seg-thumb);
+    box-shadow: var(--lift-thumb);
+    transition:
+      transform var(--dur-move) var(--ease-settle),
+      width var(--dur-move) var(--ease-settle);
+  }
+
+  .option {
+    position: relative;
+    flex: 1 1 0;
+    padding: 4px 14px;
+    border: 0;
+    border-radius: var(--corner-control);
+    background: none;
+    color: var(--label);
+    font: inherit;
+    font-size: var(--type-body);
+    font-weight: 500;
+    white-space: nowrap;
+    cursor: pointer;
+
+    &:disabled {
+      cursor: default;
+      opacity: 0.5;
+    }
+  }
+}

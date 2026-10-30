@@ -538,6 +538,52 @@ def test_only_a_stopped_run_can_resume(client, project_dirs) -> None:
     assert client.post("/api/jobs/999/resume").status_code == 404
 
 
+def test_event_says_where_its_clip_starts(client, project_dirs) -> None:
+    project_id, job_id = _project_with_job(client, *project_dirs, "clipstart")
+    pad = {
+        **client.get("/api/projects/defaults").json(),
+        **client.get(f"/api/projects/{project_id}").json()["config"],
+    }["pad_seconds"]
+    for event in _events(client, job_id)["items"]:
+        assert event["clip_start_seconds"] == max(0.0, event["start_seconds"] - pad)
+
+
+def test_project_shows_its_latest_run_review(client, project_dirs) -> None:
+    project_id, job_id = _project_with_job(client, *project_dirs, "summary")
+    events = _events(client, job_id)["items"]
+    assert events, "the fixture footage has events"
+
+    summary = client.get(f"/api/projects/{project_id}").json()["latest_run"]
+    assert summary == {
+        "job_id": job_id, "events": len(events), "reviewed": 0,
+        "confirmed": 0, "rejected": 0, "cover_url": events[0]["frame_url"],
+    }
+
+    # A confirmed event becomes the cover; a rejection only counts.
+    _review(client, events[-1], verdict="TP")
+    if len(events) > 1:
+        _review(client, events[0], verdict="FP")
+    summary = client.get("/api/projects").json()[0]["latest_run"]
+    assert summary["cover_url"] == events[-1]["frame_url"]
+    assert summary["confirmed"] == 1
+    assert summary["reviewed"] == min(2, len(events))
+    assert summary["rejected"] == (1 if len(events) > 1 else 0)
+
+
+def test_appearance_defaults_and_saves(client) -> None:
+    assert client.get("/api/settings/appearance").json() == {
+        "mode": "system", "translucency": True,
+    }
+    saved = client.put("/api/settings/appearance", json={"mode": "dark", "translucency": False})
+    assert saved.status_code == 200
+    assert client.get("/api/settings/appearance").json() == {
+        "mode": "dark", "translucency": False,
+    }
+    assert client.put("/api/settings/appearance", json={"mode": "sepia"}).status_code == 422
+    # The person's details are saved separately and stay as they were.
+    assert client.get("/api/settings").json()["name"] is None
+
+
 def test_settings_sign_reviews_and_start_new_projects(client, project_dirs) -> None:
     from reefscanner.core.camtrap import Observation
 

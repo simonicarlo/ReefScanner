@@ -15,6 +15,8 @@ from __future__ import annotations
 
 import logging
 import socket
+import subprocess
+import sys
 import threading
 import time
 import urllib.error
@@ -141,8 +143,8 @@ def run(db_path: str | Path | None = None, debug: bool = False) -> int:
         width=1440,
         height=920,
         min_size=(1024, 680),
-        # The UI is dark; a white window background flashes on open otherwise.
-        background_color="#060D11",
+        # Match macOS, so opening the window doesn't flash the other mode.
+        background_color="#1E1E20" if _system_is_dark() else "#F5F5F7",
     )
     bridge.attach(window)
 
@@ -169,26 +171,44 @@ def _load_when_ready(window, url: str, outcome: dict) -> None:
         window.load_html(FAILED_HTML)
 
 
+def _system_is_dark() -> bool:
+    """Whether macOS is in dark mode. False elsewhere or if it can't tell."""
+    if sys.platform != "darwin":
+        return False
+    try:
+        result = subprocess.run(
+            ["defaults", "read", "-g", "AppleInterfaceStyle"],
+            capture_output=True, text=True, timeout=2, check=False,
+        )
+    except (OSError, subprocess.SubprocessError):
+        return False
+    return result.stdout.strip() == "Dark"
+
+
+# The app's own colours (styles/tokens.css), in both modes.
 _PAGE = """<!doctype html><html><head><meta charset="utf-8"><style>
-  html,body{{margin:0;height:100%;background:#060D11;color:#DBE9EE;
+  :root{{color-scheme:light dark}}
+  html,body{{margin:0;height:100%;background:#F5F5F7;color:#1D1D1F;
     font:15px -apple-system,BlinkMacSystemFont,sans-serif}}
   main{{height:100%;display:flex;flex-direction:column;align-items:center;
     justify-content:center;gap:14px;text-align:center;padding:0 2rem}}
   .dot{{width:12px;height:12px;border-radius:50%;background:{color};
     animation:p 1.4s ease-in-out infinite}}
   @keyframes p{{50%{{opacity:.25}}}}
-  small{{color:#8AA5B0;max-width:32rem;line-height:1.5}}
+  small{{color:rgba(60,60,67,.62);max-width:32rem;line-height:1.5}}
+  @media (prefers-color-scheme:dark){{html,body{{background:#1E1E20;color:#F5F5F7}}
+    small{{color:rgba(235,235,245,.62)}}}}
 </style></head><body><main><div class="dot"></div>
 <div>{title}</div><small>{body}</small></main></body></html>"""
 
 STARTING_HTML = _PAGE.format(
-    color="#33E1CF",
+    color="#0A84FF",
     title="Starting ReefScanner…",
     body="The first launch can take a little while.",
 )
 
 FAILED_HTML = _PAGE.format(
-    color="#FF6F5B",
+    color="#FF453A",
     title="ReefScanner couldn't start",
     body="Quit and open it again. If it keeps happening, send the log file "
     "from ~/Library/Logs/ReefScanner/reefscanner.log to whoever gave you the app.",

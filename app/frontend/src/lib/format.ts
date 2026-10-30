@@ -9,6 +9,16 @@ export function timecode(seconds: number): string {
   return `${h > 0 ? `${h}:` : ""}${mm}:${String(s).padStart(2, "0")}`;
 }
 
+/** Seconds -> 00:00:11.01, for times read to the frame. */
+export function preciseTimecode(seconds: number): string {
+  if (!Number.isFinite(seconds) || seconds < 0) seconds = 0;
+  const h = Math.floor(seconds / 3600);
+  const m = Math.floor((seconds % 3600) / 60);
+  const s = seconds % 60;
+  const pad = (n: number) => String(n).padStart(2, "0");
+  return `${pad(h)}:${pad(m)}:${s.toFixed(2).padStart(5, "0")}`;
+}
+
 /** Duration in the compact form used on event cards. */
 export function duration(seconds: number): string {
   if (seconds < 60) return `${seconds.toFixed(1)}s`;
@@ -53,6 +63,27 @@ export function clockTime(iso: string): string {
   const m = /T(\d{2}:\d{2}:\d{2})(?:\.\d+)?(Z|[+-]\d{2}:\d{2})$/.exec(iso);
   if (!m) return iso;
   return `${m[1]} UTC${m[2] === "Z" ? "+00:00" : m[2]}`;
+}
+
+/**
+ * The calendar date an ISO timestamp states, e.g. "10 May 2024". Like
+ * clockTime, the date where the footage was filmed, not the viewer's.
+ */
+export function localDate(iso: string): string {
+  const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(iso);
+  if (!m) return "";
+  const date = new Date(Date.UTC(Number(m[1]), Number(m[2]) - 1, Number(m[3])));
+  return date.toLocaleDateString(undefined, {
+    day: "numeric",
+    month: "short",
+    year: "numeric",
+    timeZone: "UTC",
+  });
+}
+
+/** The time of day an ISO timestamp states, without its offset: "17:14:35". */
+export function timeOfDay(iso: string): string {
+  return /T(\d{2}:\d{2}:\d{2})/.exec(iso)?.[1] ?? iso;
 }
 
 /** The readable tail of a Camtrap eventID: "dive01_001". */

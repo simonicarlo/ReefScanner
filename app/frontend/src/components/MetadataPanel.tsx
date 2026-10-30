@@ -6,7 +6,8 @@ import {
   type ContributorRole,
   type PackageMetadata,
 } from "../lib/types";
-import { Button, ErrorNote, Field, Input, cx } from "./ui";
+import { Button, ErrorNote, Field, Input, Notice, Panel, Select } from "./ui";
+import styles from "./MetadataPanel.module.css";
 
 const ROLE_LABELS: Record<ContributorRole, string> = {
   contributor: "Contributor",
@@ -61,39 +62,32 @@ export function MetadataPanel({
   });
 
   return (
-    <section className="panel p-5">
-      <div className="mb-4 flex items-center justify-between gap-4">
-        <div>
-          <h2 className="text-sm font-medium">Package metadata</h2>
-          <p className="mt-0.5 text-xs text-faint">
-            The study and the people named in this project's exported packages.
-            At least one contributor is required.
-          </p>
-        </div>
-        {draft && (
-          <div className="flex shrink-0 gap-2">
+    <Panel
+      title="Package metadata"
+      description="The study and the people named in this project's exported packages. At least one contributor is required."
+      aside={
+        draft && (
+          <>
             <Button size="sm" variant="ghost" onClick={() => setDraft(null)}>
               Revert
             </Button>
             <Button
               size="sm"
               variant="primary"
-              onClick={() =>
-                save.mutate(cleaned(), { onSuccess: () => setDraft(null) })
-              }
+              onClick={() => save.mutate(cleaned(), { onSuccess: () => setDraft(null) })}
               disabled={save.isPending || missing !== null}
               title={missing ?? undefined}
             >
               Save
             </Button>
-          </div>
-        )}
-      </div>
-
-      {draft && missing && <p className="mb-3 text-xs text-hedge">{missing}</p>}
+          </>
+        )
+      }
+    >
+      {draft && missing && <Notice tone="orange">{missing}</Notice>}
       <ErrorNote error={save.error} />
 
-      <div className="grid gap-4 md:grid-cols-2">
+      <div className={styles.study}>
         <Field label="Project title" hint="The study the footage was collected for.">
           <Input
             value={value.project.title}
@@ -110,13 +104,12 @@ export function MetadataPanel({
         </Field>
       </div>
 
-      <div className="mt-5 space-y-2">
-        <div className="legend">Contributors</div>
+      <div className={styles.contributors} role="group" aria-labelledby="contributors-label">
+        <span id="contributors-label" className={styles.label}>
+          Contributors
+        </span>
         {value.contributors.map((c, i) => (
-          <div
-            key={i}
-            className="grid items-center gap-2 md:grid-cols-[1.2fr_1.2fr_1fr_auto_auto]"
-          >
+          <div key={i} className={styles.contributor}>
             <Input
               aria-label="Name"
               placeholder="Name"
@@ -139,23 +132,17 @@ export function MetadataPanel({
               onChange={(e) => setContributor(i, { organization: e.target.value })}
               maxLength={200}
             />
-            <select
+            <Select
               aria-label="Role"
               value={c.role}
-              onChange={(e) =>
-                setContributor(i, { role: e.target.value as ContributorRole })
-              }
-              className={cx(
-                "rounded-[3px] border border-rule bg-abyss/60 px-2 py-1.5 text-sm text-read",
-                "focus:border-signal/60 focus:outline-none",
-              )}
+              onChange={(e) => setContributor(i, { role: e.target.value as ContributorRole })}
             >
               {CONTRIBUTOR_ROLES.map((role) => (
                 <option key={role} value={role}>
                   {ROLE_LABELS[role]}
                 </option>
               ))}
-            </select>
+            </Select>
             <Button
               size="sm"
               variant="ghost"
@@ -177,9 +164,10 @@ export function MetadataPanel({
             </Button>
           </div>
         ))}
-        <button
-          type="button"
-          className="legend hover:text-signal"
+        <Button
+          size="sm"
+          variant="ghost"
+          className={styles.add}
           onClick={() =>
             setDraft({
               ...value,
@@ -187,9 +175,9 @@ export function MetadataPanel({
             })
           }
         >
-          + Add contributor
-        </button>
+          Add contributor
+        </Button>
       </div>
-    </section>
+    </Panel>
   );
 }

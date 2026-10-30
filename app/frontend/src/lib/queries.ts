@@ -6,13 +6,14 @@ import {
 } from "@tanstack/react-query";
 import { useEffect, useRef } from "react";
 import { api } from "./api";
-import type { EventFilters, Job, JobProgress, PackageMetadata, Verdict } from "./types";
+import type { Appearance, EventFilters, Job, JobProgress, PackageMetadata, Verdict } from "./types";
 
 export const keys = {
   projects: ["projects"] as const,
   project: (id: number) => ["project", id] as const,
   defaults: ["config-defaults"] as const,
   settings: ["settings"] as const,
+  appearance: ["appearance"] as const,
   jobs: (projectId: number) => ["jobs", projectId] as const,
   job: (id: number) => ["job", id] as const,
   events: (jobId: number, filters: EventFilters) =>
@@ -21,6 +22,12 @@ export const keys = {
   species: (jobId: number) => ["species", jobId] as const,
   event: (id: string) => ["event", id] as const,
 };
+
+/** The project list and every project page, e.g. after a verdict moves their progress. */
+export function invalidateProjects(qc: QueryClient): void {
+  qc.invalidateQueries({ queryKey: keys.projects });
+  qc.invalidateQueries({ queryKey: ["project"] });
+}
 
 export const useProjects = () =>
   useQuery({ queryKey: keys.projects, queryFn: api.listProjects });
@@ -41,6 +48,26 @@ export function useSaveSettings() {
   return useMutation({
     mutationFn: api.saveSettings,
     onSuccess: (saved) => qc.setQueryData(keys.settings, saved),
+  });
+}
+
+export const useAppearance = () =>
+  useQuery({ queryKey: keys.appearance, queryFn: api.getAppearance, staleTime: Infinity });
+
+/** Saves the appearance, showing it straight away and undoing it on failure. */
+export function useSaveAppearance() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: api.saveAppearance,
+    onMutate: (next: Appearance) => {
+      const previous = qc.getQueryData<Appearance>(keys.appearance);
+      qc.setQueryData(keys.appearance, next);
+      return { previous };
+    },
+    onError: (_error, _next, context) => {
+      if (context?.previous) qc.setQueryData(keys.appearance, context.previous);
+    },
+    onSuccess: (saved) => qc.setQueryData(keys.appearance, saved),
   });
 }
 
@@ -104,6 +131,8 @@ export function useSaveReview(jobId: number) {
       qc.invalidateQueries({ queryKey: keys.species(jobId) });
       // Every verdict moves the recommendation.
       qc.invalidateQueries({ queryKey: thresholdKey(jobId) });
+      // And the projects' review progress and covers.
+      invalidateProjects(qc);
     },
   });
 }

@@ -1,0 +1,16 @@
+@layer components {
+  .bar {
+    display: flex;
+    height: 6px;
+    overflow: hidden;
+    border-radius: 999px;
+    background: var(--fill-2);
+
+    & i {
+      transition: width var(--dur-move) var(--ease-settle);
+    }
+  }
+  .thin {
+    height: 4px;
+  }
+}

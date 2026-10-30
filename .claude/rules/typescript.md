@@ -5,7 +5,7 @@ paths:
   - "app/frontend/**/*.css"
 ---
 
-# Frontend Conventions (React, TypeScript, TanStack Query, Tailwind)
+# Frontend Conventions (React, TypeScript, TanStack Query, CSS Modules)
 
 ## Typing
 - Domain models are `export interface` in `lib/types.ts`, mirroring
@@ -33,8 +33,24 @@ paths:
 - Show times in the zone the data states (camera timezone), never the viewer's
 
 ## Styling
-- Tailwind utilities with the design tokens from `index.css` (`bg-panel`,
-  `text-signal`, `border-rule`); no hardcoded colours or ad-hoc hex values
-- Verdict colours keep their meaning everywhere: signal = confirmed,
-  reject = rejected, hedge = unsure
+- The design language is Clear Water
+  (`docs/specs/v3/features/2026-10-30-clear-water-design.md`); follow it for
+  new screens
+- Plain CSS: a `Component.module.css` next to each component or page, its
+  rules inside `@layer components`, native nesting allowed. No CSS framework,
+  no preprocessor, no inline style objects except for computed values
+  (positions, widths, a verdict colour)
+- Every colour, size, corner, duration and shadow comes from
+  `styles/tokens.css`; no literal colours or shadows in modules. A new value
+  goes into the tokens for both modes
+- Both modes work everywhere: test light and dark, and translucency on and
+  off. Glass (`--glass-bg`, `--glass-filter`) is for chrome only, never over
+  footage
+- Reuse the primitives in `components/ui.tsx`, `SegmentedControl`, `Switch`,
+  `PageHeader`, `ReviewBar` before writing new ones
+- Verdicts look and are entered the same everywhere: take labels, keys,
+  tones and colours from `lib/verdicts.ts`. Marks drawn on footage use
+  `mark`, which is the same in both modes
+- Motion uses `--ease-settle` and the `--dur-*` tokens; nothing animates on
+  its own, and `prefers-reduced-motion` turns transitions off
 - Keyboard first in review screens: every verdict action has a shortcut

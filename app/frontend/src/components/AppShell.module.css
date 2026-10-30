@@ -1,0 +1,145 @@
+@layer components {
+  .shell {
+    position: relative;
+    isolation: isolate;
+    display: grid;
+    grid-template-columns: 224px minmax(0, 1fr);
+    height: 100%;
+  }
+
+  .sidebar {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-1);
+    padding: var(--space-4) var(--space-2) var(--space-3);
+    border-right: 0.5px solid var(--sep);
+    background: var(--glass-bg);
+    -webkit-backdrop-filter: var(--glass-filter);
+    backdrop-filter: var(--glass-filter);
+    transition: background-color var(--dur-move) var(--ease-settle);
+  }
+
+  .brand {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    margin: 0 var(--space-2) var(--space-4);
+    color: var(--label);
+    font-family: var(--face-display);
+    font-size: var(--type-callout);
+    font-weight: 600;
+    letter-spacing: -0.01em;
+    text-decoration: none;
+  }
+
+  .mark {
+    display: grid;
+    place-items: center;
+    width: 24px;
+    height: 24px;
+    border-radius: 7px;
+    background: linear-gradient(
+      135deg,
+      var(--accent),
+      color-mix(in srgb, var(--accent) 45%, var(--green))
+    );
+    color: var(--on-accent);
+
+    & svg {
+      width: 16px;
+      height: 16px;
+    }
+  }
+
+  .nav {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+  }
+
+  .navItem {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    padding: 6px var(--space-2);
+    border-radius: var(--corner-control);
+    color: var(--label);
+    text-decoration: none;
+    transition: background-color var(--dur-press) var(--ease-settle);
+
+    & svg {
+      flex: none;
+      width: 16px;
+      height: 16px;
+      color: var(--accent);
+    }
+
+    &:hover {
+      background: var(--fill);
+    }
+  }
+
+  .navLabel {
+    flex: 1;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .count {
+    color: var(--secondary);
+    font-size: var(--type-caption);
+    font-variant-numeric: tabular-nums;
+  }
+  .groupTitle {
+    margin: var(--space-5) var(--space-2) var(--space-1);
+    color: var(--secondary);
+    font-size: var(--type-caption);
+    font-weight: 600;
+  }
+
+  .active,
+  .active:hover {
+    background: var(--fill-2);
+    font-weight: 500;
+  }
+
+  .status {
+    margin: auto var(--space-2) 0;
+    color: var(--secondary);
+    font-size: var(--type-caption);
+  }
+
+  /* Transparent: each page brings its own surface (see Page), so the review
+     screen's panes can be glass over the backdrop like the sidebar. */
+  .main {
+    overflow-y: auto;
+  }
+
+  /* The desktop window has a minimum width; this is for a narrow browser. */
+  @media (max-width: 760px) {
+    .shell {
+      grid-template-columns: minmax(0, 1fr);
+      grid-template-rows: auto minmax(0, 1fr);
+    }
+    .sidebar {
+      flex-direction: row;
+      align-items: center;
+      border-right: 0;
+      border-bottom: 0.5px solid var(--sep);
+      padding: var(--space-2) var(--space-3);
+    }
+    .brand {
+      margin: 0 var(--space-3) 0 0;
+    }
+    .nav {
+      flex-direction: row;
+    }
+    .nav + .nav {
+      display: none;
+    }
+    .status {
+      display: none;
+    }
+  }
+}

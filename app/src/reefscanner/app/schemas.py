@@ -110,6 +110,14 @@ class SettingsRead(SettingsWrite):
     signed_as: str
 
 
+class Appearance(BaseModel):
+    """How the app looks on this laptop. Separate from the person, so changing
+    the mode never resubmits their details."""
+
+    mode: Literal["system", "light", "dark"] = "system"
+    translucency: bool = True
+
+
 class ProjectCreate(BaseModel):
     name: str = Field(min_length=1, max_length=200)
     input_folder: str = Field(min_length=1)
@@ -151,6 +159,24 @@ class ProjectUpdate(BaseModel):
         return v
 
 
+class RunSummary(BaseModel):
+    """Where a project's review stands: its latest run with events.
+
+    One run rather than a sum over runs, because rescans of the same footage
+    find the same animals again.
+    """
+
+    job_id: int
+    events: int
+    reviewed: int
+    confirmed: int
+    #: "Nothing there" and "something else" together.
+    rejected: int
+    #: The frame that stands for the project: its most recent confirmed event,
+    #: otherwise its first event.
+    cover_url: str | None
+
+
 class ProjectRead(BaseModel):
     id: int
     name: str
@@ -159,6 +185,7 @@ class ProjectRead(BaseModel):
     config: dict[str, Any]
     created_at: _dt.datetime
     job_count: int = 0
+    latest_run: RunSummary | None = None
     package_metadata: PackageMetadata
     deployment: DeploymentRead
 
@@ -244,6 +271,11 @@ class EventRead(BaseModel):
     end_seconds: float
     duration_seconds: float
     peak_seconds: float
+    #: Where the clip file starts in the source video, so the UI can place the
+    #: event and its peak on the clip's timeline. From the run's padding; None
+    #: when unknown (e.g. a rig's clip with its own pre-roll). Approximate: a
+    #: stream-copied clip starts at the keyframe before this.
+    clip_start_seconds: float | None = None
     #: Wall-clock start, in the camera's timezone.
     start_time: _dt.datetime
     confidence: float | None = None

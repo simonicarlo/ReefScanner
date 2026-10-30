@@ -1,0 +1,18 @@
+@layer components {
+  .surface {
+    min-height: 100%;
+    background: var(--content-bg);
+    transition: background-color var(--dur-move) var(--ease-settle);
+  }
+  .page {
+    max-width: 1500px;
+    margin: 0 auto;
+    padding: 28px var(--space-6) var(--space-8);
+  }
+
+  @media (max-width: 760px) {
+    .page {
+      padding: var(--space-5) var(--space-4) var(--space-8);
+    }
+  }
+}

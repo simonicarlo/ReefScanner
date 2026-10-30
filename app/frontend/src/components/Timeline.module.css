@@ -1,0 +1,78 @@
+@layer components {
+  .timeline {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-2);
+  }
+
+  .track {
+    position: relative;
+    height: 22px;
+    cursor: pointer;
+    touch-action: none;
+
+    &:focus-visible {
+      border-radius: var(--corner-control);
+    }
+  }
+  .rail,
+  .window,
+  .played {
+    position: absolute;
+    top: 50%;
+    height: 4px;
+    margin-top: -2px;
+    border-radius: 999px;
+  }
+  .rail {
+    left: 0;
+    right: 0;
+    background: var(--fill-2);
+  }
+  /* The event itself, inside the padded clip. */
+  .window {
+    height: 8px;
+    margin-top: -4px;
+    background: color-mix(in srgb, var(--accent) 35%, transparent);
+  }
+  .played {
+    left: 0;
+    background: var(--accent);
+  }
+  .peak {
+    position: absolute;
+    top: 2px;
+    bottom: 2px;
+    width: 2px;
+    margin-left: -1px;
+    border-radius: 1px;
+    background: var(--label);
+  }
+  .head {
+    position: absolute;
+    top: 50%;
+    width: 14px;
+    height: 14px;
+    margin: -7px 0 0 -7px;
+    border-radius: 50%;
+    background: var(--knob);
+    box-shadow: var(--lift-knob);
+  }
+
+  .labels {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: space-between;
+    gap: var(--space-1) var(--space-4);
+    color: var(--secondary);
+    font-size: var(--type-caption);
+
+    & b {
+      margin-left: 4px;
+      color: var(--label);
+      font-family: var(--face-mono);
+      font-variant-numeric: tabular-nums;
+      font-weight: 500;
+    }
+  }
+}

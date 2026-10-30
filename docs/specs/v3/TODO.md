@@ -97,6 +97,23 @@ Gate: replayed footage gives the same events as the v2 desktop scan.
       description and contributors, carried through import and export
       ([design](features/2026-10-27-package-metadata-design.md))
 
+## Field app restyle
+
+The phase 0 UI looked generic. It moves to **Clear Water**: Mac-like, rounded,
+translucent, in light and dark ([design](features/2026-10-30-clear-water-design.md)).
+
+- [x] Design language: two studies compared, Clear Water picked; translucency
+      on by default; light and dark mode everywhere; plain CSS with CSS
+      Modules replaces Tailwind
+- [x] Tokens, base styles, app shell with sidebar, ambient backdrop, and
+      appearance settings (mode, translucency) in `AppSettings`; old pages
+      follow light and dark through their Tailwind names
+- [x] Primitives in `components/ui.tsx`, plus segmented control, switch, toast
+- [x] Pages: event review, job, project, projects (cards with a cover
+      frame and review counts from the project's latest run, and the
+      sidebar's "Waiting for review"), settings
+- [x] Remove Tailwind and `@fontsource`; rewrite the frontend styling rules
+
 ## Phase 1 · Bench prototype
 
 Gate: 30 fps detection capacity sustained on the chosen board.

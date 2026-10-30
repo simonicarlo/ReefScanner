@@ -1,7 +1,10 @@
 import { useState } from "react";
 import { useSaveSettings, useSettings } from "../lib/queries";
 import type { Settings as SettingsData } from "../lib/types";
-import { Button, ErrorNote, Field, Input, Spinner } from "../components/ui";
+import { Button, ErrorNote, Field, Input, Panel, Spinner } from "../components/ui";
+import { AppearancePanel } from "../components/AppearancePanel";
+import { PageHeader } from "../components/PageHeader";
+import styles from "./Settings.module.css";
 
 /** The person using this laptop: who signs reviews and starts new projects. */
 export function Settings() {
@@ -23,57 +26,60 @@ function SettingsForm({ saved }: { saved: SettingsData }) {
     organization !== (saved.organization ?? "");
 
   return (
-    <div className="rise max-w-2xl space-y-6">
-      <div>
-        <h1 className="text-2xl font-semibold tracking-tight">Settings</h1>
-        <p className="mt-1 text-sm text-faint">
-          You, on this laptop. Reviews are signed with your name, and new
-          projects list you as their contributor. Each project's own team is
-          edited on its page.
-        </p>
-      </div>
+    <div className={styles.page}>
+      <PageHeader
+        title="Settings"
+        subtitle="How the app looks, and who you are on this laptop."
+      />
 
-      <form
-        className="panel space-y-4 p-5"
-        onSubmit={(e) => {
-          e.preventDefault();
-          save.mutate({
-            name: name || null,
-            email: email || null,
-            organization: organization || null,
-          });
-        }}
+      <AppearancePanel />
+
+      <Panel
+        title="You"
+        description="Reviews are signed with your name, and new projects list you as their contributor. Each project's own team is edited on its page."
       >
-        <Field
-          label="Your name"
-          hint={`Reviews are signed as “${saved.signed_as}”${saved.name ? "" : " (your login name) until you set one"}.`}
+        <form
+          className={styles.form}
+          onSubmit={(e) => {
+            e.preventDefault();
+            save.mutate({
+              name: name || null,
+              email: email || null,
+              organization: organization || null,
+            });
+          }}
         >
-          <Input value={name} onChange={(e) => setName(e.target.value)} maxLength={200} />
-        </Field>
-        <Field label="Email" hint="Optional. Goes into packages with your name.">
-          <Input
-            type="email"
-            value={email}
-            onChange={(e) => setEmail(e.target.value)}
-            maxLength={200}
-          />
-        </Field>
-        <Field label="Organisation" hint="Optional.">
-          <Input
-            value={organization}
-            onChange={(e) => setOrganization(e.target.value)}
-            maxLength={200}
-          />
-        </Field>
+          <Field
+            label="Your name"
+            hint={`Reviews are signed as “${saved.signed_as}”${saved.name ? "" : " (your login name) until you set one"}.`}
+          >
+            <Input value={name} onChange={(e) => setName(e.target.value)} maxLength={200} />
+          </Field>
+          <Field label="Email" hint="Optional. Goes into packages with your name.">
+            <Input
+              type="email"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              maxLength={200}
+            />
+          </Field>
+          <Field label="Organisation" hint="Optional.">
+            <Input
+              value={organization}
+              onChange={(e) => setOrganization(e.target.value)}
+              maxLength={200}
+            />
+          </Field>
 
-        <ErrorNote error={save.error} />
+          <ErrorNote error={save.error} />
 
-        <div className="flex justify-end">
-          <Button type="submit" variant="primary" disabled={!dirty || save.isPending}>
-            {save.isPending ? "Saving…" : "Save"}
-          </Button>
-        </div>
-      </form>
+          <div className={styles.actions}>
+            <Button type="submit" variant="primary" disabled={!dirty || save.isPending}>
+              {save.isPending ? "Saving…" : "Save"}
+            </Button>
+          </div>
+        </form>
+      </Panel>
     </div>
   );
 }

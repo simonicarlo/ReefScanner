@@ -11,27 +11,18 @@ import {
   useThresholdAnalysis,
 } from "../lib/queries";
 import type { EventFilters, Job, ReefEvent, Verdict } from "../lib/types";
-import { duration, percent, score, timecode } from "../lib/format";
+import { basename, duration, percent, score, timecode } from "../lib/format";
+import { VERDICT_INFO } from "../lib/verdicts";
+import { useBackdrop } from "../lib/backdrop";
 import { BboxOverlay } from "../components/BboxOverlay";
-import { Button, Empty, ErrorNote, Spinner, Tag, cx } from "../components/ui";
+import { PageHeader } from "../components/PageHeader";
+import { ReviewBar } from "../components/ReviewBar";
+import { SegmentedControl } from "../components/SegmentedControl";
 import { ThresholdPanel } from "../components/ThresholdPanel";
+import { Button, Empty, ErrorNote, Notice, Panel, Spinner, Tag } from "../components/ui";
+import styles from "./JobDetail.module.css";
 
 const PAGE = 120;
-
-const VERDICT_TONE: Record<Verdict, "signal" | "reject" | "hedge"> = {
-  TP: "signal",
-  FP: "reject",
-  "FP-other": "reject",
-  unsure: "hedge",
-};
-
-/** Short tag text; "FP-other" is too long for a card corner. */
-const VERDICT_TAG: Record<Verdict, string> = {
-  TP: "TP",
-  FP: "FP",
-  "FP-other": "FP · other",
-  unsure: "unsure",
-};
 
 export function JobDetail() {
   const { jobId } = useParams();
@@ -44,113 +35,88 @@ export function JobDetail() {
   const { data: thresholds } = useThresholdAnalysis(id);
   const { data: project } = useProject(job?.project_id ?? 0);
   const writePackage = useMutation({ mutationFn: () => api.writePackage(id) });
+  useBackdrop(project?.latest_run?.cover_url);
 
   const patch = (next: Partial<EventFilters>) =>
     setFilters((prev) => ({ ...prev, ...next, offset: 0 }));
 
   const reviewed = page ? page.n_labeled : 0;
   const totalEvents = page?.total ?? 0;
+  const unsure = page ? reviewed - page.n_tp - page.n_fp : 0;
 
   return (
-    <div className="rise space-y-6">
-      <div className="flex flex-wrap items-end justify-between gap-4">
-        <div>
-          {job && (
-            <Link to={`/projects/${job.project_id}`} className="legend hover:text-signal">
-              ← Project
-            </Link>
-          )}
-          <h1 className="mt-1 text-2xl font-semibold tracking-tight">
-            {job?.source ? "Import" : "Run"} #{id}
-          </h1>
-          {job && (
-            <p className="mt-1 text-sm text-faint">
-              {job.status} · {job.events_found} event
-              {job.events_found === 1 ? "" : "s"} across {job.videos_done} video
-              {job.videos_done === 1 ? "" : "s"}
-            </p>
-          )}
-        </div>
-
-        <div className="flex flex-wrap items-center gap-2">
-          <Button
-            size="sm"
-            onClick={() => writePackage.mutate()}
-            disabled={writePackage.isPending}
-          >
-            {writePackage.isPending ? "Writing…" : "Write Camtrap DP package"}
-          </Button>
-          {(["coco", "yolo"] as const).map((format) => (
-            <a key={format} href={api.exportUrl(id, format)} download>
-              <Button size="sm" variant="ghost">
+    <div className={styles.page}>
+      <PageHeader
+        back={job ? { to: `/projects/${job.project_id}`, label: project?.name ?? "Project" } : undefined}
+        title={`${job?.source ? "Import" : "Run"} #${id}`}
+        subtitle={
+          job &&
+          `${job.events_found} event${job.events_found === 1 ? "" : "s"} across ${
+            job.videos_done
+          } video${job.videos_done === 1 ? "" : "s"}`
+        }
+        actions={
+          <>
+            {(["coco", "yolo"] as const).map((format) => (
+              <a key={format} href={api.exportUrl(id, format)} download className={styles.link}>
                 Export {format.toUpperCase()}
-              </Button>
-            </a>
-          ))}
-        </div>
-      </div>
+              </a>
+            ))}
+            <Button onClick={() => writePackage.mutate()} disabled={writePackage.isPending}>
+              {writePackage.isPending ? "Writing…" : "Write Camtrap DP package"}
+            </Button>
+          </>
+        }
+      />
 
       {writePackage.data && (
-        <div className="rounded-[3px] border border-signal/40 bg-signal/10 px-3 py-2 text-sm text-signal">
-          Package written to <span className="font-mono">{writePackage.data.path}</span>{" "}
-          ({writePackage.data.observations} observations, {writePackage.data.media} media
+        <Notice tone="green">
+          Package written to <span className={styles.path}>{writePackage.data.path}</span> (
+          {writePackage.data.observations} observations, {writePackage.data.media} media
           files). The folder is the package: copy it to share it.
-        </div>
+        </Notice>
       )}
       <ErrorNote error={writePackage.error} />
 
       {project?.deployment.timestamp_issues && (
-        <div className="rounded-[3px] border border-hedge/40 bg-hedge/10 px-3 py-2 text-sm text-hedge">
-          Some videos had no recorded start time, so their times were guessed from
-          the files' modification dates and may be off. The package marks this
+        <Notice tone="orange">
+          Some videos had no recorded start time, so their times were guessed from the
+          files' modification dates and may be off. The package marks this
           deployment's timestamps as having issues.
-        </div>
+        </Notice>
       )}
 
-      {/* Review progress. The one number that says how much work is left. */}
+      {/* Review progress: the one number that says how much work is left. */}
       {page && page.total > 0 && (
-        <div className="panel flex flex-wrap items-center gap-x-8 gap-y-3 px-4 py-3">
-          <div className="min-w-[12rem] flex-1">
-            <div className="legend mb-1.5">
-              Reviewed {reviewed} of {totalEvents}
-            </div>
-            <div className="flex h-1.5 overflow-hidden rounded-full bg-abyss">
-              <div
-                className="bg-signal transition-[width] duration-500"
-                style={{ width: `${(page.n_tp / Math.max(1, totalEvents)) * 100}%` }}
-              />
-              <div
-                className="bg-reject transition-[width] duration-500"
-                style={{ width: `${(page.n_fp / Math.max(1, totalEvents)) * 100}%` }}
-              />
-              <div
-                className="bg-hedge transition-[width] duration-500"
-                style={{
-                  width: `${((reviewed - page.n_tp - page.n_fp) / Math.max(1, totalEvents)) * 100}%`,
-                }}
+        <Panel>
+          <div className={styles.progress}>
+            <div className={styles.progressBar}>
+              <div className={styles.progressLabel}>
+                Reviewed {reviewed} of {totalEvents}
+              </div>
+              <ReviewBar
+                total={totalEvents}
+                confirmed={page.n_tp}
+                rejected={page.n_fp}
+                unsure={unsure}
               />
             </div>
+            <dl className={styles.stats}>
+              <Stat label="Confirmed" value={page.n_tp} color="var(--green)" />
+              <Stat label="Rejected" value={page.n_fp} color="var(--red)" />
+              {unsure > 0 && <Stat label="Unsure" value={unsure} color="var(--orange)" />}
+              <Stat label="Left" value={totalEvents - reviewed} />
+              {reviewed > 0 && <Stat label="False positives" value={percent(page.n_fp / reviewed)} />}
+            </dl>
           </div>
-          <div className="flex gap-6">
-            <Stat label="Confirmed" value={page.n_tp} tone="text-signal" />
-            <Stat label="Rejected" value={page.n_fp} tone="text-reject" />
-            <Stat label="Left" value={totalEvents - reviewed} tone="text-dim" />
-            {reviewed > 0 && (
-              <Stat
-                label="False pos."
-                value={percent(page.n_fp / reviewed)}
-                tone="text-dim"
-              />
-            )}
-          </div>
-        </div>
+        </Panel>
       )}
 
       {job && <ThresholdPanel jobId={id} projectId={job.project_id} />}
 
-      {/* Filters */}
-      <div className="flex flex-wrap items-center gap-2">
+      <div className={styles.filters}>
         <FilterGroup
+          label="Review state"
           options={[
             { label: "All", value: undefined },
             { label: "To review", value: false },
@@ -161,30 +127,32 @@ export function JobDetail() {
         />
 
         <FilterGroup
+          label="Verdict"
           options={[
             { label: "Any verdict", value: undefined },
-            { label: "TP", value: "TP" },
-            { label: "Nothing there", value: "FP" },
-            { label: "Something else", value: "FP-other" },
-            { label: "Unsure", value: "unsure" },
+            ...(Object.keys(VERDICT_INFO) as Verdict[]).map((v) => ({
+              label: VERDICT_INFO[v].label,
+              value: v,
+            })),
           ]}
           active={filters.verdict}
-          onPick={(verdict) => patch({ verdict: verdict as Verdict, labeled: undefined })}
+          onPick={(verdict) => patch({ verdict, labeled: undefined })}
         />
 
         {!!classes?.length && (
           <FilterGroup
+            label="Class"
             options={[
               { label: "All classes", value: undefined },
               ...classes.map((c) => ({ label: c, value: c })),
             ]}
             active={filters.detected_class}
-            onPick={(detected_class) => patch({ detected_class: detected_class as string })}
+            onPick={(detected_class) => patch({ detected_class })}
           />
         )}
 
-        <label className="ml-auto flex items-center gap-2">
-          <span className="legend">Min confidence</span>
+        <label className={styles.slider}>
+          <span>Minimum score</span>
           <input
             type="range"
             min={0}
@@ -195,11 +163,8 @@ export function JobDetail() {
               const v = Number(e.target.value);
               patch({ min_confidence: v === 0 ? undefined : v });
             }}
-            className="accent-[var(--color-signal)]"
           />
-          <span className="tabular w-8 text-xs text-dim">
-            {(filters.min_confidence ?? 0).toFixed(2)}
-          </span>
+          <span className={styles.num}>{(filters.min_confidence ?? 0).toFixed(2)}</span>
           {(() => {
             const at = filters.min_confidence ?? 0;
             // The last sweep point at or below the slider describes what this
@@ -209,9 +174,9 @@ export function JobDetail() {
               .find((p) => p.threshold <= at);
             if (!point || at === 0) return null;
             return (
-              <span className="legend">
-                keeps {point.kept} ·{" "}
-                <span className={point.confirmed_lost > 0 ? "text-reject" : ""}>
+              <span className={styles.keeps}>
+                Keeps {point.kept},{" "}
+                <span className={point.confirmed_lost > 0 ? styles.lost : undefined}>
                   loses {point.confirmed_lost} confirmed
                 </span>
               </span>
@@ -228,43 +193,33 @@ export function JobDetail() {
         <EmptyGrid jobId={id} job={job} filtered={totalEvents > 0} />
       ) : (
         <>
-          <div className="grid grid-cols-[repeat(auto-fill,minmax(230px,1fr))] gap-3">
-            {page.items.map((event, i) => (
-              <EventCard
-                key={event.id}
-                event={event}
-                jobId={id}
-                delay={Math.min(i, 24) * 25}
-              />
+          <div className={styles.grid}>
+            {page.items.map((event) => (
+              <EventCard key={event.id} event={event} jobId={id} />
             ))}
           </div>
 
           {page.total > page.items.length && (
-            <div className="flex items-center justify-center gap-3 pt-2">
+            <div className={styles.pager}>
               <Button
                 size="sm"
                 disabled={filters.offset === 0}
                 onClick={() =>
-                  setFilters((f) => ({
-                    ...f,
-                    offset: Math.max(0, (f.offset ?? 0) - PAGE),
-                  }))
+                  setFilters((f) => ({ ...f, offset: Math.max(0, (f.offset ?? 0) - PAGE) }))
                 }
               >
-                ← Previous
+                Previous
               </Button>
-              <span className="tabular text-xs text-faint">
-                {(filters.offset ?? 0) + 1}–
-                {(filters.offset ?? 0) + page.items.length} of {page.total}
+              <span className={styles.num}>
+                {(filters.offset ?? 0) + 1}–{(filters.offset ?? 0) + page.items.length} of{" "}
+                {page.total}
               </span>
               <Button
                 size="sm"
                 disabled={(filters.offset ?? 0) + PAGE >= page.total}
-                onClick={() =>
-                  setFilters((f) => ({ ...f, offset: (f.offset ?? 0) + PAGE }))
-                }
+                onClick={() => setFilters((f) => ({ ...f, offset: (f.offset ?? 0) + PAGE }))}
               >
-                Next →
+                Next
               </Button>
             </div>
           )}
@@ -286,9 +241,7 @@ function EmptyGrid({
   // Other runs of the same project may hold the events someone is looking for
   // — most often the first one, before a setting was changed.
   const { data: siblings } = useJobs(job?.project_id ?? 0);
-  const withEvents = (siblings ?? []).filter(
-    (j) => j.id !== jobId && j.events_found > 0,
-  );
+  const withEvents = (siblings ?? []).filter((j) => j.id !== jobId && j.events_found > 0);
 
   if (filtered) {
     return <Empty title="No events match">Try relaxing the filters above.</Empty>;
@@ -297,16 +250,16 @@ function EmptyGrid({
   return (
     <Empty title="This run found nothing">
       <p>
-        No detections passed the confidence threshold. Lowering it on the
-        project page surfaces weaker detections, at the cost of more to review.
+        No detections passed the confidence threshold. Lowering it on the project
+        page surfaces weaker detections, at the cost of more to review.
       </p>
       {withEvents.length > 0 && (
-        <p className="mt-3">
+        <p>
           Looking for earlier results?{" "}
           {withEvents.map((j, i) => (
             <span key={j.id}>
               {i > 0 && ", "}
-              <Link to={`/jobs/${j.id}`} className="text-signal hover:underline">
+              <Link to={`/jobs/${j.id}`} className={styles.inlineLink}>
                 Run #{j.id}
               </Link>{" "}
               has {j.events_found}
@@ -319,113 +272,75 @@ function EmptyGrid({
   );
 }
 
-function Stat({
-  label,
-  value,
-  tone,
-}: {
-  label: string;
-  value: number | string;
-  tone: string;
-}) {
+function Stat({ label, value, color }: { label: string; value: number | string; color?: string }) {
   return (
-    <div>
-      <div className="legend">{label}</div>
-      <div className={cx("tabular text-lg leading-tight", tone)}>{value}</div>
+    <div className={styles.stat}>
+      <dt>
+        {color && <i className={styles.statDot} style={{ background: color }} />}
+        {label}
+      </dt>
+      <dd>{value}</dd>
     </div>
   );
 }
 
+/** A segmented control over filter values that aren't strings (undefined, booleans). */
 function FilterGroup<T>({
+  label,
   options,
   active,
   onPick,
 }: {
+  label: string;
   options: { label: string; value: T }[];
   active: T;
   onPick: (value: T) => void;
 }) {
+  const index = Math.max(
+    0,
+    options.findIndex((o) => o.value === active),
+  );
   return (
-    <div className="flex overflow-hidden rounded-[3px] border border-rule">
-      {options.map((option) => (
-        <button
-          key={String(option.label)}
-          type="button"
-          onClick={() => onPick(option.value)}
-          className={cx(
-            "px-2.5 py-1 font-mono text-xs transition-colors",
-            active === option.value
-              ? "bg-signal/15 text-signal"
-              : "text-faint hover:bg-panel-hi hover:text-read",
-          )}
-        >
-          {option.label}
-        </button>
-      ))}
-    </div>
+    <SegmentedControl
+      label={label}
+      options={options.map((o, i) => ({ value: String(i), label: o.label }))}
+      value={String(index)}
+      onChange={(i) => onPick(options[Number(i)].value)}
+    />
   );
 }
 
-function EventCard({
-  event,
-  jobId,
-  delay,
-}: {
-  event: ReefEvent;
-  jobId: number;
-  delay: number;
-}) {
+function EventCard({ event, jobId }: { event: ReefEvent; jobId: number }) {
+  const verdict = event.review?.verdict;
   return (
-    <Link
-      to={`/jobs/${jobId}/events/${encodeURIComponent(event.id)}`}
-      style={{ animationDelay: `${delay}ms` }}
-      className="panel rise group overflow-hidden transition-colors hover:border-signal/50"
-    >
-      <div className="relative aspect-video bg-abyss">
+    <Link to={`/jobs/${jobId}/events/${encodeURIComponent(event.id)}`} className={styles.card}>
+      <div className={styles.thumb}>
         {/* The clean frame with the box drawn over it. Stretched to the card
             rather than cropped, so the box stays on the animal. */}
-        <img
-          src={event.frame_url}
-          alt=""
-          loading="lazy"
-          className="h-full w-full object-fill opacity-90 transition-opacity group-hover:opacity-100"
+        <img src={event.frame_url} alt="" loading="lazy" />
+        <BboxOverlay
+          bbox={event.review?.bbox ?? event.bbox}
+          color={verdict ? VERDICT_INFO[verdict].mark : undefined}
+          compact
         />
-        <BboxOverlay bbox={event.review?.bbox ?? event.bbox} />
-
-        {event.review && (
-          <div className="absolute left-1.5 top-1.5">
-            <Tag tone={VERDICT_TONE[event.review.verdict]}>
-              {VERDICT_TAG[event.review.verdict]}
-            </Tag>
-          </div>
+        {verdict && (
+          <Tag tone={VERDICT_INFO[verdict].tone} className={styles.verdictTag}>
+            {VERDICT_INFO[verdict].short}
+          </Tag>
         )}
-
-        <div className="absolute bottom-1.5 right-1.5">
-          <span className="tabular rounded-[3px] bg-abyss/85 px-1.5 py-0.5 text-[11px] text-read">
-            {timecode(event.start_seconds)}
-          </span>
-        </div>
+        <span className={styles.timecode}>{timecode(event.start_seconds)}</span>
       </div>
 
-      <div className="space-y-1 p-2.5">
-        <div
-          className="truncate text-xs text-dim"
-          title={event.source_video}
-        >
-          {event.source_video}
+      <div className={styles.cardBody}>
+        <div className={styles.cardTitle} title={event.source_video}>
+          {basename(event.source_video)}
         </div>
-        <div className="flex items-center justify-between gap-2">
-          <span className="tabular text-[11px] text-faint">
-            {duration(event.duration_seconds)}
-          </span>
-          <span className="tabular text-[11px] text-faint">
-            conf {score(event.confidence)}
-          </span>
+        <div className={styles.cardMeta}>
+          <span>{duration(event.duration_seconds)}</span>
+          <span>Score {score(event.confidence)}</span>
         </div>
         {event.review?.scientific_name && (
-          <div className="truncate text-[11px] italic text-signal">
-            {event.review.scientific_name}
-          </div>
+          <div className={styles.species}>{event.review.scientific_name}</div>
         )}
       </div>
     </Link>

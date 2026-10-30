@@ -68,6 +68,27 @@ export interface Settings {
   signed_as: string;
 }
 
+export const APPEARANCE_MODES = ["system", "light", "dark"] as const;
+export type AppearanceMode = (typeof APPEARANCE_MODES)[number];
+
+/** How the app looks on this laptop. */
+export interface Appearance {
+  mode: AppearanceMode;
+  translucency: boolean;
+}
+
+/** Where a project's review stands: its latest run with events. */
+export interface RunSummary {
+  job_id: number;
+  events: number;
+  reviewed: number;
+  confirmed: number;
+  /** "Nothing there" and "something else" together. */
+  rejected: number;
+  /** Its most recent confirmed event's frame, otherwise its first event's. */
+  cover_url: string | null;
+}
+
 export interface Project {
   id: number;
   name: string;
@@ -76,6 +97,7 @@ export interface Project {
   config: Record<string, unknown>;
   created_at: string;
   job_count: number;
+  latest_run: RunSummary | null;
   package_metadata: PackageMetadata;
   deployment: Deployment;
 }
@@ -115,6 +137,8 @@ export interface ReefEvent {
   end_seconds: number;
   duration_seconds: number;
   peak_seconds: number;
+  /** Where the clip file starts in the source video; null when unknown. */
+  clip_start_seconds: number | null;
   /** Wall-clock start, with the camera timezone's offset. */
   start_time: string;
   confidence: number | null;

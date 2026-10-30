@@ -80,6 +80,11 @@ class AppSettings(SQLModel, table=True):
     name: str | None = None
     email: str | None = None
     organization: str | None = None
+    #: How the app looks: ``system``, ``light`` or ``dark``. Kept here rather
+    #: than in web storage, which the desktop window doesn't keep between runs.
+    appearance_mode: str = "system"
+    #: Glass panes over a blurred copy of the footage. Off gives solid panes.
+    translucency: bool = True
 
 
 class Job(SQLModel, table=True):
