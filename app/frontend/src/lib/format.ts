@@ -55,6 +55,27 @@ export function clockTime(iso: string): string {
   return `${m[1]} UTC${m[2] === "Z" ? "+00:00" : m[2]}`;
 }
 
+/**
+ * The calendar date an ISO timestamp states, e.g. "10 May 2024". Like
+ * clockTime, the date where the footage was filmed, not the viewer's.
+ */
+export function localDate(iso: string): string {
+  const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(iso);
+  if (!m) return "";
+  const date = new Date(Date.UTC(Number(m[1]), Number(m[2]) - 1, Number(m[3])));
+  return date.toLocaleDateString(undefined, {
+    day: "numeric",
+    month: "short",
+    year: "numeric",
+    timeZone: "UTC",
+  });
+}
+
+/** The time of day an ISO timestamp states, without its offset: "17:14:35". */
+export function timeOfDay(iso: string): string {
+  return /T(\d{2}:\d{2}:\d{2})/.exec(iso)?.[1] ?? iso;
+}
+
 /** The readable tail of a Camtrap eventID: "dive01_001". */
 export function eventLabel(id: string): string {
   return id.split(":").pop() || id;

@@ -116,6 +116,48 @@ export function ErrorNote({ error }: { error: unknown }) {
   );
 }
 
+/** A group of related content on a page: a soft card. */
+export function Panel({
+  title,
+  aside,
+  children,
+  className,
+}: {
+  title?: string;
+  /** Shown on the title's line, at the right: a count, a source, an action. */
+  aside?: ReactNode;
+  children: ReactNode;
+  className?: string;
+}) {
+  return (
+    <section className={cx(styles.panel, className)}>
+      {(title || aside) && (
+        <div className={styles.panelHead}>
+          {title && <h2 className={styles.panelTitle}>{title}</h2>}
+          {aside && <div className={styles.panelAside}>{aside}</div>}
+        </div>
+      )}
+      {children}
+    </section>
+  );
+}
+
+/** A sentence the page wants noticed: something done, or something to know. */
+export function Notice({
+  tone = "accent",
+  children,
+}: {
+  tone?: "accent" | "green" | "orange";
+  children: ReactNode;
+}) {
+  return <div className={cx(styles.notice, styles[`tone-${tone}`])}>{children}</div>;
+}
+
+/** A key on the keyboard, as shown next to the action it triggers. */
+export function Kbd({ children }: { children: ReactNode }) {
+  return <kbd className={styles.kbd}>{children}</kbd>;
+}
+
 /** Loading. Shows only after a moment, so quick local reads don't flash it,
  * and stays still: nothing in the app animates on its own. */
 export function Spinner({ label = "Loading" }: { label?: string }) {

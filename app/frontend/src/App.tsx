@@ -7,6 +7,7 @@ import { JobDetail } from "./pages/JobDetail";
 import { EventReview } from "./pages/EventReview";
 import { Settings } from "./pages/Settings";
 import { AppShell } from "./components/AppShell";
+import { Page } from "./components/Page";
 import { useApplyAppearance } from "./lib/appearance";
 
 export default function App() {
@@ -18,11 +19,11 @@ export default function App() {
   return (
     <AppShell>
       <Routes>
-        <Route path="/" element={<Projects />} />
-        <Route path="/projects/:projectId" element={<ProjectDetail />} />
-        <Route path="/jobs/:jobId" element={<JobDetail />} />
+        <Route path="/" element={<Page><Projects /></Page>} />
+        <Route path="/projects/:projectId" element={<Page><ProjectDetail /></Page>} />
+        <Route path="/jobs/:jobId" element={<Page><JobDetail /></Page>} />
         <Route path="/jobs/:jobId/events/:eventId" element={<EventReview />} />
-        <Route path="/settings" element={<Settings />} />
+        <Route path="/settings" element={<Page><Settings /></Page>} />
       </Routes>
     </AppShell>
   );

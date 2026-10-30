@@ -97,12 +97,6 @@
     transition: background-color var(--dur-move) var(--ease-settle);
   }
 
-  .page {
-    max-width: 1500px;
-    margin: 0 auto;
-    padding: 28px var(--space-6) var(--space-8);
-  }
-
   /* The desktop window has a minimum width; this is for a narrow browser. */
   @media (max-width: 760px) {
     .shell {
@@ -124,9 +118,6 @@
     }
     .status {
       display: none;
-    }
-    .page {
-      padding: var(--space-5) var(--space-4) var(--space-8);
     }
   }
 }

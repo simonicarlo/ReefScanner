@@ -2,38 +2,35 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { api } from "../lib/api";
-import { keys, useEvents, useSaveReview, useSpecies } from "../lib/queries";
+import { keys, useEvents, useJob, useProject, useSaveReview, useSpecies } from "../lib/queries";
 import type { ReefEvent, Verdict } from "../lib/types";
-import { clockTime, duration, eventLabel, score, timecode } from "../lib/format";
-import { BboxOverlay } from "../components/BboxOverlay";
+import { basename, clockTime, duration, eventLabel, localDate, score, timecode, timeOfDay } from "../lib/format";
 import { useBackdrop } from "../lib/backdrop";
-import { Button, Empty, ErrorNote, Readout, Spinner, cx } from "../components/ui";
+import { useToast } from "../lib/toast";
+import { VERDICT_INFO, VERDICT_ORDER } from "../lib/verdicts";
+import { BboxOverlay } from "../components/BboxOverlay";
+import { SegmentedControl } from "../components/SegmentedControl";
+import { VerdictSymbol } from "../components/VerdictSymbol";
+import { Button, Empty, ErrorNote, Kbd, Spinner, cx } from "../components/ui";
+import styles from "./EventReview.module.css";
 
-const VERDICT_STYLE: Record<
-  Verdict,
-  { key: string; label: string; classes: string }
-> = {
-  TP: {
-    key: "T",
-    label: "Confirmed",
-    classes: "border-signal/60 bg-signal/15 text-signal hover:bg-signal/25",
-  },
-  FP: {
-    key: "F",
-    label: "Nothing there",
-    classes: "border-reject/60 bg-reject/15 text-reject hover:bg-reject/25",
-  },
-  "FP-other": {
-    key: "O",
-    label: "Something else",
-    classes: "border-reject/60 bg-reject/15 text-reject hover:bg-reject/25",
-  },
-  unsure: {
-    key: "U",
-    label: "Unsure",
-    classes: "border-hedge/60 bg-hedge/15 text-hedge hover:bg-hedge/25",
-  },
-};
+const VIEWS = [
+  { value: "clip", label: "Clip" },
+  { value: "peak", label: "Peak frame" },
+] as const;
+
+const SHORTCUTS = [
+  ["T", "Confirmed"],
+  ["F", "Nothing there"],
+  ["O", "Something else"],
+  ["U", "Unsure"],
+  ["← →", "Previous or next event"],
+  ["Space", "Play or pause"],
+  ["B", "Show or hide the box"],
+  ["S", "Go to species"],
+  ["Enter", "Save from the species field"],
+  ["Esc", "Leave a field"],
+];
 
 export function EventReview() {
   const { jobId, eventId } = useParams();
@@ -50,6 +47,9 @@ export function EventReview() {
     queryFn: () => api.getEvent(eid),
   });
   const { data: speciesOptions } = useSpecies(jid);
+  const { data: job } = useJob(jid);
+  const { data: project } = useProject(job?.project_id ?? 0);
+  const toast = useToast();
   // The frame under review, blurred behind the window.
   useBackdrop(event?.frame_url);
   const saveReview = useSaveReview(jid);
@@ -68,14 +68,15 @@ export function EventReview() {
   const [notes, setNotes] = useState("");
   const [showBox, setShowBox] = useState(true);
   const [view, setView] = useState<"clip" | "peak">("clip");
-  // The media's own shape, learned when it loads, so the overlay's
-  // percentages land on the picture rather than on letterbox bars.
-  const [aspect, setAspect] = useState("16 / 9");
+  // The media's own shape (width / height), learned when it loads, so the
+  // overlay's percentages land on the picture rather than on letterbox bars.
+  const [aspect, setAspect] = useState(16 / 9);
 
   const videoRef = useRef<HTMLVideoElement>(null);
   const speciesRef = useRef<HTMLInputElement>(null);
+  const currentRowRef = useRef<HTMLAnchorElement>(null);
 
-  const siblings = page?.items ?? [];
+  const siblings = useMemo(() => page?.items ?? [], [page]);
   const index = siblings.findIndex((e) => e.id === eid);
   const previous = index > 0 ? siblings[index - 1] : null;
   const next = index >= 0 && index < siblings.length - 1 ? siblings[index + 1] : null;
@@ -117,11 +118,26 @@ export function EventReview() {
           // the detector's.
           bbox: event.review?.bbox ?? null,
         },
-        { onSuccess: () => advance && goTo(nextUnreviewed ?? next) },
+        {
+          onSuccess: () => {
+            const left = siblings.filter((e) => !e.review && e.id !== event.id).length;
+            toast(
+              `${VERDICT_INFO[verdict].label}. ${
+                left ? `${left} left to review.` : "Every event in this run is reviewed."
+              }`,
+            );
+            if (advance) goTo(nextUnreviewed ?? next);
+          },
+        },
       );
     },
-    [event, species, notes, saveReview, goTo, nextUnreviewed, next],
+    [event, species, notes, saveReview, goTo, nextUnreviewed, next, siblings, toast],
   );
+
+  // Keep the current event in view in the list as the reviewer moves along.
+  useEffect(() => {
+    currentRowRef.current?.scrollIntoView({ block: "nearest" });
+  }, [eid, siblings.length]);
 
   // Keyboard is the primary interface here: the mouse is for the odd correction,
   // not for six hundred verdicts.
@@ -194,173 +210,215 @@ export function EventReview() {
   if (!event) return <Empty title="Event not found" />;
 
   const verdict = event.review?.verdict;
-  // Hedge-coloured when the reviewer's box differs from the detector's.
   const reviewedBox = event.review?.bbox ?? null;
+  // Dashed when the reviewer's box differs from the detector's.
   const corrected =
     reviewedBox !== null && JSON.stringify(reviewedBox) !== JSON.stringify(event.bbox);
+  const reviewedCount = siblings.filter((e) => e.review).length;
 
   return (
-    <div className="rise space-y-5">
-      <div className="flex flex-wrap items-center justify-between gap-4">
-        <div className="min-w-0">
-          <Link to={`/jobs/${jid}`} className="legend hover:text-signal">
-            ← Run #{jid}
-          </Link>
-          <h1 className="tabular mt-1 truncate text-xl font-semibold" title={event.id}>
-            {eventLabel(event.id)}
+    <div className={styles.review}>
+      <header className={styles.toolbar}>
+        <Link to={`/jobs/${jid}`} className={styles.iconButton} aria-label={`Back to run ${jid}`}>
+          <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M10 3 5 8l5 5" />
+          </svg>
+        </Link>
+        <div className={styles.heading}>
+          <h1 title={event.id}>
+            {index >= 0 ? `Event ${index + 1} of ${siblings.length}` : eventLabel(event.id)}
           </h1>
-          <p className="truncate font-mono text-xs text-faint" title={event.source_video}>
-            {event.source_video} @ {timecode(event.start_seconds)}
-          </p>
-        </div>
-
-        <div className="flex items-center gap-2">
-          <Button size="sm" disabled={!previous} onClick={() => goTo(previous)}>
-            ←
-          </Button>
-          <span className="tabular text-xs text-faint">
-            {index >= 0 ? index + 1 : "?"} / {siblings.length}
+          <span>
+            {project ? `${project.name} · ` : ""}Run #{jid}
           </span>
-          <Button size="sm" disabled={!next} onClick={() => goTo(next)}>
-            →
-          </Button>
         </div>
-      </div>
 
-      <div className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_20rem]">
-        <div className="space-y-3">
-          {/* The media box takes the media's own aspect ratio, so the
-              overlay's percentage coordinates land on the picture rather than
-              on letterbox bars. */}
-          <div
-            className="panel relative mx-auto overflow-hidden bg-black"
-            style={{
-              aspectRatio: aspect,
-              // Sized from the height so a 4:3 clip can't fill the viewport and
-              // push the verdict buttons below the fold. Width follows the
-              // aspect ratio, and max-width keeps a very wide clip in its lane.
-              height: "min(56vh, 40rem)",
-              maxWidth: "100%",
-            }}
+        <div className={styles.tools}>
+          <SegmentedControl label="Show" options={VIEWS} value={view} onChange={setView} />
+          <button
+            type="button"
+            className={styles.toggle}
+            aria-pressed={showBox}
+            onClick={() => setShowBox((v) => !v)}
           >
-            {view === "clip" ? (
-              <video
-                ref={videoRef}
-                key={event.clip_url}
-                src={event.clip_url}
-                onLoadedMetadata={(e) => {
-                  const v = e.currentTarget;
-                  if (v.videoWidth && v.videoHeight) setAspect(`${v.videoWidth} / ${v.videoHeight}`);
-                }}
-                controls
-                autoPlay
-                loop
-                muted
-                playsInline
-                className="h-full w-full"
-              />
-            ) : (
-              <img
-                src={event.frame_url}
-                alt={`Peak frame of ${eventLabel(event.id)}`}
-                onLoad={(e) => {
-                  const img = e.currentTarget;
-                  if (img.naturalWidth) setAspect(`${img.naturalWidth} / ${img.naturalHeight}`);
-                }}
-                className="h-full w-full object-contain"
-              />
-            )}
-
-            <BboxOverlay
-              bbox={reviewedBox ?? event.bbox}
-              visible={showBox}
-              tone={corrected ? "hedge" : "signal"}
-            />
-          </div>
-
-          <div className="flex flex-wrap items-center gap-2">
-            <div className="flex overflow-hidden rounded-[3px] border border-rule">
-              {(["clip", "peak"] as const).map((mode) => (
-                <button
-                  key={mode}
-                  type="button"
-                  onClick={() => setView(mode)}
-                  className={cx(
-                    "px-2.5 py-1 font-mono text-xs transition-colors",
-                    view === mode
-                      ? "bg-signal/15 text-signal"
-                      : "text-faint hover:text-read",
-                  )}
-                >
-                  {mode === "clip" ? "Clip" : "Peak frame"}
-                </button>
-              ))}
-            </div>
-
-            <Button
-              size="sm"
-              variant={showBox ? "primary" : "quiet"}
-              onClick={() => setShowBox((v) => !v)}
+            Box <Kbd>B</Kbd>
+          </button>
+          <div className={styles.stepper}>
+            <button
+              type="button"
+              className={styles.iconButton}
+              disabled={!previous}
+              onClick={() => goTo(previous)}
+              aria-label="Previous event"
             >
-              Detection box <Kbd>B</Kbd>
-            </Button>
-
-            <span className="text-xs text-faint">
-              Box marks the peak frame — on the clip it's a pointer, not a track.
-            </span>
-          </div>
-
-          <div className="panel grid grid-cols-2 gap-4 p-4 sm:grid-cols-4">
-            <Readout label="Start" value={timecode(event.start_seconds)} />
-            <Readout label="Length" value={duration(event.duration_seconds)} />
-            <Readout
-              label="Confidence"
-              value={score(event.confidence)}
-              tone={event.confidence === null ? "dim" : undefined}
-            />
-            {event.detected_class && (
-              <Readout label="Class" value={event.detected_class} />
-            )}
-            {/* In the camera's timezone, never the viewer's. */}
-            <Readout label="Wall clock" value={clockTime(event.start_time)} tone="dim" />
+              <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M10 3 5 8l5 5" />
+              </svg>
+            </button>
+            <button
+              type="button"
+              className={styles.iconButton}
+              disabled={!next}
+              onClick={() => goTo(next)}
+              aria-label="Next event"
+            >
+              <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M6 3l5 5-5 5" />
+              </svg>
+            </button>
           </div>
         </div>
+      </header>
 
-        {/* Verdict panel */}
-        <aside className="space-y-4 lg:sticky lg:top-20 lg:self-start">
-          <div className="panel space-y-4 p-4">
-            <div>
-              <div className="legend mb-2">Verdict</div>
-              <div className="grid gap-1.5">
-                {(Object.keys(VERDICT_STYLE) as Verdict[]).map((v) => {
-                  const style = VERDICT_STYLE[v];
-                  const active = verdict === v;
-                  return (
-                    <button
-                      key={v}
-                      type="button"
-                      onClick={() => record(v)}
-                      disabled={saveReview.isPending}
-                      className={cx(
-                        "flex items-center justify-between rounded-[3px] border px-3 py-2 text-sm transition-colors",
-                        active
-                          ? style.classes
-                          : "border-rule text-dim hover:border-rule-hi hover:text-read",
-                      )}
-                    >
-                      <span className="flex items-center gap-2">
-                        {active && <span className="h-1.5 w-1.5 rounded-full bg-current" />}
-                        {style.label}
-                      </span>
-                      <Kbd>{style.key}</Kbd>
-                    </button>
-                  );
-                })}
-              </div>
+      <div className={styles.body}>
+        <nav className={styles.list} aria-label="Events in this run">
+          <div className={styles.listHead}>
+            {siblings.length} events · {reviewedCount} reviewed
+          </div>
+          {siblings.map((e) => {
+            const current = e.id === eid;
+            const v = e.review?.verdict;
+            return (
+              <Link
+                key={e.id}
+                ref={current ? currentRowRef : undefined}
+                to={`/jobs/${jid}/events/${encodeURIComponent(e.id)}`}
+                className={styles.row}
+                aria-current={current ? "page" : undefined}
+              >
+                <span
+                  className={cx(styles.dot, v && styles.judged)}
+                  style={v ? { background: VERDICT_INFO[v].color } : undefined}
+                  title={v ? VERDICT_INFO[v].label : "Not reviewed"}
+                />
+                <span className={styles.rowText}>
+                  <span className={styles.rowTime}>{timeOfDay(e.start_time)}</span>
+                  <span className={styles.rowSub}>{basename(e.source_video)}</span>
+                </span>
+                <span className={styles.rowScore}>{score(e.confidence)}</span>
+              </Link>
+            );
+          })}
+        </nav>
+
+        <section className={styles.stage} aria-label="Footage">
+          <div className={styles.fit}>
+            <div
+              className={styles.media}
+              style={{ aspectRatio: aspect, width: `min(100cqw, ${aspect} * 100cqh)` }}
+            >
+              {view === "clip" ? (
+                <video
+                  ref={videoRef}
+                  key={event.clip_url}
+                  src={event.clip_url}
+                  onLoadedMetadata={(e) => {
+                    const v = e.currentTarget;
+                    if (v.videoWidth && v.videoHeight) setAspect(v.videoWidth / v.videoHeight);
+                  }}
+                  controls
+                  autoPlay
+                  loop
+                  muted
+                  playsInline
+                />
+              ) : (
+                <img
+                  src={event.frame_url}
+                  alt={`Peak frame of ${eventLabel(event.id)}`}
+                  onLoad={(e) => {
+                    const img = e.currentTarget;
+                    if (img.naturalWidth) setAspect(img.naturalWidth / img.naturalHeight);
+                  }}
+                />
+              )}
+              <BboxOverlay
+                bbox={reviewedBox ?? event.bbox}
+                visible={showBox}
+                color={verdict ? VERDICT_INFO[verdict].mark : undefined}
+                corrected={corrected}
+                label={
+                  <>
+                    {event.detected_class ?? "Detection"}
+                    {event.confidence !== null && (
+                      <span className={styles.pillScore}>{score(event.confidence)}</span>
+                    )}
+                  </>
+                }
+              />
             </div>
+          </div>
+          {view === "clip" && showBox && (
+            <p className={styles.caption}>
+              The box marks the peak frame. On the clip it shows where to look, not
+              where the animal goes.
+            </p>
+          )}
+        </section>
 
-            <label className="block">
-              <span className="legend mb-1.5 block">
+        <aside className={styles.inspector} aria-label="Verdict">
+          <div className={styles.when}>
+            {/* In the camera's timezone, never the viewer's. */}
+            <p className={styles.time} title={clockTime(event.start_time)}>
+              {timeOfDay(event.start_time)}
+            </p>
+            <p className={styles.sub}>
+              {localDate(event.start_time)} · {duration(event.duration_seconds)}
+            </p>
+            <p className={styles.file} title={event.source_video}>
+              {basename(event.source_video)} at {timecode(event.start_seconds)}
+            </p>
+          </div>
+
+          <dl className={styles.facts}>
+            <div>
+              <dt>Score</dt>
+              <dd className={styles.num}>{score(event.confidence, 3)}</dd>
+            </div>
+            <div>
+              <dt>Peak</dt>
+              <dd className={styles.num}>{timecode(event.peak_seconds)}</dd>
+            </div>
+            {event.detected_class && (
+              <div>
+                <dt>Class</dt>
+                <dd>{event.detected_class}</dd>
+              </div>
+            )}
+            <div>
+              <dt>Time zone</dt>
+              <dd className={styles.num}>{clockTime(event.start_time).split(" ")[1]}</dd>
+            </div>
+          </dl>
+
+          <div className={styles.verdicts} role="group" aria-label="Verdict">
+            {VERDICT_ORDER.map((v) => {
+              const info = VERDICT_INFO[v];
+              return (
+                <button
+                  key={v}
+                  type="button"
+                  className={styles.verdict}
+                  style={{ "--v": info.color } as React.CSSProperties}
+                  aria-pressed={verdict === v}
+                  disabled={saveReview.isPending}
+                  onClick={() => record(v)}
+                >
+                  <span className={styles.verdictTop}>
+                    <span className={styles.symbol}>
+                      <VerdictSymbol verdict={v} />
+                    </span>
+                    <kbd className={styles.verdictKey}>{info.key}</kbd>
+                  </span>
+                  {info.label}
+                </button>
+              );
+            })}
+          </div>
+
+          <div className={styles.fields}>
+            <label className={styles.field}>
+              <span className={styles.fieldLabel}>
                 {verdict === "FP-other" ? "What it was" : "Species"} <Kbd>S</Kbd>
               </span>
               <input
@@ -368,8 +426,8 @@ export function EventReview() {
                 list="species-options"
                 value={species}
                 onChange={(e) => setSpecies(e.target.value)}
-                placeholder="Scientific name, e.g. Carcharhinus amblyrhynchos"
-                className="w-full rounded-[3px] border border-rule bg-abyss/60 px-2.5 py-1.5 text-sm text-read placeholder:text-faint focus:border-signal/60 focus:outline-none"
+                placeholder="Scientific name, e.g. Triaenodon obesus"
+                className={styles.input}
               />
               <datalist id="species-options">
                 {speciesOptions?.map((s) => (
@@ -378,68 +436,52 @@ export function EventReview() {
               </datalist>
             </label>
 
-            <label className="block">
-              <span className="legend mb-1.5 block">Notes</span>
+            <label className={styles.field}>
+              <span className={styles.fieldLabel}>Notes</span>
               <textarea
                 value={notes}
                 onChange={(e) => setNotes(e.target.value)}
                 rows={3}
-                placeholder="Anything worth remembering about this sighting."
-                className="w-full resize-y rounded-[3px] border border-rule bg-abyss/60 px-2.5 py-1.5 text-sm text-read placeholder:text-faint focus:border-signal/60 focus:outline-none"
+                placeholder="Anything worth remembering about this sighting"
+                className={styles.input}
               />
             </label>
-
-            <ErrorNote error={saveReview.error} />
-            <ErrorNote error={clearReview.error} />
-
-            {event.review && (
-              <button
-                type="button"
-                onClick={() => clearReview.mutate()}
-                disabled={clearReview.isPending}
-                className="legend hover:text-reject"
-              >
-                {clearReview.isPending ? "Clearing…" : "Clear verdict"}
-              </button>
-            )}
           </div>
 
-          <div className="panel p-4">
-            <div className="legend mb-2">Shortcuts</div>
-            <dl className="space-y-1.5 text-xs text-faint">
-              {[
-                ["T", "Confirmed"],
-                ["F / O", "Nothing there · something else"],
-                ["U", "Unsure"],
-                ["← →", "Previous / next event"],
-                ["Space", "Play / pause"],
-                ["B", "Toggle detection box"],
-                ["S", "Jump to species"],
-                ["Enter", "Save from species field"],
-              ].map(([k, description]) => (
-                <div key={k} className="flex items-center justify-between gap-3">
+          <ErrorNote error={saveReview.error} />
+          <ErrorNote error={clearReview.error} />
+
+          <p className={styles.hint}>
+            A verdict saves and moves to the next event that isn't reviewed yet.
+          </p>
+
+          {event.review && (
+            <Button
+              size="sm"
+              variant="danger"
+              className={styles.clear}
+              onClick={() => clearReview.mutate()}
+              disabled={clearReview.isPending}
+            >
+              {clearReview.isPending ? "Clearing…" : "Clear verdict"}
+            </Button>
+          )}
+
+          <details className={styles.shortcuts}>
+            <summary>Keyboard shortcuts</summary>
+            <dl>
+              {SHORTCUTS.map(([k, description]) => (
+                <div key={k}>
                   <dt>
                     <Kbd>{k}</Kbd>
                   </dt>
-                  <dd className="text-right">{description}</dd>
+                  <dd>{description}</dd>
                 </div>
               ))}
             </dl>
-            <p className="mt-3 border-t border-rule pt-3 text-xs text-faint">
-              A verdict jumps to the next unreviewed event, so you can work
-              through a run without touching the mouse.
-            </p>
-          </div>
+          </details>
         </aside>
       </div>
     </div>
-  );
-}
-
-function Kbd({ children }: { children: React.ReactNode }) {
-  return (
-    <kbd className="rounded-[3px] border border-rule-hi bg-abyss px-1.5 py-0.5 font-mono text-[10px] text-dim">
-      {children}
-    </kbd>
   );
 }

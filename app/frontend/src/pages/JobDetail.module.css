@@ -1,0 +1,203 @@
+@layer components {
+  .page {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-6);
+  }
+
+  .link {
+    padding: 6px 10px;
+    border-radius: var(--corner-button);
+    color: var(--accent);
+    font-weight: 500;
+    text-decoration: none;
+    transition: background-color var(--dur-press) var(--ease-settle);
+
+    &:hover {
+      background: var(--fill);
+    }
+  }
+  .path {
+    font-family: var(--face-mono);
+    font-size: var(--type-caption);
+  }
+  .inlineLink {
+    color: var(--accent);
+  }
+  .num {
+    color: var(--secondary);
+    font-family: var(--face-mono);
+    font-size: var(--type-caption);
+    font-variant-numeric: tabular-nums;
+  }
+
+  /* Progress */
+  .progress {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: var(--space-4) var(--space-8);
+  }
+  .progressBar {
+    flex: 1;
+    min-width: 12rem;
+  }
+  .progressLabel {
+    margin-bottom: var(--space-2);
+    font-weight: 600;
+  }
+  .bar {
+    display: flex;
+    height: 6px;
+    overflow: hidden;
+    border-radius: 999px;
+    background: var(--fill-2);
+
+    & i {
+      transition: width var(--dur-move) var(--ease-settle);
+    }
+  }
+  .stats {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-6);
+    margin: 0;
+  }
+  .stat {
+    & dt {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      color: var(--secondary);
+      font-size: var(--type-caption);
+    }
+    & dd {
+      margin: 2px 0 0;
+      font-family: var(--face-display);
+      font-size: var(--type-title3);
+      font-variant-numeric: tabular-nums;
+      font-weight: 600;
+    }
+  }
+  .statDot {
+    width: 7px;
+    height: 7px;
+    border-radius: 50%;
+  }
+
+  /* Filters */
+  .filters {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: var(--space-3);
+  }
+  .slider {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    margin-left: auto;
+    color: var(--secondary);
+
+    & input {
+      width: 140px;
+      accent-color: var(--accent);
+    }
+  }
+  .keeps {
+    font-size: var(--type-caption);
+  }
+  .lost {
+    color: var(--red);
+  }
+
+  /* Event grid */
+  .grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+    gap: var(--space-4);
+  }
+  .card {
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    border-radius: var(--corner-card);
+    background: var(--surface);
+    box-shadow: var(--lift-control);
+    color: var(--label);
+    text-decoration: none;
+    transition:
+      transform var(--dur-move) var(--ease-settle),
+      box-shadow var(--dur-move) var(--ease-settle);
+
+    &:hover {
+      transform: translateY(-2px);
+      box-shadow: var(--lift-card);
+    }
+  }
+  .thumb {
+    position: relative;
+    aspect-ratio: 16 / 9;
+    background: var(--stage);
+
+    & img {
+      display: block;
+      width: 100%;
+      height: 100%;
+      object-fit: fill;
+    }
+  }
+  .verdictTag {
+    position: absolute;
+    top: 8px;
+    left: 8px;
+  }
+  .timecode {
+    position: absolute;
+    right: 8px;
+    bottom: 8px;
+    padding: 1px 7px;
+    border-radius: 999px;
+    background: var(--overlay-glass);
+    -webkit-backdrop-filter: blur(12px);
+    backdrop-filter: blur(12px);
+    color: var(--on-accent);
+    font-family: var(--face-mono);
+    font-size: var(--type-caption);
+  }
+  .cardBody {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    padding: 10px 12px 12px;
+  }
+  .cardTitle {
+    overflow: hidden;
+    font-weight: 500;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .cardMeta {
+    display: flex;
+    justify-content: space-between;
+    gap: var(--space-2);
+    color: var(--secondary);
+    font-size: var(--type-caption);
+    font-variant-numeric: tabular-nums;
+  }
+  .species {
+    overflow: hidden;
+    color: var(--secondary);
+    font-size: var(--type-caption);
+    font-style: italic;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .pager {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: var(--space-3);
+  }
+}

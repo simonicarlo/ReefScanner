@@ -81,6 +81,16 @@
   --lift-primary: 0 1px 2px rgba(0, 0, 0, 0.12);
   --lift-field: inset 0 0 0 0.5px var(--sep), 0 1px 1px rgba(0, 0, 0, 0.03);
   --lift-toast: 0 10px 30px rgba(0, 0, 0, 0.16), inset 0 0 0 0.5px var(--sep);
+  --lift-media: 0 10px 30px rgba(0, 0, 0, 0.25);
+
+  /* Drawn over footage, so the same in both modes. Verdict marks use the
+     brighter dark-mode colours, which hold up on blue-green water. */
+  --mark-green: #30d158;
+  --mark-red: #ff453a;
+  --mark-orange: #ff9f0a;
+  --lift-overlay: 0 0 0 1px rgba(0, 0, 0, 0.18), 0 4px 18px rgba(0, 0, 0, 0.18);
+  --overlay-glass: rgba(30, 30, 32, 0.45);
+  --overlay-edge: inset 0 0 0 0.5px rgba(255, 255, 255, 0.25);
 }
 
 :root[data-mode="dark"] {

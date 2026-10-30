@@ -1,0 +1,48 @@
+@layer components {
+  .layer {
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+  }
+
+  .box {
+    position: absolute;
+    border: 2px solid;
+    border-radius: var(--corner-button);
+    /* A dark hairline and soft shadow keep it readable on bright water. */
+    box-shadow: var(--lift-overlay);
+    transition:
+      border-color var(--dur-color) var(--ease-settle),
+      left var(--dur-move) var(--ease-settle),
+      top var(--dur-move) var(--ease-settle),
+      width var(--dur-move) var(--ease-settle),
+      height var(--dur-move) var(--ease-settle);
+  }
+  .compact {
+    border-width: 1.5px;
+    border-radius: 5px;
+  }
+  .corrected {
+    border-style: dashed;
+  }
+
+  .pill {
+    position: absolute;
+    left: -2px;
+    bottom: calc(100% + 6px);
+    padding: 3px 9px;
+    border-radius: 999px;
+    background: var(--overlay-glass);
+    -webkit-backdrop-filter: blur(16px) saturate(180%);
+    backdrop-filter: blur(16px) saturate(180%);
+    box-shadow: var(--overlay-edge);
+    color: var(--on-accent);
+    font-size: var(--type-caption);
+    font-weight: 600;
+    white-space: nowrap;
+  }
+  .below {
+    top: calc(100% + 6px);
+    bottom: auto;
+  }
+}

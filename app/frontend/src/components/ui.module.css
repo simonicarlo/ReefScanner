@@ -206,6 +206,59 @@
     font-size: var(--type-caption);
   }
 
+  /* Panel */
+  .panel {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-4);
+    padding: var(--space-5);
+    border-radius: var(--corner-card);
+    background: var(--surface);
+    box-shadow: var(--lift-control);
+  }
+  .panelHead {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: var(--space-2) var(--space-4);
+  }
+  .panelTitle {
+    margin: 0;
+    font-family: var(--face-display);
+    font-size: var(--type-headline);
+    font-weight: 600;
+  }
+  .panelAside {
+    color: var(--secondary);
+    font-size: var(--type-caption);
+  }
+
+  /* Notice */
+  .notice {
+    --tone: var(--accent);
+    padding: var(--space-2) var(--space-3);
+    border-radius: var(--corner-group);
+    background: color-mix(in srgb, var(--tone) 12%, transparent);
+    box-shadow: inset 3px 0 0 var(--tone);
+    color: var(--label);
+    overflow-wrap: anywhere;
+  }
+
+  /* Key */
+  .kbd {
+    display: inline-block;
+    min-width: 18px;
+    padding: 1px 5px;
+    border-radius: 5px;
+    background: var(--fill);
+    color: var(--secondary);
+    font-family: var(--face-mono);
+    font-size: var(--type-caption);
+    line-height: 1.4;
+    text-align: center;
+  }
+
   /* Loading */
   .loading {
     padding: var(--space-8) var(--space-1);

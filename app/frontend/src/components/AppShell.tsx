@@ -75,9 +75,7 @@ export function AppShell({ children }: { children: ReactNode }) {
             <p className={styles.status}>Local · works offline</p>
           </aside>
 
-          <main className={styles.main}>
-            <div className={styles.page}>{children}</div>
-          </main>
+          <main className={styles.main}>{children}</main>
         </div>
       </ToastProvider>
     </BackdropContext>
