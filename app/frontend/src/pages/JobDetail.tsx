@@ -13,16 +13,16 @@ import {
 import type { EventFilters, Job, ReefEvent, Verdict } from "../lib/types";
 import { duration, percent, score, timecode } from "../lib/format";
 import { BboxOverlay } from "../components/BboxOverlay";
-import { Button, Empty, ErrorNote, Spinner, Tag, cx } from "../components/ui";
+import { Button, Empty, ErrorNote, Spinner, Tag, cx, type Tone } from "../components/ui";
 import { ThresholdPanel } from "../components/ThresholdPanel";
 
 const PAGE = 120;
 
-const VERDICT_TONE: Record<Verdict, "signal" | "reject" | "hedge"> = {
-  TP: "signal",
-  FP: "reject",
-  "FP-other": "reject",
-  unsure: "hedge",
+const VERDICT_TONE: Record<Verdict, Tone> = {
+  TP: "green",
+  FP: "red",
+  "FP-other": "red",
+  unsure: "orange",
 };
 
 /** Short tag text; "FP-other" is too long for a card corner. */

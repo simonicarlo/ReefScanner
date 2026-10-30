@@ -2,6 +2,7 @@ import { useState, type ReactNode } from "react";
 import { NavLink, useLocation } from "react-router-dom";
 import { BackdropContext } from "../lib/backdrop";
 import { Backdrop } from "./Backdrop";
+import { ToastProvider } from "./Toast";
 import styles from "./AppShell.module.css";
 
 const NAV = [
@@ -39,44 +40,46 @@ export function AppShell({ children }: { children: ReactNode }) {
 
   return (
     <BackdropContext value={setBackdrop}>
-      <div className={styles.shell}>
-        <Backdrop url={backdrop} />
+      <ToastProvider>
+        <div className={styles.shell}>
+          <Backdrop url={backdrop} />
 
-        <aside className={styles.sidebar}>
-          <NavLink to="/" className={styles.brand}>
-            <span className={styles.mark} aria-hidden="true">
-              <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round">
-                <path d="M2 9.5c1.5-1.6 3-1.6 4.5 0s3 1.6 4.5 0 2.2-1.4 3-.8" />
-                <path d="M2 6c1.5-1.6 3-1.6 4.5 0s3 1.6 4.5 0 2.2-1.4 3-.8" opacity="0.55" />
-              </svg>
-            </span>
-            ReefScanner
-          </NavLink>
+          <aside className={styles.sidebar}>
+            <NavLink to="/" className={styles.brand}>
+              <span className={styles.mark} aria-hidden="true">
+                <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round">
+                  <path d="M2 9.5c1.5-1.6 3-1.6 4.5 0s3 1.6 4.5 0 2.2-1.4 3-.8" />
+                  <path d="M2 6c1.5-1.6 3-1.6 4.5 0s3 1.6 4.5 0 2.2-1.4 3-.8" opacity="0.55" />
+                </svg>
+              </span>
+              ReefScanner
+            </NavLink>
 
-          <nav className={styles.nav} aria-label="App">
-            {NAV.map((item) => (
-              <NavLink
-                key={item.to}
-                to={item.to}
-                className={({ isActive }) =>
-                  isActive && !(item.to === "/" && onSettings)
-                    ? `${styles.navItem} ${styles.active}`
-                    : styles.navItem
-                }
-              >
-                {item.icon}
-                {item.label}
-              </NavLink>
-            ))}
-          </nav>
+            <nav className={styles.nav} aria-label="App">
+              {NAV.map((item) => (
+                <NavLink
+                  key={item.to}
+                  to={item.to}
+                  className={({ isActive }) =>
+                    isActive && !(item.to === "/" && onSettings)
+                      ? `${styles.navItem} ${styles.active}`
+                      : styles.navItem
+                  }
+                >
+                  {item.icon}
+                  {item.label}
+                </NavLink>
+              ))}
+            </nav>
 
-          <p className={styles.status}>Local · works offline</p>
-        </aside>
+            <p className={styles.status}>Local · works offline</p>
+          </aside>
 
-        <main className={styles.main}>
-          <div className={styles.page}>{children}</div>
-        </main>
-      </div>
+          <main className={styles.main}>
+            <div className={styles.page}>{children}</div>
+          </main>
+        </div>
+      </ToastProvider>
     </BackdropContext>
   );
 }

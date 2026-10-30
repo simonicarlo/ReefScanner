@@ -1,5 +1,6 @@
 import type { ReactNode, ButtonHTMLAttributes, InputHTMLAttributes } from "react";
 import { ApiError } from "../lib/api";
+import styles from "./ui.module.css";
 
 /** Tiny classname joiner. A dependency for this would be silly. */
 export function cx(...parts: (string | false | null | undefined)[]): string {
@@ -7,33 +8,17 @@ export function cx(...parts: (string | false | null | undefined)[]): string {
 }
 
 type ButtonProps = ButtonHTMLAttributes<HTMLButtonElement> & {
+  /** primary: the one main action. quiet: everything else. ghost: no chrome
+   * until hovered. danger: deletes or stops something. */
   variant?: "primary" | "ghost" | "danger" | "quiet";
   size?: "sm" | "md";
 };
 
-export function Button({
-  variant = "quiet",
-  size = "md",
-  className,
-  ...props
-}: ButtonProps) {
+export function Button({ variant = "quiet", size = "md", className, ...props }: ButtonProps) {
   return (
     <button
       {...props}
-      className={cx(
-        "inline-flex items-center justify-center gap-2 rounded-[3px] border font-medium",
-        "transition-colors duration-150 disabled:cursor-not-allowed disabled:opacity-40",
-        size === "sm" ? "px-2.5 py-1 text-xs" : "px-3.5 py-1.5 text-sm",
-        variant === "primary" &&
-          "border-signal/60 bg-signal/15 text-signal hover:bg-signal/25",
-        variant === "danger" &&
-          "border-reject/50 bg-reject/10 text-reject hover:bg-reject/20",
-        variant === "ghost" &&
-          "border-transparent text-dim hover:border-rule hover:text-read",
-        variant === "quiet" &&
-          "border-rule bg-panel-hi text-read hover:border-rule-hi hover:bg-rule/40",
-        className,
-      )}
+      className={cx(styles.button, styles[variant], size === "sm" && styles.small, className)}
     />
   );
 }
@@ -48,57 +33,39 @@ export function Field({
   children: ReactNode;
 }) {
   return (
-    <label className="block">
-      <span className="legend block mb-1.5">{label}</span>
+    <label className={styles.field}>
+      <span className={styles.fieldLabel}>{label}</span>
       {children}
-      {hint && <span className="mt-1 block text-xs text-faint">{hint}</span>}
+      {hint && <span className={styles.hint}>{hint}</span>}
     </label>
   );
 }
 
 export function Input({ className, ...props }: InputHTMLAttributes<HTMLInputElement>) {
-  return (
-    <input
-      {...props}
-      className={cx(
-        "w-full rounded-[3px] border border-rule bg-abyss/60 px-2.5 py-1.5",
-        "text-sm text-read placeholder:text-faint",
-        "focus:border-signal/60 focus:outline-none",
-        className,
-      )}
-    />
-  );
+  return <input {...props} className={cx(styles.input, className)} />;
 }
 
-/** Status pill. Colour is the whole message, so it stays sparing. */
+export type Tone = "neutral" | "accent" | "green" | "red" | "orange";
+
+/** A status: a coloured dot and a word. The colour is never the only signal. */
 export function Tag({
   tone = "neutral",
   children,
   className,
 }: {
-  tone?: "neutral" | "signal" | "reject" | "hedge" | "dim";
+  tone?: Tone;
   children: ReactNode;
   className?: string;
 }) {
   return (
-    <span
-      className={cx(
-        "inline-flex items-center gap-1.5 rounded-[3px] border px-1.5 py-0.5",
-        "font-mono text-[11px] uppercase tracking-wider",
-        tone === "signal" && "border-signal/40 bg-signal/10 text-signal",
-        tone === "reject" && "border-reject/40 bg-reject/10 text-reject",
-        tone === "hedge" && "border-hedge/40 bg-hedge/10 text-hedge",
-        tone === "dim" && "border-rule bg-hull text-faint",
-        tone === "neutral" && "border-rule-hi bg-panel-hi text-dim",
-        className,
-      )}
-    >
+    <span className={cx(styles.tag, styles[`tone-${tone}`], className)}>
+      <span className={styles.dot} aria-hidden="true" />
       {children}
     </span>
   );
 }
 
-/** A labelled number. The panel's basic unit of information. */
+/** A labelled value. Numbers line up, so they use tabular figures. */
 export function Readout({
   label,
   value,
@@ -106,36 +73,21 @@ export function Readout({
 }: {
   label: string;
   value: ReactNode;
-  tone?: "signal" | "dim";
+  tone?: "dim";
 }) {
   return (
-    <div>
-      <div className="legend">{label}</div>
-      <div
-        className={cx(
-          "tabular mt-0.5 text-sm",
-          tone === "signal" && "text-signal",
-          tone === "dim" && "text-faint",
-          !tone && "text-read",
-        )}
-      >
-        {value}
-      </div>
+    <div className={styles.readout}>
+      <div className={styles.readoutLabel}>{label}</div>
+      <div className={cx(styles.readoutValue, tone === "dim" && styles.dim)}>{value}</div>
     </div>
   );
 }
 
-export function Empty({
-  title,
-  children,
-}: {
-  title: string;
-  children?: ReactNode;
-}) {
+export function Empty({ title, children }: { title: string; children?: ReactNode }) {
   return (
-    <div className="panel flex flex-col items-center justify-center gap-2 px-6 py-16 text-center">
-      <div className="text-lg text-dim">{title}</div>
-      {children && <div className="max-w-md text-sm text-faint">{children}</div>}
+    <div className={styles.empty}>
+      <div className={styles.emptyTitle}>{title}</div>
+      {children && <div className={styles.emptyText}>{children}</div>}
     </div>
   );
 }
@@ -145,23 +97,30 @@ export function ErrorNote({ error }: { error: unknown }) {
   const message = error instanceof Error ? error.message : String(error);
   const problems = error instanceof ApiError ? error.problems : [];
   return (
-    <div className="rounded-[3px] border border-reject/40 bg-reject/10 px-3 py-2 text-sm text-reject">
-      {message}
-      {problems.length > 0 && (
-        <ul className="mt-1.5 list-disc space-y-0.5 pl-5 font-mono text-xs">
-          {problems.map((p, i) => (
-            <li key={i}>{p}</li>
-          ))}
-        </ul>
-      )}
+    <div className={styles.error} role="alert">
+      <svg className={styles.errorIcon} viewBox="0 0 16 16" aria-hidden="true">
+        <circle cx="8" cy="8" r="7" fill="currentColor" />
+        <path d="M8 4.5v4.2M8 11.2h.01" stroke="var(--on-accent)" strokeWidth="1.8" strokeLinecap="round" />
+      </svg>
+      <div className={styles.errorBody}>
+        {message}
+        {problems.length > 0 && (
+          <ul className={styles.problems}>
+            {problems.map((p, i) => (
+              <li key={i}>{p}</li>
+            ))}
+          </ul>
+        )}
+      </div>
     </div>
   );
 }
 
+/** Loading. Shows only after a moment, so quick local reads don't flash it,
+ * and stays still: nothing in the app animates on its own. */
 export function Spinner({ label = "Loading" }: { label?: string }) {
   return (
-    <div className="flex items-center gap-2 px-1 py-8 text-sm text-faint">
-      <span className="pulse-dot h-1.5 w-1.5 rounded-full bg-signal" />
+    <div className={styles.loading} role="status">
       {label}…
     </div>
   );

@@ -4,11 +4,11 @@ import { percent, shortDate } from "../lib/format";
 import { Button, Tag, cx } from "./ui";
 
 const TONE = {
-  running: "signal",
+  running: "accent",
   pending: "neutral",
-  done: "signal",
-  failed: "reject",
-  cancelled: "hedge",
+  done: "green",
+  failed: "red",
+  cancelled: "orange",
 } as const;
 
 export function JobRow({
@@ -47,7 +47,6 @@ export function JobRow({
         </Link>
 
         <Tag tone={TONE[job.status]}>
-          {live && <span className="pulse-dot h-1 w-1 rounded-full bg-current" />}
           {job.status}
         </Tag>
 

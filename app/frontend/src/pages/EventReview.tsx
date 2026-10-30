@@ -316,10 +316,10 @@ export function EventReview() {
             <Readout
               label="Confidence"
               value={score(event.confidence)}
-              tone={event.confidence === null ? "dim" : "signal"}
+              tone={event.confidence === null ? "dim" : undefined}
             />
             {event.detected_class && (
-              <Readout label="Class" value={event.detected_class} tone="signal" />
+              <Readout label="Class" value={event.detected_class} />
             )}
             {/* In the camera's timezone, never the viewer's. */}
             <Readout label="Wall clock" value={clockTime(event.start_time)} tone="dim" />

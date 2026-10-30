@@ -108,7 +108,7 @@ translucent, in light and dark ([design](features/2026-10-30-clear-water-design.
 - [x] Tokens, base styles, app shell with sidebar, ambient backdrop, and
       appearance settings (mode, translucency) in `AppSettings`; old pages
       follow light and dark through their Tailwind names
-- [ ] Primitives in `components/ui.tsx`, plus segmented control, switch, toast
+- [x] Primitives in `components/ui.tsx`, plus segmented control, switch, toast
 - [ ] Pages: event review, job, project, projects (cards with a cover
       frame and review counts, and the sidebar's "Waiting for review"),
       settings
