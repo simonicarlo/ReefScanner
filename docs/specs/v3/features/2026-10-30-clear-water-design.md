@@ -39,12 +39,16 @@ Colour tokens (CSS custom properties, set on `<html data-mode="…">`):
 | `--secondary` | `rgba(60,60,67,.62)` | `rgba(235,235,245,.62)` | secondary text |
 | `--tertiary` | `rgba(60,60,67,.32)` | `rgba(235,235,245,.30)` | placeholders, key hints |
 | `--sep` | `rgba(60,60,67,.14)` | `rgba(84,84,88,.55)` | hairlines |
-| `--fill` | `rgba(118,118,128,.12)` | `rgba(118,118,128,.24)` | grouped rows, hover |
-| `--fill-2` | `rgba(118,118,128,.20)` | `rgba(118,118,128,.34)` | tracks, selected rows |
+| `--fill` | accent at 8% | accent at 14% | grouped rows, hover, tracks |
+| `--fill-2` | accent at 15% | accent at 24% | selected rows, bars |
 | `--glass` | `rgba(250,250,252,.66)` | `rgba(36,36,38,.58)` | translucent panes |
 | `--glass-solid` | `#ececf0` | `#2a2a2c` | panes with translucency off |
 | `--stage` | `#ebebef` | `#0e0e10` | behind the footage |
 | `--accent` | `#0071e3` | `#0a84ff` | selection, focus, primary action |
+
+Fills and highlights take the accent's hue rather than neutral grey: on
+blue-green glass, grey reads as a smudge. The dark-mode segmented thumb is
+likewise mixed from the accent.
 
 No other colours appear in components. A literal hex outside the token file
 is a review finding.
@@ -146,10 +150,12 @@ Translucency is **on by default**. It is what makes the app feel like water.
   count and a thin progress bar split by verdict. Progress and cover come
   from the project's latest run with events (`latest_run` in the API), not
   a sum over runs: rescans of the same footage find the same animals again.
-- **Review:** three columns. The event list on the left, the frame with its
-  scrubber in the middle, and the inspector on the right (time, facts, the 2×2
-  verdict cards with keys, species, notes). The list collapses below about
-  1080 px, and the inspector drops under the frame below about 760 px.
+- **Review:** the footage with the run as a filmstrip under it (thumbnail,
+  time, score, verdict dot; the current event outlined and kept centred),
+  and the inspector on the right (time, facts, the 2×2 verdict cards with
+  keys, species, notes). The list sits under the footage rather than beside
+  it, so the footage keeps the width between sidebar and inspector. The
+  inspector drops under the footage when the content area is narrow.
 - Keyboard shortcuts are unchanged.
 
 ### 9. Appearance settings

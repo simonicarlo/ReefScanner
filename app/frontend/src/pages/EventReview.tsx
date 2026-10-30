@@ -144,9 +144,17 @@ export function EventReview() {
     [event, species, notes, saveReview, goTo, nextUnreviewed, next, siblings, toast],
   );
 
-  // Keep the current event in view in the list as the reviewer moves along.
+  // Keep the current event centred in the filmstrip as the reviewer moves
+  // along. Scrolls the strip itself: scrollIntoView would also nudge every
+  // clipping ancestor, shifting the whole window.
   useEffect(() => {
-    currentRowRef.current?.scrollIntoView({ block: "nearest" });
+    const chip = currentRowRef.current;
+    const strip = chip?.parentElement;
+    if (!chip || !strip) return;
+    strip.scrollTo({
+      left: chip.offsetLeft - (strip.clientWidth - chip.offsetWidth) / 2,
+      behavior: "smooth",
+    });
   }, [eid, siblings.length]);
 
   // Keyboard is the primary interface here: the mouse is for the odd correction,
@@ -249,7 +257,8 @@ export function EventReview() {
             {index >= 0 ? `Event ${index + 1} of ${siblings.length}` : eventLabel(event.id)}
           </h1>
           <span>
-            {project ? `${project.name} · ` : ""}Run #{jid}
+            {project ? `${project.name} · ` : ""}Run #{jid} · {reviewedCount} of{" "}
+            {siblings.length} reviewed
           </span>
         </div>
 
@@ -291,36 +300,6 @@ export function EventReview() {
       </header>
 
       <div className={styles.body}>
-        <nav className={styles.list} aria-label="Events in this run">
-          <div className={styles.listHead}>
-            {siblings.length} events · {reviewedCount} reviewed
-          </div>
-          {siblings.map((e) => {
-            const current = e.id === eid;
-            const v = e.review?.verdict;
-            return (
-              <Link
-                key={e.id}
-                ref={current ? currentRowRef : undefined}
-                to={`/jobs/${jid}/events/${encodeURIComponent(e.id)}`}
-                className={styles.row}
-                aria-current={current ? "page" : undefined}
-              >
-                <span
-                  className={cx(styles.dot, v && styles.judged)}
-                  style={v ? { background: VERDICT_INFO[v].color } : undefined}
-                  title={v ? VERDICT_INFO[v].label : "Not reviewed"}
-                />
-                <span className={styles.rowText}>
-                  <span className={styles.rowTime}>{timeOfDay(e.start_time)}</span>
-                  <span className={styles.rowSub}>{basename(e.source_video)}</span>
-                </span>
-                <span className={styles.rowScore}>{score(e.confidence)}</span>
-              </Link>
-            );
-          })}
-        </nav>
-
         <section className={styles.stage} aria-label="Footage">
           <div className={styles.fit}>
             <div
@@ -374,6 +353,39 @@ export function EventReview() {
               where the animal goes.
             </p>
           )}
+
+          {/* The run as a filmstrip, under the footage so the footage keeps the
+              width between the sidebar and the inspector. */}
+          <nav className={styles.strip} aria-label="Events in this run">
+            {siblings.map((e) => {
+              const current = e.id === eid;
+              const v = e.review?.verdict;
+              return (
+                <Link
+                  key={e.id}
+                  ref={current ? currentRowRef : undefined}
+                  to={`/jobs/${jid}/events/${encodeURIComponent(e.id)}`}
+                  className={styles.chip}
+                  aria-current={current ? "page" : undefined}
+                  title={`${basename(e.source_video)} at ${timecode(e.start_seconds)}`}
+                >
+                  <span className={styles.chipThumb}>
+                    <img src={e.frame_url} alt="" loading="lazy" />
+                    <span
+                      className={cx(styles.dot, v && styles.judged)}
+                      style={v ? { background: VERDICT_INFO[v].mark } : undefined}
+                      role="img"
+                      aria-label={v ? VERDICT_INFO[v].label : "Not reviewed"}
+                    />
+                  </span>
+                  <span className={styles.chipText}>
+                    <span>{timeOfDay(e.start_time)}</span>
+                    <span className={styles.chipScore}>{score(e.confidence)}</span>
+                  </span>
+                </Link>
+              );
+            })}
+          </nav>
         </section>
 
         <aside className={styles.inspector} aria-label="Verdict">

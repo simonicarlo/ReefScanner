@@ -1,7 +1,7 @@
 @layer components {
-  /* Edge to edge in the content area: a toolbar, then the event list, the
-     footage and the inspector side by side. Columns respond to the content
-     area's width (the sidebar takes part of the window). */
+  /* Edge to edge in the content area: a toolbar, then the footage with the
+     run's filmstrip under it, and the inspector beside them. Columns respond
+     to the content area's width (the sidebar takes part of the window). */
   .review {
     container: review / inline-size;
     display: grid;
@@ -97,89 +97,11 @@
     }
   }
 
-  /* Three columns */
+  /* Footage and inspector side by side */
   .body {
     display: grid;
-    grid-template-columns: 248px minmax(0, 1fr) 300px;
+    grid-template-columns: minmax(0, 1fr) 300px;
     min-height: 0;
-  }
-
-  /* Event list */
-  .list {
-    display: flex;
-    flex-direction: column;
-    gap: 2px;
-    min-height: 0;
-    overflow-y: auto;
-    padding: var(--space-2);
-    border-right: 0.5px solid var(--sep);
-    background: var(--glass-bg);
-    -webkit-backdrop-filter: var(--glass-filter);
-    backdrop-filter: var(--glass-filter);
-  }
-  .listHead {
-    margin: var(--space-1) var(--space-2) var(--space-2);
-    color: var(--secondary);
-    font-size: var(--type-caption);
-    font-weight: 600;
-  }
-  .row {
-    display: grid;
-    grid-template-columns: 8px minmax(0, 1fr) auto;
-    align-items: center;
-    gap: 10px;
-    padding: 7px 10px;
-    border-radius: var(--corner-button);
-    color: var(--label);
-    text-decoration: none;
-    transition: background-color var(--dur-press) var(--ease-settle);
-
-    &:hover {
-      background: var(--fill);
-    }
-    &[aria-current] {
-      background: var(--accent);
-      color: var(--on-accent);
-    }
-    &[aria-current] .rowSub,
-    &[aria-current] .rowScore {
-      color: color-mix(in srgb, var(--on-accent) 80%, transparent);
-    }
-    &[aria-current] .dot:not(.judged) {
-      box-shadow: inset 0 0 0 1.5px var(--on-accent);
-    }
-  }
-  .dot {
-    width: 8px;
-    height: 8px;
-    border-radius: 50%;
-    box-shadow: inset 0 0 0 1.5px var(--tertiary);
-  }
-  .judged {
-    box-shadow: none;
-  }
-  .rowText {
-    display: flex;
-    flex-direction: column;
-    min-width: 0;
-  }
-  .rowTime {
-    font-family: var(--face-mono);
-    font-variant-numeric: tabular-nums;
-    font-weight: 500;
-  }
-  .rowSub {
-    overflow: hidden;
-    color: var(--secondary);
-    font-size: var(--type-caption);
-    text-overflow: ellipsis;
-    white-space: nowrap;
-  }
-  .rowScore {
-    color: var(--secondary);
-    font-family: var(--face-mono);
-    font-size: var(--type-caption);
-    font-variant-numeric: tabular-nums;
   }
 
   /* Footage */
@@ -227,6 +149,84 @@
     color: var(--secondary);
     font-size: var(--type-caption);
     text-align: center;
+  }
+
+  /* Filmstrip */
+  .strip {
+    position: relative; /* the chips' offsetParent, for centring */
+    display: flex;
+    flex: none;
+    gap: var(--space-2);
+    margin: 0 calc(var(--space-5) * -1);
+    padding: var(--space-1) var(--space-5) var(--space-1);
+    overflow-x: auto;
+    scroll-padding-inline: var(--space-5);
+  }
+  .chip {
+    display: flex;
+    flex: none;
+    flex-direction: column;
+    gap: 4px;
+    width: 112px;
+    color: var(--label);
+    text-decoration: none;
+
+    &:hover .chipThumb {
+      opacity: 1;
+    }
+    &[aria-current] .chipThumb {
+      opacity: 1;
+      box-shadow:
+        0 0 0 2px var(--stage),
+        0 0 0 4px var(--accent);
+    }
+    &[aria-current] .chipText {
+      color: var(--accent);
+      font-weight: 600;
+    }
+  }
+  .chipThumb {
+    position: relative;
+    aspect-ratio: 16 / 9;
+    overflow: hidden;
+    margin: 4px;
+    border-radius: var(--corner-button);
+    background: var(--fill);
+    opacity: 0.8;
+    transition:
+      opacity var(--dur-press) var(--ease-settle),
+      box-shadow var(--dur-color) var(--ease-settle);
+
+    & img {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+    }
+    & .dot {
+      position: absolute;
+      top: 5px;
+      left: 5px;
+      box-shadow: inset 0 0 0 1.5px var(--knob), var(--lift-overlay);
+    }
+    & .judged {
+      box-shadow: 0 0 0 1.5px var(--knob), var(--lift-overlay);
+    }
+  }
+  .chipText {
+    display: flex;
+    justify-content: space-between;
+    padding: 0 4px;
+    font-family: var(--face-mono);
+    font-size: var(--type-caption);
+    font-variant-numeric: tabular-nums;
+  }
+  .chipScore {
+    color: var(--secondary);
+  }
+  .dot {
+    width: 9px;
+    height: 9px;
+    border-radius: 50%;
   }
 
   /* Inspector */
@@ -449,16 +449,7 @@
     }
   }
 
-  /* Narrower content area: the list goes first, then the inspector drops
-     below the footage. */
-  @container review (width < 1050px) {
-    .body {
-      grid-template-columns: minmax(0, 1fr) 300px;
-    }
-    .list {
-      display: none;
-    }
-  }
+  /* Narrow content area: the inspector drops below the footage. */
   @container review (width < 700px) {
     .body {
       grid-template-columns: minmax(0, 1fr);
