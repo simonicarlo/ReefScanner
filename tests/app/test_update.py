@@ -282,10 +282,18 @@ def test_restarting_is_refused_while_a_scan_runs() -> None:
     assert manager.applied is None and not window.destroyed
 
 
-def test_restarting_hands_over_to_velopack_and_closes_the_window() -> None:
+def test_restarting_closes_the_window_only_after_answering_the_page() -> None:
+    """Closing it inside the bridge call left pywebview waiting forever to hand
+    the answer back, and the process never exited: Velopack waited 60 s."""
     bridge, manager, window = _ready_bridge(busy=False)
     assert bridge.restart_to_update() == {"ok": True}
-    assert manager.applied is not None and window.destroyed
+    assert manager.applied is not None and bridge.restarting
+    assert not window.destroyed, "closed while the call was still running"
+
+    deadline = time.monotonic() + 5
+    while not window.destroyed:
+        assert time.monotonic() < deadline, "the window never closed"
+        time.sleep(0.01)
 
 
 def test_restarting_without_a_verified_update_does_nothing() -> None:

@@ -18,6 +18,7 @@ from __future__ import annotations
 
 import html
 import logging
+import os
 import socket
 import subprocess
 import sys
@@ -37,6 +38,9 @@ logger = logging.getLogger("reefscanner.desktop")
 
 #: How long to wait for the server before giving up and telling the user.
 STARTUP_TIMEOUT_S = 30.0
+#: After "Restart to update", time for the click's answer to reach the page
+#: before the window closes.
+_CLOSE_DELAY_S = 0.5
 
 
 def _free_port() -> int:
@@ -81,6 +85,8 @@ class Bridge:
         self._updater = updater or Updater(None)
         self._busy = busy
         self._db_path = db_path
+        #: Set once an update is handed to Velopack: run() must then exit.
+        self.restarting = False
 
     def attach(self, window) -> None:
         self._window = window
@@ -118,10 +124,16 @@ class Bridge:
             return {"ok": False, "reason": "scanning"}
         if not self._updater.apply_on_exit():
             return {"ok": False, "reason": "failed"}
+        self.restarting = True
         if self._window is not None:
-            # Closing the window ends webview.start(); run() then stops the
-            # server and the process exits, which Velopack is waiting for.
-            self._window.destroy()
+            # Not from inside this call: pywebview hands its result back to the
+            # page from a thread that waits for the page's answer, forever if
+            # the window is already gone, and the process could never exit.
+            # A moment later the answer is through; closing the window ends
+            # webview.start(), and run() exits for Velopack.
+            closer = threading.Timer(_CLOSE_DELAY_S, self._window.destroy)
+            closer.daemon = True
+            closer.start()
         return {"ok": True}
 
     def open_download_page(self) -> None:
@@ -217,7 +229,24 @@ def run(db_path: str | Path | None = None, debug: bool = False) -> int:
     # rather than leaving a daemon thread mid-write on someone's footage.
     server.should_exit = True
     thread.join(timeout=10)
+    if bridge.restarting:
+        _exit_for_update(app)
     return 0 if outcome["served"] else 1
+
+
+def _exit_for_update(app) -> None:
+    """End the process now, so Velopack can swap the app and reopen it.
+
+    Velopack waits for this process to exit (60 s at most, then it installs
+    anyway with the old app still running). A normal return could be held up
+    by any thread still alive, pywebview's included, so with the server
+    stopped and nothing scanning (restarting is refused then), the database
+    is closed, the log flushed, and the process ends.
+    """
+    logger.info("Exiting so the update can be installed")
+    app.state.db.dispose()
+    logging.shutdown()
+    os._exit(0)
 
 
 def _load_when_ready(window, url: str, outcome: dict, updater: Updater) -> None:
