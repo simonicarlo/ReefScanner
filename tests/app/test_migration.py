@@ -174,3 +174,31 @@ def test_database_is_backed_up_before_a_pending_migration(tmp_path, monkeypatch)
         assert conn.execute("SELECT version_num FROM alembic_version").fetchone()[0] == before
     finally:
         conn.close()
+
+
+def test_running_from_source_keeps_its_database_apart_from_the_installed_app(
+    tmp_path, monkeypatch
+) -> None:
+    """A development build may carry migrations no release has yet. Sharing
+    the installed app's database would migrate it past what that app knows,
+    and the app would then refuse to start."""
+    import sys
+
+    from reefscanner.app.db import DB_PATH_ENV, default_db_path
+
+    monkeypatch.delenv(DB_PATH_ENV, raising=False)
+    monkeypatch.setenv("HOME", str(tmp_path))
+    monkeypatch.setenv("APPDATA", str(tmp_path))
+    monkeypatch.setenv("XDG_DATA_HOME", str(tmp_path))
+
+    monkeypatch.delattr(sys, "frozen", raising=False)
+    from_source = default_db_path()
+    monkeypatch.setattr(sys, "frozen", True, raising=False)
+    installed = default_db_path()
+
+    assert from_source.parent.name == "ReefScanner Dev"
+    assert installed.parent.name == "ReefScanner"
+    assert from_source.parent.parent == installed.parent.parent  # side by side
+
+    monkeypatch.setenv(DB_PATH_ENV, str(tmp_path / "chosen.db"))
+    assert default_db_path() == tmp_path / "chosen.db"  # an explicit path wins

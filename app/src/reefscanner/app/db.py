@@ -42,15 +42,27 @@ logger = logging.getLogger("reefscanner.app.db")
 DB_PATH_ENV = "REEFSCANNER_DB"
 
 
+#: The data folder's name: the installed app's, and the one used when running
+#: from source. They're kept apart so a development build, with migrations not
+#: yet released, never migrates the database the installed app depends on: an
+#: older app refuses a database at a revision it doesn't know.
+DATA_DIR_NAME = "ReefScanner"
+DEV_DATA_DIR_NAME = "ReefScanner Dev"
+
+
 def default_data_dir() -> Path:
-    """Per-user application data directory, following each OS's convention."""
+    """Per-user application data directory, following each OS's convention.
+
+    The packaged app (PyInstaller sets ``sys.frozen``) uses ``ReefScanner``;
+    running from source uses ``ReefScanner Dev`` next to it.
+    """
     if sys.platform == "darwin":
         base = Path.home() / "Library" / "Application Support"
     elif os.name == "nt":
         base = Path(os.environ.get("APPDATA", Path.home() / "AppData" / "Roaming"))
     else:
         base = Path(os.environ.get("XDG_DATA_HOME", Path.home() / ".local" / "share"))
-    return base / "ReefScanner"
+    return base / (DATA_DIR_NAME if getattr(sys, "frozen", False) else DEV_DATA_DIR_NAME)
 
 
 def default_db_path() -> Path:
