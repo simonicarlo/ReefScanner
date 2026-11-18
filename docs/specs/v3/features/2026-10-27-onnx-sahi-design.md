@@ -16,7 +16,7 @@ board backends to come.
 
 ### 2. Same algorithm as `sahi`, so `sahi` can be the reference
 
-It mirrors `sahi.predict.get_sliced_prediction` (0.12) with its defaults:
+It mirrors `sahi.predict.get_sliced_prediction` (0.14) with its defaults:
 
 - **Tiles**: `sahi`'s `get_slice_bboxes`. Tiles step by `size - int(overlap
   × size)`, and a tile that would run past the edge is moved back inside the
@@ -27,7 +27,8 @@ It mirrors `sahi.predict.get_sliced_prediction` (0.12) with its defaults:
   score; each kept box absorbs the lower-scored boxes whose intersection
   covers at least half of the smaller box (IoS ≥ 0.5). An absorbed box
   widens the kept one to the union of both, if the overlap with the grown box
-  is still above 0.5; the score is the higher of the two.
+  is still at least 0.5 (sahi 0.14 made this `>=`; 0.12 used `>`); the
+  score is the higher of the two.
 - **Low thresholds**: below a confidence of 0.1, `sahi` switches to plain NMS
   on IoU 0.5, since merging many weak boxes inflates them. We do the same.
 

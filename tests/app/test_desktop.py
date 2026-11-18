@@ -42,7 +42,7 @@ def fake_webview(monkeypatch: pytest.MonkeyPatch) -> dict:
             return calls["dialog"]
 
     module = types.ModuleType("webview")
-    module.FOLDER_DIALOG = "folder"
+    module.FileDialog = types.SimpleNamespace(FOLDER="folder")
 
     def create_window(title: str, url: str | None = None, **kwargs: object) -> FakeWindow:
         window = FakeWindow(title, url, **kwargs)

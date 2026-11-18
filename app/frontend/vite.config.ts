@@ -4,7 +4,7 @@ import path from "node:path";
 
 // The build lands inside the Python package so `pip install reefscanner-app`
 // ships the UI and the desktop shell has something to open offline.
-const PACKAGE_STATIC = path.resolve(__dirname, "../src/reefscanner/app/static");
+const PACKAGE_STATIC = path.resolve(import.meta.dirname, "../src/reefscanner/app/static");
 
 // Where `npm run dev` sends API traffic. The backend is `reefscanner serve`.
 const BACKEND = process.env.REEFSCANNER_API ?? "http://127.0.0.1:8000";
@@ -12,7 +12,7 @@ const BACKEND = process.env.REEFSCANNER_API ?? "http://127.0.0.1:8000";
 export default defineConfig({
   plugins: [react()],
   resolve: {
-    alias: { "@": path.resolve(__dirname, "src") },
+    alias: { "@": path.resolve(import.meta.dirname, "src") },
   },
   build: {
     outDir: PACKAGE_STATIC,
