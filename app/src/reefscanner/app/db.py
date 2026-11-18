@@ -20,6 +20,7 @@ from __future__ import annotations
 
 import logging
 import os
+import sqlite3
 import sys
 from collections.abc import Iterator
 from contextlib import contextmanager
@@ -29,6 +30,7 @@ from typing import Any
 from alembic import command
 from alembic.autogenerate import compare_metadata
 from alembic.migration import MigrationContext
+from alembic.script import ScriptDirectory
 from sqlalchemy import event as sa_event
 from sqlmodel import Session, SQLModel, create_engine
 
@@ -112,6 +114,7 @@ class Database:
         Raises ``SchemaMismatch`` if the tables still differ from the models.
         """
         cfg = alembic_config()
+        self._back_up_if_migrating(cfg)
         with self.engine.begin() as conn:
             cfg.attributes["connection"] = conn
             command.upgrade(cfg, "head")
@@ -119,6 +122,40 @@ class Database:
         if differences:
             raise SchemaMismatch(self.path, differences)
         logger.info("Database at %s is up to date", self.path)
+
+    def _back_up_if_migrating(self, cfg) -> Path | None:
+        """Copy an existing database before migrations change it.
+
+        An update that changes the schema migrates someone's only copy of their
+        reviews, so a migration that goes wrong must have something to go back
+        to. The copy, ``<name>.bak-<revision>``, is taken with SQLite's backup
+        API, which includes pages still in the WAL. A fresh database, or one
+        already at head, isn't copied.
+        """
+        if str(self.path) == ":memory:" or not self.path.exists():
+            return None
+        with self.engine.connect() as conn:
+            current = MigrationContext.configure(conn).get_current_revision()
+        if current is None:
+            return None
+        head = ScriptDirectory.from_config(cfg).get_current_head()
+        if current == head:
+            return None
+
+        backup = self.path.with_name(f"{self.path.name}.bak-{current}")
+        tmp = backup.with_name(backup.name + ".partial")
+        src = sqlite3.connect(self.path)
+        try:
+            dst = sqlite3.connect(tmp)
+            try:
+                src.backup(dst)
+            finally:
+                dst.close()
+        finally:
+            src.close()
+        tmp.replace(backup)
+        logger.info("Backed up %s to %s before migrating to %s", self.path, backup, head)
+        return backup
 
     @contextmanager
     def session(self) -> Iterator[Session]:

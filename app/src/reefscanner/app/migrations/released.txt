@@ -1,0 +1,4 @@
+# Released migrations, locked: SHA-256 and path, as `shasum -a 256` prints them.
+# app/scripts/set_version.sh adds every new migration when a release is cut, and
+# tests/app/test_migration.py fails if a listed file changes or disappears.
+# Never edit a locked migration; write a new revision instead.

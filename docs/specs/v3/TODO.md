@@ -114,6 +114,20 @@ translucent, in light and dark ([design](features/2026-10-30-clear-water-design.
       sidebar's "Waiting for review"), settings
 - [x] Remove Tailwind and `@fontsource`; rewrite the frontend styling rules
 
+## Distribution
+
+The field app goes to outside testers as a signed, notarized download from
+GitHub Releases ([design](features/2026-11-18-distribution-design.md)).
+
+- [x] Release workflow: a `v*` tag builds, signs and notarizes the Mac app and
+      publishes the DMG and app zip; manual runs keep the build as an artifact
+- [x] Migrations squashed into `0001_initial_db`; released ones locked by
+      checksum; the database is backed up before pending migrations run
+- [ ] First signed release reaches the tester
+- [ ] Self-update on the Mac: check GitHub, verify the Team ID, swap and relaunch
+- [ ] Windows build in the same workflow
+- [ ] Linux build
+
 ## Phase 1 · Bench prototype
 
 Gate: 30 fps detection capacity sustained on the chosen board.

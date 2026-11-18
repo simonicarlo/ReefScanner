@@ -94,3 +94,83 @@ def test_a_database_that_differs_from_the_models_stops_the_app(tmp_path) -> None
     with pytest.raises(SchemaMismatch, match="stale.db") as exc:
         create_app(db_path=path)
     assert "label" in str(exc.value)
+
+
+def test_released_migrations_are_unchanged() -> None:
+    """A released migration has already run on someone's database, so editing
+    it would leave theirs different from a fresh one. Change the schema with a
+    new revision instead. set_version.sh locks new ones at each release."""
+    import hashlib
+
+    from reefscanner.app.migrations import SCRIPT_LOCATION
+
+    lock = SCRIPT_LOCATION / "released.txt"
+    for line in lock.read_text().splitlines():
+        if not line.strip() or line.startswith("#"):
+            continue
+        digest, rel = line.split(maxsplit=1)
+        path = SCRIPT_LOCATION / rel
+        assert path.exists(), f"released migration {rel} was removed"
+        actual = hashlib.sha256(path.read_bytes()).hexdigest()
+        assert actual == digest, f"released migration {rel} was edited"
+
+
+def _backups(tmp_path) -> list[str]:
+    return sorted(p.name for p in tmp_path.iterdir() if ".bak-" in p.name)
+
+
+def test_fresh_and_up_to_date_databases_are_not_backed_up(tmp_path) -> None:
+    db = Database(tmp_path / "x.db")
+    db.migrate()
+    db.migrate()
+    db.dispose()
+    assert _backups(tmp_path) == []
+
+
+def test_database_is_backed_up_before_a_pending_migration(tmp_path, monkeypatch) -> None:
+    """An update migrates someone's only copy of their reviews; keep the old one."""
+    import shutil
+
+    from reefscanner.app import db as db_module
+    from reefscanner.app.migrations import SCRIPT_LOCATION
+
+    path = tmp_path / "x.db"
+    db = Database(path)
+    db.migrate()
+    with db.session() as session:
+        session.connection().exec_driver_sql(
+            "INSERT INTO appsettings (id, name, appearance_mode, translucency) "
+            "VALUES (1, 'Reef A', 'system', 1)"
+        )
+        session.commit()
+    db.dispose()
+    before = _revision(path)
+
+    # The same scripts plus one new, empty revision on top.
+    scripts = tmp_path / "scripts"
+    shutil.copytree(SCRIPT_LOCATION, scripts, ignore=shutil.ignore_patterns("__pycache__"))
+    (scripts / "versions" / "9999_next.py").write_text(
+        f"revision = '9999'\ndown_revision = {before!r}\n"
+        "branch_labels = None\ndepends_on = None\n"
+        "def upgrade():\n    pass\n"
+        "def downgrade():\n    pass\n"
+    )
+
+    def config():
+        cfg = alembic_config()
+        cfg.set_main_option("script_location", str(scripts))
+        return cfg
+
+    monkeypatch.setattr(db_module, "alembic_config", config)
+    db = Database(path)
+    db.migrate()
+    db.dispose()
+
+    assert _revision(path) == "9999"
+    assert _backups(tmp_path) == [f"x.db.bak-{before}"]
+    conn = sqlite3.connect(tmp_path / f"x.db.bak-{before}")
+    try:
+        assert conn.execute("SELECT name FROM appsettings").fetchall() == [("Reef A",)]
+        assert conn.execute("SELECT version_num FROM alembic_version").fetchone()[0] == before
+    finally:
+        conn.close()

@@ -30,5 +30,9 @@ never import from `app` or `edge`.
 - Database schema changes need an Alembic migration: from `app/`, run
   `uv run alembic revision --autogenerate -m "..."` and review the file.
   `tests/app/test_migration.py` fails if models and migrations disagree.
+  Released migrations are locked in `migrations/released.txt`: never edit
+  one, write a new revision.
+- Releases: `app/scripts/set_version.sh X.Y.Z`, commit, then push a `vX.Y.Z`
+  tag; `.github/workflows/release.yml` builds, signs and notarizes the app.
 - Camtrap DP tables live in `core/src/reefscanner/core/camtrap/`, with field
   names exactly as in the standard (camelCase).
