@@ -202,7 +202,13 @@ def test_unpacking_refuses_a_name_that_appears_twice(tmp_path) -> None:
     {"lib/app/Contents/x": "a", "LIB/APP/Contents/y": "b"},
     # Windows-style separators.
     {"lib\\app\\Contents\\x": "a"},
-], ids=["unicode-forms", "case-of-prefix", "backslashes"])
+    # Names outside lib/app/ as written, inside it once tidied up.
+    {"./lib/app/Contents/x": "a"},
+    {"lib//app/Contents/x": "a"},
+    {"other/../lib/app/Contents/x": "a"},
+    {"/lib/app/Contents/x": "a"},
+], ids=["unicode-forms", "case-of-prefix", "backslashes", "dot", "double-slash",
+        "dot-dot", "absolute"])
 def test_unpacking_refuses_names_the_installer_might_read_differently(tmp_path, entries) -> None:
     package = _package(tmp_path / "p.nupkg", entries)
     with pytest.raises(UpdateError):

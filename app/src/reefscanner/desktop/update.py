@@ -105,7 +105,9 @@ def unpack_app(package: Path, dest: Path) -> Path:
     with zipfile.ZipFile(package) as archive:
         for entry in archive.infolist():
             name = entry.filename
-            if "\\" in name:
+            # Every entry, not only the app's: a name like "./lib/app/x" is
+            # skipped here but could be read as part of the app by Velopack.
+            if not _is_plain(name.removesuffix("/")):
                 raise UpdateError(f"The update contains an unusual path: {name}")
             # Compared as the Mac's file system would: case and Unicode form
             # don't matter, and a link counts as the file it becomes.
@@ -120,8 +122,6 @@ def unpack_app(package: Path, dest: Path) -> Path:
             if entry.is_dir():
                 continue
             relative = name[len(_APP_PREFIX):]
-            if not _is_plain(relative):
-                raise UpdateError(f"The update contains an unusual path: {name}")
             path = relative.removesuffix(_SYMLINK_SUFFIX)
 
             target = root / path
@@ -156,7 +156,8 @@ def _fold(name: str) -> str:
 
 
 def _is_plain(relative: str) -> bool:
-    """A relative path with no empty, "." or ".." parts and no backslashes."""
+    """A relative path with no empty, "." or ".." parts and no backslashes
+    (so not starting with "/" either)."""
     parts = relative.split("/")
     return "\\" not in relative and all(part not in ("", ".", "..") for part in parts)
 
