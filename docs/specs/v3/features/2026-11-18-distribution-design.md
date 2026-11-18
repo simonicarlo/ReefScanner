@@ -80,15 +80,11 @@ the installed app's `ReefScanner` (the packaged app is told apart by
 would migrate the installed app's database past what that app knows, and it
 would refuse to start.
 
-### 5. Self-update (next step, Mac first)
+### 5. Self-update
 
-On launch the app asks the GitHub API for the latest release. If it is newer,
-the UI offers to update: download `ReefScanner-macOS.zip`, unpack it to a temp
-folder, accept it only if `codesign` says it is signed by our Team ID, then on
-restart a helper swaps the bundles (old one to the Trash) and reopens the app.
-If anything fails, or `/Applications` isn't writable, it falls back to a
-download link. Sparkle (Objective-C) and tufup (its own signed metadata repo)
-are more machinery than this needs.
+Replaced by Velopack: see [self-update](2026-11-18-self-update-design.md).
+The first plan (check GitHub, verify the Team ID, swap with a helper of our
+own) survives only as the Team ID check before applying.
 
 ### 6. App icon
 

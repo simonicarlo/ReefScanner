@@ -127,7 +127,9 @@ GitHub Releases ([design](features/2026-11-18-distribution-design.md)).
 - [x] Every dependency on its newest stable release; the build installs from
       `uv.lock`; Node 26 LTS
 - [ ] First release, 1.0.0, reaches the tester
-- [ ] Self-update on the Mac: check GitHub, verify the Team ID, swap and relaunch
+- [x] Velopack trial: signing, notarization, full and delta updates, tamper
+      and unsigned-package tests ([design](features/2026-11-18-self-update-design.md))
+- [ ] Self-update on the Mac with Velopack: banner, Team ID check, restart
 - [ ] Windows build in the same workflow
 - [ ] Linux build
 
