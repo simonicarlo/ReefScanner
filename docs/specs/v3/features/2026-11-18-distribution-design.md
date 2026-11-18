@@ -81,7 +81,18 @@ If anything fails, or `/Applications` isn't writable, it falls back to a
 download link. Sparkle (Objective-C) and tufup (its own signed metadata repo)
 are more machinery than this needs.
 
-### 6. Other platforms later
+### 6. App icon
+
+The sonar mark from the favicon, redrawn in Clear Water blues as an Icon
+Composer document (`app/packaging/icon/AppIcon.icon`): concept A ("Clear
+Water", a blue water gradient) is the default look and concept B ("Deep") the
+dark one; macOS 26 derives clear and tinted from the same glass layers. All
+three concepts are kept in `icon/concepts/`. `make_icon.sh` compiles it into
+`Assets.car` (macOS 26+) and a full-size `AppIcon.icns` (older macOS); both
+are committed, so CI doesn't depend on its Xcode. The favicon uses the same
+mark.
+
+### 7. Other platforms later
 
 PyInstaller can't cross-build, so Windows is another runner in the same
 workflow. The Mac-only bits to branch: the log folder, `target_arch` and the

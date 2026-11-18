@@ -1,0 +1,23 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 1024 1024"><defs>
+    <linearGradient id="water" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#3FA9FF"/><stop offset="0.55" stop-color="#0A6CDB"/><stop offset="1" stop-color="#06357A"/>
+    </linearGradient>
+    <linearGradient id="deep" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#14263A"/><stop offset="1" stop-color="#05090E"/>
+    </linearGradient>
+    <linearGradient id="light" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#FFFFFF"/><stop offset="1" stop-color="#DCEBFA"/>
+    </linearGradient>
+    <radialGradient id="glow" cx="0.5" cy="0.5" r="0.5">
+      <stop offset="0" stop-color="#FFFFFF" stop-opacity=".35"/><stop offset="1" stop-color="#FFFFFF" stop-opacity="0"/>
+    </radialGradient>
+    <g id="tile-shadow"><rect x="100" y="112" width="824" height="824" rx="185" fill="#000" opacity=".18"/></g>
+  </defs>
+    <use href="#tile-shadow"/>
+    <rect x="100" y="100" width="824" height="824" rx="185" fill="url(#water)"/>
+    <circle cx="512" cy="512" r="300" fill="url(#glow)"/>
+    <circle cx="512" cy="512" r="290" fill="none" stroke="#fff" stroke-opacity=".35" stroke-width="40"/>
+    <circle cx="512" cy="512" r="175" fill="none" stroke="#fff" stroke-opacity=".65" stroke-width="40"/>
+    <circle cx="512" cy="512" r="80" fill="#fff"/>
+    
+  </svg>

@@ -17,6 +17,8 @@ WEIGHTS = Path(os.environ["REEFSCANNER_BUNDLE_WEIGHTS"])
 # A Developer ID identity signs every binary with hardened runtime. Unset, the
 # app is ad-hoc signed and runs only where it was built (or after "Open Anyway").
 SIGN_IDENTITY = os.environ.get("REEFSCANNER_SIGN_IDENTITY") or None
+# Compiled from AppIcon.icon by packaging/icon/make_icon.sh (committed outputs).
+ICON_DIR = ROOT / "packaging" / "icon"
 ENTITLEMENTS = str(ROOT / "packaging" / "entitlements.plist") if SIGN_IDENTITY else None
 
 import imageio_ffmpeg  # noqa: E402  (resolved at build time, from the build venv)
@@ -35,6 +37,9 @@ datas = [
     *collect_data_files("webview"),
     # SharkTrack as ONNX, found by core/weights.py via sys._MEIPASS/weights.
     (str(WEIGHTS), "weights"),
+    # The layered app icon (default, dark, clear, tinted) for macOS 26+. Lands
+    # in Contents/Resources, where CFBundleIconName points macOS at it.
+    (str(ICON_DIR / "Assets.car"), "."),
 ]
 
 binaries = [
@@ -82,9 +87,12 @@ app = BUNDLE(
     name="ReefScanner.app",
     # Signs with the EXE's codesign_identity and entitlements.
     bundle_identifier="io.github.simonicarlo.reefscanner",
+    # The flat fallback for macOS 12-15; newer macOS uses Assets.car instead.
+    icon=str(ICON_DIR / "AppIcon.icns"),
     info_plist={
         "CFBundleName": "ReefScanner",
         "CFBundleDisplayName": "ReefScanner",
+        "CFBundleIconName": "AppIcon",
         "CFBundleShortVersionString": os.environ.get("REEFSCANNER_VERSION", "0.0.0"),
         "NSHighResolutionCapable": True,
         "LSMinimumSystemVersion": "12.0",
