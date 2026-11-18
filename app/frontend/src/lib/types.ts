@@ -204,3 +204,29 @@ export interface ThresholdAnalysis {
   recommendation: string;
   points: ThresholdPoint[];
 }
+
+/** Self-update, from the desktop shell (`desktop/update.py`, `State`). */
+export const UPDATE_STATES = [
+  "off",
+  "checking",
+  "none",
+  "available",
+  "downloading",
+  "verifying",
+  "ready",
+  "failed",
+] as const;
+export type UpdateState = (typeof UPDATE_STATES)[number];
+
+export interface UpdateStatus {
+  state: UpdateState;
+  /** The version on offer, once one is. */
+  version: string | null;
+  /** Download progress, 0–100. */
+  progress: number;
+}
+
+export interface RestartResult {
+  ok: boolean;
+  reason?: "scanning" | "failed";
+}

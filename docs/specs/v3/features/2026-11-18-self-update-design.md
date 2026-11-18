@@ -57,6 +57,12 @@ codesign --verify --deep --strict -R='anchor apple generic
   and certificate leaf[subject.OU] = "T5M8S8M8ZT"'
 ```
 
+Velopack would also, by default, install a downloaded package by itself at
+the next launch, without asking and without this check (seen when the
+packaged app first ran with a package left in the cache). The startup hook
+turns that off (`set_auto_apply_on_startup(False)`), and a package that fails
+the check is deleted at once.
+
 Against an attacker this adds little (whoever controls the GitHub account can
 also run the signing workflow), but it stops our own mistakes: a release
 accidentally built unsigned is refused instead of installed. Velopack stores
@@ -82,6 +88,9 @@ signed; until then, and on Linux, the hash is all there is.
   (`Bridge` in `desktop/main.py`), not through the HTTP API, so no other
   program on the machine can start an install. In a browser (`serve`) the
   banner never appears.
+- `GithubSource` takes no timeout, so a stalled connection leaves the check
+  (or a download) pending. Nothing is shown for a check; a stuck download
+  is left by quitting, and the next launch starts over.
 - The new version migrates the database with its usual backup
   (`reefscanner.db.bak-<revision>`). Updates only go forward; going back
   means installing an older DMG and restoring that backup by hand.
@@ -135,8 +144,19 @@ into the app, and never marked Latest; a new model reaches testers with the
 next app update. The one rule: fewer than ten releases may come between two
 app releases, or the newest one drops out of what the updater sees.
 
-## Open point
+## Where it lives
 
-- How the cached package's path is found relies on Velopack's cache layout
-  (seen in the trial, not documented); a test against the real package
-  guards it.
+- `app/src/reefscanner/desktop/update.py`: `Updater` (the states above),
+  `unpack_app` and `verify_package`. Where Velopack keeps a download
+  (`~/Library/Caches/velopack/<app>/packages`) is its locator's default on
+  the Mac, read from its source; if the package isn't there the update fails
+  closed and offers the download page.
+- `desktop/main.py`: `Bridge.update_status`, `start_update`,
+  `restart_to_update`, `open_download_page`; the check starts once the app
+  has loaded. `JobRunner.any_running()` keeps a restart from cutting a scan.
+- `app/frontend/src/components/UpdateBanner.tsx`, at the foot of the sidebar.
+- `app/packaging/launcher.py`: `velopack.App().run()` before anything else.
+- `app/scripts/build_app.sh`: `vpk pack`, then the DMG from Velopack's app;
+  `VPK_PREVIOUS_FROM` fetches the last release for the delta.
+- `tests/app/test_update.py`, with Velopack faked; the real `codesign` check
+  was run by hand against the CI-built package and an unsigned one.

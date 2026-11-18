@@ -120,7 +120,8 @@ The field app goes to outside testers as a signed, notarized download from
 GitHub Releases ([design](features/2026-11-18-distribution-design.md)).
 
 - [x] Release workflow: a `v*` tag builds, signs and notarizes the Mac app and
-      publishes the DMG and app zip; manual runs keep the build as an artifact
+      publishes the DMG and Velopack's feed and packages; manual runs keep
+      the build as an artifact
 - [x] Migrations squashed into `0001_initial_db`; released ones locked by
       checksum; the database is backed up before pending migrations run
 - [x] Signed and notarized build checked end to end (scan on the downloaded app)
@@ -129,7 +130,8 @@ GitHub Releases ([design](features/2026-11-18-distribution-design.md)).
 - [ ] First release, 1.0.0, reaches the tester
 - [x] Velopack trial: signing, notarization, full and delta updates, tamper
       and unsigned-package tests ([design](features/2026-11-18-self-update-design.md))
-- [ ] Self-update on the Mac with Velopack: banner, Team ID check, restart
+- [x] Self-update on the Mac with Velopack: banner, Team ID check, restart
+- [ ] Self-update tried end to end with two release candidates from GitHub
 - [ ] Windows build in the same workflow
 - [ ] Linux build
 

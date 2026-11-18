@@ -1,20 +1,26 @@
 #!/usr/bin/env bash
 # Build app/dist/ReefScanner.dmg — the downloadable Mac app — and
-# app/dist/ReefScanner-macOS.zip, the bare .app the self-updater fetches.
+# app/dist/velopack/, the Velopack release the app updates itself from.
 #
 #   app/scripts/build_app.sh
 #
 # Builds from a clean uv-managed standalone Python, never the dev venv, so
 # nothing from the developer's machine (Anaconda, Homebrew) leaks into the app,
 # with package versions taken from uv.lock (the root's `build` group).
-# Needs: uv and node/npm. The app ships without torch; the detector is the
-# published SharkTrack ONNX export, downloaded and hash-checked.
+# Needs: uv, node/npm and Velopack's vpk (on PATH, or set VPK; it runs on
+# .NET, `brew install dotnet@10`). The app ships without torch; the detector
+# is the published SharkTrack ONNX export, downloaded and hash-checked.
 #
 # Signing and notarization happen only when these are set (CI sets them; see
 # docs/specs/v3/features/2026-11-18-distribution-design.md):
 #   REEFSCANNER_SIGN_IDENTITY   Developer ID Application identity (name or SHA-1)
 #   NOTARY_KEY_PATH, NOTARY_KEY_ID, NOTARY_ISSUER_ID   App Store Connect API key
+#   VPK_NOTARY_PROFILE, VPK_KEYCHAIN   the same key as a notarytool profile, for vpk
 # Without them the app is ad-hoc signed, as a local build always was.
+#
+# With VPK_PREVIOUS_FROM set to the repository's URL (CI sets it), the latest
+# published release is fetched first, so vpk can add a delta package to it.
+# See docs/specs/v3/features/2026-11-18-self-update-design.md.
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
@@ -65,20 +71,41 @@ REEFSCANNER_BUNDLE_WEIGHTS="$ROOT/$WEIGHTS" REEFSCANNER_VERSION="$VERSION" \
     packaging/reefscanner.spec
 codesign --verify --deep --strict dist/ReefScanner.app
 
-rm -f dist/ReefScanner-macOS.zip dist/ReefScanner.dmg
-if [ -n "$IDENTITY" ]; then
-  step "Notarize the app"
-  # Stapled to the app itself, so a first launch in the field works offline.
-  ditto -c -k --keepParent dist/ReefScanner.app build/notarize-app.zip
-  notarize build/notarize-app.zip
-  xcrun stapler staple dist/ReefScanner.app
+rm -rf dist/ReefScanner.dmg dist/velopack build/velopack-app
+VPK="${VPK:-vpk}"
+if [ -n "${VPK_PREVIOUS_FROM:-}" ]; then
+  step "Previous release (for the delta package)"
+  # Warns and carries on when there is none yet.
+  "$VPK" --skip-updates -x download github --repoUrl "$VPK_PREVIOUS_FROM" \
+    --channel osx --outputDir dist/velopack
 fi
-ditto -c -k --keepParent dist/ReefScanner.app dist/ReefScanner-macOS.zip
+
+step "Velopack release${IDENTITY:+ (signed${VPK_NOTARY_PROFILE:+, notarized})}"
+# Velopack adds its updater (Contents/MacOS/UpdateMac) to the bundle, so it
+# signs and notarizes the app itself. It insists on the .entitlements suffix.
+cp packaging/entitlements.plist build/reefscanner.entitlements
+vpk_sign=()
+if [ -n "$IDENTITY" ]; then
+  vpk_sign=(--signAppIdentity "$IDENTITY" --signEntitlements build/reefscanner.entitlements)
+fi
+"$VPK" --skip-updates -x pack --packId ReefScanner --packVersion "$VERSION" \
+  --packDir dist/ReefScanner.app --mainExe ReefScanner --packTitle ReefScanner \
+  --noInst --outputDir dist/velopack ${vpk_sign[@]+"${vpk_sign[@]}"}
+# Velopack's output reached by people (the DMG) must be the same app, updater
+# included, or an app installed from the DMG could never update itself.
+mkdir -p build/velopack-app
+ditto -x -k dist/velopack/ReefScanner-osx-Portable.zip build/velopack-app
+APP=build/velopack-app/ReefScanner.app
+if [ -z "$IDENTITY" ]; then
+  # Unsigned, vpk adds its updater without re-signing; seal it ad hoc again.
+  codesign --force --deep --sign - "$APP"
+fi
+codesign --verify --deep --strict "$APP"
 
 step "Disk image"
 # The window layout (app, Applications shortcut, arrow background) is in
 # packaging/dmg/settings.py; dmgbuild writes it without driving Finder.
-"$VENV/bin/dmgbuild" -s packaging/dmg/settings.py -D app=dist/ReefScanner.app \
+"$VENV/bin/dmgbuild" -s packaging/dmg/settings.py -D app="$APP" \
   -D background=packaging/dmg/background.tiff -D icon=packaging/icon/AppIcon.icns \
   "ReefScanner" dist/ReefScanner.dmg
 
@@ -88,8 +115,9 @@ if [ -n "$IDENTITY" ]; then
   notarize dist/ReefScanner.dmg
   xcrun stapler staple dist/ReefScanner.dmg
   spctl --assess --type open --context context:primary-signature -v dist/ReefScanner.dmg
-  spctl --assess --type execute -v dist/ReefScanner.app
+  spctl --assess --type execute -v "$APP"
+  xcrun stapler validate "$APP"
 fi
 
 step "Done ($VERSION)"
-du -sh dist/ReefScanner.app dist/ReefScanner-macOS.zip dist/ReefScanner.dmg
+du -sh "$APP" dist/ReefScanner.dmg dist/velopack/*

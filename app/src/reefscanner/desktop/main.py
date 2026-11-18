@@ -6,9 +6,10 @@ loads before the server is listening shows a connection error and does not
 retry, so a race here looks to the user like a broken app.
 
 The window is just a browser pointed at localhost, so everything the UI does
-here it also does in ``reefscanner serve`` + a browser tab. The one thing the
-shell adds is a native folder picker, exposed to JavaScript as
-``window.pywebview.api.pick_folder()``.
+here it also does in ``reefscanner serve`` + a browser tab. What the shell
+adds is reachable from JavaScript as ``window.pywebview.api.*``: a native
+folder picker, and self-update (``update.py``). Updating goes through here
+rather than the HTTP API, so no other program on the machine can start one.
 """
 
 from __future__ import annotations
@@ -21,7 +22,12 @@ import threading
 import time
 import urllib.error
 import urllib.request
+import webbrowser
+from collections.abc import Callable
 from pathlib import Path
+from typing import Any
+
+from .update import DOWNLOAD_URL, Updater
 
 logger = logging.getLogger("reefscanner.desktop")
 
@@ -61,8 +67,14 @@ class Bridge:
     plain browser tab where no bridge exists.
     """
 
-    def __init__(self) -> None:
+    def __init__(
+        self,
+        updater: Updater | None = None,
+        busy: Callable[[], bool] = lambda: False,
+    ) -> None:
         self._window = None
+        self._updater = updater or Updater(None)
+        self._busy = busy
 
     def attach(self, window) -> None:
         self._window = window
@@ -77,6 +89,34 @@ class Bridge:
         if not result:
             return None
         return str(result[0])
+
+    # -- self-update ------------------------------------------------------------
+    def update_status(self) -> dict[str, Any]:
+        """``{"state", "version", "progress"}``; see ``update.State``."""
+        return self._updater.status()
+
+    def start_update(self) -> bool:
+        """Download and verify the waiting update. False if there is none."""
+        return self._updater.start_download()
+
+    def restart_to_update(self) -> dict[str, Any]:
+        """Quit so Velopack can install the verified update and reopen the app.
+
+        Refused while a scan runs: quitting would cancel it halfway.
+        """
+        if self._busy():
+            return {"ok": False, "reason": "scanning"}
+        if not self._updater.apply_on_exit():
+            return {"ok": False, "reason": "failed"}
+        if self._window is not None:
+            # Closing the window ends webview.start(); run() then stops the
+            # server and the process exits, which Velopack is waiting for.
+            self._window.destroy()
+        return {"ok": True}
+
+    def open_download_page(self) -> None:
+        """Open the latest release in the browser, for a manual update."""
+        webbrowser.open(DOWNLOAD_URL)
 
 
 def run(db_path: str | Path | None = None, debug: bool = False) -> int:
@@ -130,7 +170,8 @@ def run(db_path: str | Path | None = None, debug: bool = False) -> int:
     thread = threading.Thread(target=server.run, name="reefscanner-server", daemon=True)
     thread.start()
 
-    bridge = Bridge()
+    updater = Updater.for_this_app()
+    bridge = Bridge(updater, busy=app.state.runner.any_running)
     # The window opens straight away on a "Starting…" page rather than once the
     # server answers. A packaged app's first launch can take a while (macOS
     # verifying a large unsigned bundle, then Python loading OpenCV and the web
@@ -151,7 +192,7 @@ def run(db_path: str | Path | None = None, debug: bool = False) -> int:
     outcome = {"served": False}
     # Blocks until the window closes. The callback runs on pywebview's worker
     # thread once the window exists, and swaps in the app when it is ready.
-    webview.start(_load_when_ready, (window, url, outcome), debug=debug)
+    webview.start(_load_when_ready, (window, url, outcome, updater), debug=debug)
 
     # Closing the window means quitting, so bring the server down with it
     # rather than leaving a daemon thread mid-write on someone's footage.
@@ -160,12 +201,16 @@ def run(db_path: str | Path | None = None, debug: bool = False) -> int:
     return 0 if outcome["served"] else 1
 
 
-def _load_when_ready(window, url: str, outcome: dict) -> None:
-    """Point the window at the app once the server answers, or explain why not."""
+def _load_when_ready(window, url: str, outcome: dict, updater: Updater) -> None:
+    """Point the window at the app once the server answers, or explain why not.
+
+    Only then is GitHub asked for an update, so the check never delays the app.
+    """
     if _wait_until_serving(url):
         logger.info("ReefScanner service ready on %s", url)
         outcome["served"] = True
         window.load_url(url)
+        updater.start_check()
     else:
         logger.error("ReefScanner service did not start on %s", url)
         window.load_html(FAILED_HTML)

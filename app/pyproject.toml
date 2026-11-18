@@ -20,7 +20,7 @@ dependencies = [
 
 [project.optional-dependencies]
 # The native window. Adds nothing the service needs — `serve` works without it.
-desktop = ["pywebview>=6.2,<7"]
+desktop = ["pywebview>=6.2,<7", "velopack>=1.2.161,<1.3"]
 
 [tool.uv.sources]
 reefscanner-core = { workspace = true }

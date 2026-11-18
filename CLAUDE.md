@@ -37,5 +37,7 @@ never import from `app` or `edge`.
   overrides both.
 - Releases: `app/scripts/set_version.sh X.Y.Z`, commit, then push a `vX.Y.Z`
   tag; `.github/workflows/release.yml` builds, signs and notarizes the app.
+  The app updates itself with Velopack (`desktop/update.py`); building it
+  needs `vpk` on .NET.
 - Camtrap DP tables live in `core/src/reefscanner/core/camtrap/`, with field
   names exactly as in the standard (camelCase).

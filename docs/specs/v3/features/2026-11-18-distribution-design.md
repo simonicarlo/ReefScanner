@@ -17,11 +17,11 @@ the same across versions, so one link always gives the newest build:
 
 `.github/workflows/release.yml` runs on a `v*` tag on a GitHub Apple Silicon
 runner: it builds with `build_app.sh`, signs, notarizes, and creates the
-release with two assets:
+release with:
 
 - `ReefScanner.dmg`, for people.
-- `ReefScanner-macOS.zip`, the stapled `.app` alone, for the self-updater
-  (decision 5).
+- Velopack's feed and packages, for the app's self-update (decision 5). Up
+  to 1.0.0 this was `ReefScanner-macOS.zip`, the stapled `.app` alone.
 
 The app's version starts at 1.0.0: "v3" names the spec generation, not
 something a tester sees. The tag must match the version in the code (`app/scripts/set_version.sh`
@@ -122,3 +122,9 @@ since pywebview needs GTK or Qt from the distribution.
 app/scripts/set_version.sh 1.0.1
 git commit -am "chore: release 1.0.1" && git tag v1.0.1 && git push --follow-tags
 ```
+
+A release candidate is `1.1.0-rc.1` (SemVer, for Velopack) and is published as
+a prerelease: invisible to testers' apps, which only follow stable releases.
+To try one, start the app with `REEFSCANNER_UPDATE_PRERELEASE=1`.
+Building locally needs Velopack's `vpk` (`dotnet tool install vpk --version
+1.2.161`, on `brew install dotnet@10`).

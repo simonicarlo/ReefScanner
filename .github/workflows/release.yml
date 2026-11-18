@@ -3,7 +3,8 @@
 # A `v*` tag (e.g. v1.0.1, matching app/scripts/set_version.sh) creates the
 # release. Running it by hand ("Run workflow") builds the same thing and only
 # keeps it as a workflow artifact, for trying a build before tagging.
-# See docs/specs/v3/features/2026-11-18-distribution-design.md.
+# See docs/specs/v3/features/2026-11-18-distribution-design.md and
+# 2026-11-18-self-update-design.md (the Velopack files the app updates from).
 name: Release
 
 on:
@@ -47,6 +48,17 @@ jobs:
           cache: npm
           cache-dependency-path: app/frontend/package-lock.json
 
+      - uses: actions/setup-dotnet@0f4a354dd5547a28c70b7853dbd95d5b67886e73  # v6.1.0
+        with:
+          dotnet-version: "10.0.x"
+
+      - name: Velopack CLI
+        # Pinned to the velopack Python package in uv.lock: vpk and the
+        # library must be the same version.
+        run: |
+          dotnet tool install vpk --version 1.2.161 --tool-path "$RUNNER_TEMP/vpk"
+          echo "VPK=$RUNNER_TEMP/vpk/vpk" >> "$GITHUB_ENV"
+
       - name: Signing keychain and notary key
         env:
           MACOS_CERT_P12: ${{ secrets.MACOS_CERT_P12 }}
@@ -82,14 +94,23 @@ jobs:
 
           key_path="$RUNNER_TEMP/notary_key.p8"
           printf '%s' "$NOTARY_KEY_P8" | base64 --decode > "$key_path"
+          # vpk notarizes through a notarytool profile; keep it in the
+          # throwaway keychain, so it goes when the keychain does.
+          xcrun notarytool store-credentials reefscanner-notary \
+            --key "$key_path" --key-id "$NOTARY_KEY_ID" --issuer "$NOTARY_ISSUER_ID" \
+            --keychain "$keychain"
           {
             echo "REEFSCANNER_SIGN_IDENTITY=$identity"
             echo "NOTARY_KEY_PATH=$key_path"
             echo "NOTARY_KEY_ID=$NOTARY_KEY_ID"
             echo "NOTARY_ISSUER_ID=$NOTARY_ISSUER_ID"
+            echo "VPK_NOTARY_PROFILE=reefscanner-notary"
+            echo "VPK_KEYCHAIN=$keychain"
           } >> "$GITHUB_ENV"
 
       - name: Build, sign and notarize
+        env:
+          VPK_PREVIOUS_FROM: https://github.com/${{ github.repository }}
         run: app/scripts/build_app.sh
 
       - name: Keep the build (manual runs)
@@ -99,7 +120,7 @@ jobs:
           name: ReefScanner-macOS
           path: |
             app/dist/ReefScanner.dmg
-            app/dist/ReefScanner-macOS.zip
+            app/dist/velopack/
           retention-days: 14
 
       - name: Publish the release
@@ -109,8 +130,15 @@ jobs:
         run: |
           prerelease=""
           case "$GITHUB_REF_NAME" in *a*|*b*|*rc*|*dev*) prerelease="--prerelease";; esac
-          gh release create "$GITHUB_REF_NAME" \
-            app/dist/ReefScanner.dmg app/dist/ReefScanner-macOS.zip \
+          # People get the DMG; the app reads the feed and this version's
+          # packages. The previous release's full package, fetched for the
+          # delta, and Velopack's portable zip stay out.
+          version="${GITHUB_REF_NAME#v}"
+          files=(app/dist/ReefScanner.dmg app/dist/velopack/releases.osx.json
+                 "app/dist/velopack/ReefScanner-$version-osx-full.nupkg")
+          delta="app/dist/velopack/ReefScanner-$version-osx-delta.nupkg"
+          [ -f "$delta" ] && files+=("$delta")
+          gh release create "$GITHUB_REF_NAME" "${files[@]}" \
             --title "ReefScanner ${GITHUB_REF_NAME#v}" --generate-notes $prerelease \
             $([ -z "$prerelease" ] && echo --latest)
 

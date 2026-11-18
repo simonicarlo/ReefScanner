@@ -4,9 +4,17 @@ import {
   useQueryClient,
   type QueryClient,
 } from "@tanstack/react-query";
-import { useEffect, useRef } from "react";
-import { api } from "./api";
-import type { Appearance, EventFilters, Job, JobProgress, PackageMetadata, Verdict } from "./types";
+import { useEffect, useRef, useState } from "react";
+import { api, desktopBridge, type DesktopBridge } from "./api";
+import type {
+  Appearance,
+  EventFilters,
+  Job,
+  JobProgress,
+  PackageMetadata,
+  UpdateState,
+  Verdict,
+} from "./types";
 
 export const keys = {
   projects: ["projects"] as const,
@@ -21,6 +29,7 @@ export const keys = {
   classes: (jobId: number) => ["classes", jobId] as const,
   species: (jobId: number) => ["species", jobId] as const,
   event: (id: string) => ["event", id] as const,
+  update: ["update"] as const,
 };
 
 /** The project list and every project page, e.g. after a verdict moves their progress. */
@@ -228,4 +237,54 @@ export function useJobProgressSocket(queryClient: QueryClient): void {
       socket?.close();
     };
   }, [queryClient]);
+}
+
+// -- self-update (desktop window only) ------------------------------------------
+
+/** The desktop bridge, or null in a browser tab (and until it is ready). */
+export function useDesktopBridge(): DesktopBridge | null {
+  const [bridge, setBridge] = useState<DesktopBridge | null>(null);
+  useEffect(() => {
+    let live = true;
+    desktopBridge().then((b) => live && setBridge(() => b));
+    return () => {
+      live = false;
+    };
+  }, []);
+  return bridge;
+}
+
+/** States the shell moves out of on its own, so they're watched closely. */
+const UPDATE_MOVING: UpdateState[] = ["checking", "downloading", "verifying"];
+
+/** Where the update stands. Cheap (a call into the shell, not the network),
+ * so it is polled: every second while something is happening, otherwise
+ * now and then, in case the check started after the page loaded. */
+export function useUpdateStatus(bridge: DesktopBridge | null) {
+  return useQuery({
+    queryKey: keys.update,
+    queryFn: () => bridge!.update_status(),
+    enabled: bridge !== null,
+    refetchInterval: (query) => {
+      const state = query.state.data?.state;
+      if (state === "off") return false;
+      return state && UPDATE_MOVING.includes(state) ? 1000 : 30_000;
+    },
+  });
+}
+
+export function useStartUpdate(bridge: DesktopBridge | null) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: () => bridge!.start_update(),
+    onSettled: () => qc.invalidateQueries({ queryKey: keys.update }),
+  });
+}
+
+export function useRestartToUpdate(bridge: DesktopBridge | null) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: () => bridge!.restart_to_update(),
+    onSettled: () => qc.invalidateQueries({ queryKey: keys.update }),
+  });
 }
