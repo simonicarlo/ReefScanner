@@ -127,11 +127,13 @@ GitHub Releases ([design](features/2026-11-18-distribution-design.md)).
 - [x] Signed and notarized build checked end to end (scan on the downloaded app)
 - [x] Every dependency on its newest stable release; the build installs from
       `uv.lock`; Node 26 LTS
-- [ ] First release, 1.0.0, reaches the tester
+- [ ] The tester installs 1.1.0, the first release that updates itself
 - [x] Velopack trial: signing, notarization, full and delta updates, tamper
       and unsigned-package tests ([design](features/2026-11-18-self-update-design.md))
 - [x] Self-update on the Mac with Velopack: banner, Team ID check, restart
-- [ ] Self-update tried end to end with two release candidates from GitHub
+- [x] Self-update tried end to end with release candidates from GitHub
+      (rc.1 → rc.4); the restart left the old app running until Velopack's
+      60 s timeout, fixed in 1.1.0
 - [x] Settings → About: version, update status with "Check now", and the
       data folder and log shown in Finder; the version in the sidebar footer
 - [x] `reef`, the developer commands (doctor, setup, run, test, build,
@@ -139,6 +141,20 @@ GitHub Releases ([design](features/2026-11-18-distribution-design.md)).
       ([design](features/2026-11-19-dev-tool-design.md))
 - [ ] Windows build in the same workflow
 - [ ] Linux build
+
+## CI
+
+Today only releases run in CI; tests run locally (`reef test`, and
+`reef release` before tagging).
+
+- [ ] Tests on every pull request and push to `main`: `reef test` on a Linux
+      runner (pytest, TypeScript check, lint), with the Python and npm caches
+- [ ] `main`'s ruleset requires that check to pass before merging
+- [ ] The release workflow refuses a tag that isn't on `main` (rc.3 was tagged
+      on a feature branch and built without the fixes on `main`)
+- [ ] Dependabot for the pinned actions, `uv.lock` and `package-lock.json`,
+      so updates arrive as pull requests the tests then check
+- [ ] Once Windows and Linux build: the tests on those runners too
 
 ## Phase 1 · Bench prototype
 
