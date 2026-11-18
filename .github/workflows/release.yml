@@ -1,6 +1,6 @@
 # Build, sign and notarize the Mac app, and publish it as a GitHub release.
 #
-# A `v*` tag (e.g. v3.0.1, matching app/scripts/set_version.sh) creates the
+# A `v*` tag (e.g. v1.0.1, matching app/scripts/set_version.sh) creates the
 # release. Running it by hand ("Run workflow") builds the same thing and only
 # keeps it as a workflow artifact, for trying a build before tagging.
 # See docs/specs/v3/features/2026-11-18-distribution-design.md.
@@ -111,7 +111,8 @@ jobs:
           case "$GITHUB_REF_NAME" in *a*|*b*|*rc*|*dev*) prerelease="--prerelease";; esac
           gh release create "$GITHUB_REF_NAME" \
             app/dist/ReefScanner.dmg app/dist/ReefScanner-macOS.zip \
-            --title "ReefScanner ${GITHUB_REF_NAME#v}" --generate-notes $prerelease
+            --title "ReefScanner ${GITHUB_REF_NAME#v}" --generate-notes $prerelease \
+            $([ -z "$prerelease" ] && echo --latest)
 
       - name: Remove the signing keychain
         if: always()
