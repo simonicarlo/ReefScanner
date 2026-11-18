@@ -123,7 +123,10 @@ GitHub Releases ([design](features/2026-11-18-distribution-design.md)).
       publishes the DMG and app zip; manual runs keep the build as an artifact
 - [x] Migrations squashed into `0001_initial_db`; released ones locked by
       checksum; the database is backed up before pending migrations run
-- [ ] First signed release reaches the tester
+- [x] Signed and notarized build checked end to end (scan on the downloaded app)
+- [x] Every dependency on its newest stable release; the build installs from
+      `uv.lock`; Node 26 LTS
+- [ ] First release, 1.0.0, reaches the tester
 - [ ] Self-update on the Mac: check GitHub, verify the Team ID, swap and relaunch
 - [ ] Windows build in the same workflow
 - [ ] Linux build

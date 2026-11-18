@@ -23,10 +23,13 @@ release with two assets:
 - `ReefScanner-macOS.zip`, the stapled `.app` alone, for the self-updater
   (decision 5).
 
-The tag must match the version in the code (`app/scripts/set_version.sh`
+The app's version starts at 1.0.0: "v3" names the spec generation, not
+something a tester sees. The tag must match the version in the code (`app/scripts/set_version.sh`
 updates all three places), so a release can't say one version and contain
 another. Running the workflow by hand builds the same thing but only keeps it
-as a workflow artifact, for trying a build before tagging.
+as a workflow artifact, for trying a build before tagging. App releases are
+always marked Latest (the stable link follows that mark); model releases such
+as `models-v1` must not be.
 
 The build downloads the published SharkTrack ONNX (hash-checked, as at
 runtime) instead of exporting it, so CI needs no torch.
@@ -114,6 +117,6 @@ since pywebview needs GTK or Qt from the distribution.
 ## Releasing
 
 ```sh
-app/scripts/set_version.sh 3.0.1
-git commit -am "chore: release 3.0.1" && git tag v3.0.1 && git push --follow-tags
+app/scripts/set_version.sh 1.0.1
+git commit -am "chore: release 1.0.1" && git tag v1.0.1 && git push --follow-tags
 ```
