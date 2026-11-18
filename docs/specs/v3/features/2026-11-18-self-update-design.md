@@ -19,7 +19,9 @@ per-OS part is only how a download is checked for our signature (decision 4).
 
 Its packaging tool, `vpk`, is a .NET program, so the build needs the .NET SDK
 (`actions/setup-dotnet` in CI, `brew install dotnet@10` locally). `vpk` and
-the Python package must be the same version; both are pinned (1.2.161).
+the Python package must be the same version: `uv.lock` decides it, CI
+installs `vpk` at the version found there, and `build_app.sh` refuses to
+build when the two differ (a local `vpk` left behind).
 
 ### 2. What a trial showed
 

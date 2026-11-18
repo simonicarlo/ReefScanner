@@ -55,6 +55,21 @@ step "Build environment (standalone Python, versions from uv.lock)"
 (cd "$ROOT/.." && UV_PROJECT_ENVIRONMENT="$ROOT/$VENV" \
   uv sync --frozen --managed-python --no-default-groups --group build)
 
+step "Velopack CLI matches the app's velopack"
+# vpk writes the release and the velopack package reads it inside the app;
+# Velopack requires the same version on both sides. uv.lock decides it, and
+# CI installs vpk from there; this catches a local vpk left behind.
+VPK="${VPK:-vpk}"
+vpk_version="$({ "$VPK" -x --skip-updates pack 2>&1 || true; } \
+  | sed -n 's/.*Velopack CLI \([^,]*\),.*/\1/p' | head -1)"
+lib_version="$("$PY" -c 'from importlib.metadata import version; print(version("velopack"))')"
+if [ "$vpk_version" != "$lib_version" ]; then
+  echo "error: vpk is ${vpk_version:-missing}, but uv.lock has velopack $lib_version." >&2
+  echo "       dotnet tool update -g vpk --version $lib_version" >&2
+  exit 1
+fi
+echo "vpk and velopack: $lib_version"
+
 step "Review UI"
 (cd frontend && npm ci && npm run build)
 
@@ -72,7 +87,6 @@ REEFSCANNER_BUNDLE_WEIGHTS="$ROOT/$WEIGHTS" REEFSCANNER_VERSION="$VERSION" \
 codesign --verify --deep --strict dist/ReefScanner.app
 
 rm -rf dist/ReefScanner.dmg dist/velopack build/velopack-app
-VPK="${VPK:-vpk}"
 if [ -n "${VPK_PREVIOUS_FROM:-}" ]; then
   step "Previous release (for the delta package)"
   # Warns and carries on when there is none yet.

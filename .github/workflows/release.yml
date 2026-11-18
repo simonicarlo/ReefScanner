@@ -53,10 +53,13 @@ jobs:
           dotnet-version: "10.0.x"
 
       - name: Velopack CLI
-        # Pinned to the velopack Python package in uv.lock: vpk and the
-        # library must be the same version.
+        # The same version as the velopack package in uv.lock, which the app
+        # runs with: Velopack needs both sides to match (build_app.sh checks).
         run: |
-          dotnet tool install vpk --version 1.2.161 --tool-path "$RUNNER_TEMP/vpk"
+          version="$(awk '/^name = "velopack"$/ { getline; print }' uv.lock \
+            | sed -n 's/^version = "\(.*\)"$/\1/p')"
+          if [ -z "$version" ]; then echo "::error::No velopack in uv.lock"; exit 1; fi
+          dotnet tool install vpk --version "$version" --tool-path "$RUNNER_TEMP/vpk"
           echo "VPK=$RUNNER_TEMP/vpk/vpk" >> "$GITHUB_ENV"
 
       - name: Signing keychain and notary key

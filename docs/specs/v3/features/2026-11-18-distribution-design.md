@@ -126,5 +126,6 @@ git commit -am "chore: release 1.0.1" && git tag v1.0.1 && git push --follow-tag
 A release candidate is `1.1.0-rc.1` (SemVer, for Velopack) and is published as
 a prerelease: invisible to testers' apps, which only follow stable releases.
 To try one, start the app with `REEFSCANNER_UPDATE_PRERELEASE=1`.
-Building locally needs Velopack's `vpk` (`dotnet tool install vpk --version
-1.2.161`, on `brew install dotnet@10`).
+Building locally needs Velopack's `vpk` at the `velopack` version in
+`uv.lock` (`dotnet tool install -g vpk --version <it>`, on `brew install
+dotnet@10`); the build stops if they differ.
