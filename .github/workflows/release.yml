@@ -111,9 +111,23 @@ jobs:
             echo "VPK_KEYCHAIN=$keychain"
           } >> "$GITHUB_ENV"
 
+      - name: Previous release (for the delta package)
+        # Logged in: anonymous GitHub API calls are counted per IP, and the
+        # shared Mac runners' IPs are often out of them (403, rate limit).
+        # The token goes to this step only, not to the build, which runs npm
+        # and PyInstaller. A delta is optional: without the previous release
+        # this one ships with its full package only.
+        env:
+          VPK_TOKEN: ${{ github.token }}
+        run: |
+          "$VPK" --skip-updates -x download github \
+            --repoUrl "https://github.com/$GITHUB_REPOSITORY" --channel osx \
+            --outputDir app/build/velopack-previous \
+            || echo "::warning::Couldn't fetch the previous release; no delta package this time."
+
       - name: Build, sign and notarize
         env:
-          VPK_PREVIOUS_FROM: https://github.com/${{ github.repository }}
+          VPK_PREVIOUS_DIR: build/velopack-previous
         run: app/scripts/build_app.sh
 
       - name: Keep the build (manual runs)
