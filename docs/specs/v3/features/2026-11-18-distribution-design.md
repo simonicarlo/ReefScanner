@@ -1,0 +1,93 @@
+# Distributing the field app
+
+The Mac build (`app/scripts/build_app.sh`) already makes a DMG, but only on
+this laptop, unsigned, and with no way to update. The first outside tester
+needs to download it, open it without Gatekeeper getting in the way, and get
+new versions without help.
+
+## Decisions
+
+### 1. GitHub Releases is the download page
+
+The repo is public, so releases are free and need no hosting. Asset names stay
+the same across versions, so one link always gives the newest build:
+`https://github.com/simonicarlo/ReefScanner/releases/latest/download/ReefScanner.dmg`.
+
+### 2. A tag builds the release
+
+`.github/workflows/release.yml` runs on a `v*` tag on a GitHub Apple Silicon
+runner: it builds with `build_app.sh`, signs, notarizes, and creates the
+release with two assets:
+
+- `ReefScanner.dmg`, for people.
+- `ReefScanner-macOS.zip`, the stapled `.app` alone, for the self-updater
+  (decision 5).
+
+The tag must match the version in the code (`app/scripts/set_version.sh`
+updates all three places), so a release can't say one version and contain
+another. Running the workflow by hand builds the same thing but only keeps it
+as a workflow artifact, for trying a build before tagging.
+
+The build downloads the published SharkTrack ONNX (hash-checked, as at
+runtime) instead of exporting it, so CI needs no torch.
+
+### 3. Developer ID signing and notarization
+
+PyInstaller signs every bundled binary and the bundle itself with hardened
+runtime when given `codesign_identity`; `packaging/entitlements.plist` holds
+the few exceptions Python needs. Notarization is Apple's automated scan
+(minutes, no human review). Both the app (via its zip) and the DMG are
+notarized and stapled, so the first launch works offline in the field.
+
+Without the signing environment variables the build stays ad-hoc signed, as
+before, so local builds need no certificate.
+
+Secrets (repository → Settings → Secrets → Actions):
+
+| Secret | What |
+| --- | --- |
+| `MACOS_CERT_P12` | Developer ID Application certificate + key, `.p12`, base64 |
+| `MACOS_CERT_PASSWORD` | Password set when exporting the `.p12` |
+| `NOTARY_KEY_P8` | App Store Connect API key, `.p8`, base64 |
+| `NOTARY_KEY_ID` | That key's ID |
+| `NOTARY_ISSUER_ID` | The issuer ID shown above the keys list |
+
+### 4. One initial migration, locked at each release, backed up before running
+
+With no users yet, the development migrations 0001-0004 are replaced by one,
+`0001_initial_db.py`, generated from the models. Development databases were
+restamped from `0004` to `0001` by hand (same tables).
+
+From the first release on, a migration that has shipped has run on someone's
+database and must never change. `set_version.sh` appends every new migration's
+SHA-256 to `migrations/released.txt`, and a test fails if a listed file is
+edited or removed. Schema changes are always a new revision.
+
+Once a tester has real data, a migration runs on their only copy. When
+migrations are pending on an existing database, `Database.migrate()` first
+copies it with SQLite's backup API (safe with WAL) to
+`reefscanner.db.bak-<revision>` next to it.
+
+### 5. Self-update (next step, Mac first)
+
+On launch the app asks the GitHub API for the latest release. If it is newer,
+the UI offers to update: download `ReefScanner-macOS.zip`, unpack it to a temp
+folder, accept it only if `codesign` says it is signed by our Team ID, then on
+restart a helper swaps the bundles (old one to the Trash) and reopens the app.
+If anything fails, or `/Applications` isn't writable, it falls back to a
+download link. Sparkle (Objective-C) and tufup (its own signed metadata repo)
+are more machinery than this needs.
+
+### 6. Other platforms later
+
+PyInstaller can't cross-build, so Windows is another runner in the same
+workflow. The Mac-only bits to branch: the log folder, `target_arch` and the
+Cocoa hidden import in the spec, `BUNDLE`, and the DMG step. Linux comes last,
+since pywebview needs GTK or Qt from the distribution.
+
+## Releasing
+
+```sh
+app/scripts/set_version.sh 3.0.1
+git commit -am "chore: release 3.0.1" && git tag v3.0.1 && git push --follow-tags
+```

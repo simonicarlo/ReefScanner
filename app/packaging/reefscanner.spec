@@ -14,6 +14,10 @@ from PyInstaller.utils.hooks import collect_data_files, collect_submodules
 
 ROOT = Path(SPECPATH).parent
 WEIGHTS = Path(os.environ["REEFSCANNER_BUNDLE_WEIGHTS"])
+# A Developer ID identity signs every binary with hardened runtime. Unset, the
+# app is ad-hoc signed and runs only where it was built (or after "Open Anyway").
+SIGN_IDENTITY = os.environ.get("REEFSCANNER_SIGN_IDENTITY") or None
+ENTITLEMENTS = str(ROOT / "packaging" / "entitlements.plist") if SIGN_IDENTITY else None
 
 import imageio_ffmpeg  # noqa: E402  (resolved at build time, from the build venv)
 
@@ -67,6 +71,8 @@ exe = EXE(
     name="ReefScanner",
     console=False,
     target_arch="arm64",
+    codesign_identity=SIGN_IDENTITY,
+    entitlements_file=ENTITLEMENTS,
 )
 
 coll = COLLECT(exe, a.binaries, a.datas, name="ReefScanner")
@@ -74,6 +80,7 @@ coll = COLLECT(exe, a.binaries, a.datas, name="ReefScanner")
 app = BUNDLE(
     coll,
     name="ReefScanner.app",
+    # Signs with the EXE's codesign_identity and entitlements.
     bundle_identifier="io.github.simonicarlo.reefscanner",
     info_plist={
         "CFBundleName": "ReefScanner",

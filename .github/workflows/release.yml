@@ -1,0 +1,116 @@
+# Build, sign and notarize the Mac app, and publish it as a GitHub release.
+#
+# A `v*` tag (e.g. v3.0.1, matching app/scripts/set_version.sh) creates the
+# release. Running it by hand ("Run workflow") builds the same thing and only
+# keeps it as a workflow artifact, for trying a build before tagging.
+# See docs/specs/v3/features/2026-11-18-distribution-design.md.
+name: Release
+
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+
+permissions:
+  contents: write  # create the release
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  macos:
+    runs-on: macos-15  # Apple Silicon
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Tag matches the version in the code
+        if: startsWith(github.ref, 'refs/tags/')
+        run: |
+          want="${GITHUB_REF_NAME#v}"
+          have="$(sed -n 's/^version = "\(.*\)"/\1/p' app/pyproject.toml)"
+          if [ "$want" != "$have" ]; then
+            echo "::error::Tag $GITHUB_REF_NAME but app/pyproject.toml says $have. Run app/scripts/set_version.sh $want first."
+            exit 1
+          fi
+
+      - uses: astral-sh/setup-uv@v6
+
+      - uses: actions/setup-node@v5
+        with:
+          node-version: "24"
+          cache: npm
+          cache-dependency-path: app/frontend/package-lock.json
+
+      - name: Signing keychain and notary key
+        env:
+          MACOS_CERT_P12: ${{ secrets.MACOS_CERT_P12 }}
+          MACOS_CERT_PASSWORD: ${{ secrets.MACOS_CERT_PASSWORD }}
+          NOTARY_KEY_P8: ${{ secrets.NOTARY_KEY_P8 }}
+          NOTARY_KEY_ID: ${{ secrets.NOTARY_KEY_ID }}
+          NOTARY_ISSUER_ID: ${{ secrets.NOTARY_ISSUER_ID }}
+        run: |
+          for name in MACOS_CERT_P12 MACOS_CERT_PASSWORD NOTARY_KEY_P8 NOTARY_KEY_ID NOTARY_ISSUER_ID; do
+            if [ -z "${!name}" ]; then echo "::error::Secret $name is not set"; exit 1; fi
+          done
+
+          keychain="$RUNNER_TEMP/signing.keychain-db"
+          keychain_pw="$(uuidgen)"
+          security create-keychain -p "$keychain_pw" "$keychain"
+          security set-keychain-settings -lut 21600 "$keychain"
+          security unlock-keychain -p "$keychain_pw" "$keychain"
+          printf '%s' "$MACOS_CERT_P12" | base64 --decode > "$RUNNER_TEMP/cert.p12"
+          security import "$RUNNER_TEMP/cert.p12" -k "$keychain" \
+            -P "$MACOS_CERT_PASSWORD" -T /usr/bin/codesign -f pkcs12
+          rm "$RUNNER_TEMP/cert.p12"
+          security set-key-partition-list -S apple-tool:,apple:,codesign: \
+            -s -k "$keychain_pw" "$keychain" >/dev/null
+          security list-keychains -d user -s "$keychain" \
+            $(security list-keychains -d user | tr -d '"')
+
+          identity="$(security find-identity -v -p codesigning "$keychain" \
+            | awk '/Developer ID Application/ {print $2; exit}')"
+          if [ -z "$identity" ]; then
+            echo "::error::No 'Developer ID Application' identity in MACOS_CERT_P12"
+            exit 1
+          fi
+
+          key_path="$RUNNER_TEMP/notary_key.p8"
+          printf '%s' "$NOTARY_KEY_P8" | base64 --decode > "$key_path"
+          {
+            echo "REEFSCANNER_SIGN_IDENTITY=$identity"
+            echo "NOTARY_KEY_PATH=$key_path"
+            echo "NOTARY_KEY_ID=$NOTARY_KEY_ID"
+            echo "NOTARY_ISSUER_ID=$NOTARY_ISSUER_ID"
+          } >> "$GITHUB_ENV"
+
+      - name: Build, sign and notarize
+        run: app/scripts/build_app.sh
+
+      - name: Keep the build (manual runs)
+        if: github.event_name == 'workflow_dispatch'
+        uses: actions/upload-artifact@v4
+        with:
+          name: ReefScanner-macOS
+          path: |
+            app/dist/ReefScanner.dmg
+            app/dist/ReefScanner-macOS.zip
+          retention-days: 14
+
+      - name: Publish the release
+        if: startsWith(github.ref, 'refs/tags/')
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          prerelease=""
+          case "$GITHUB_REF_NAME" in *a*|*b*|*rc*|*dev*) prerelease="--prerelease";; esac
+          gh release create "$GITHUB_REF_NAME" \
+            app/dist/ReefScanner.dmg app/dist/ReefScanner-macOS.zip \
+            --title "ReefScanner ${GITHUB_REF_NAME#v}" --generate-notes $prerelease
+
+      - name: Remove the signing keychain
+        if: always()
+        run: |
+          security delete-keychain "$RUNNER_TEMP/signing.keychain-db" 2>/dev/null || true
+          rm -f "$RUNNER_TEMP/notary_key.p8"
