@@ -1,0 +1,21 @@
+[build-system]
+requires = ["hatchling>=1.25"]
+build-backend = "hatchling.build"
+
+# `reef`: setting up, running, testing and releasing the repo, on any OS.
+# Installed once with `uv tool install --editable tools/reef`; see
+# docs/specs/v3/features/2026-11-19-dev-tool-design.md. Standard library only:
+# it runs in uv's tool environment, never the project's venv, which it checks.
+[project]
+name = "reef"
+version = "0.1.0"
+description = "Developer commands for the ReefScanner repo."
+requires-python = ">=3.12"
+license = "MIT"
+dependencies = []
+
+[project.scripts]
+reef = "reef.cli:main"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/reef"]

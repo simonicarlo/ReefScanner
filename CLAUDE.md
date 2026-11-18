@@ -35,8 +35,9 @@ never import from `app` or `edge`.
 - Running from source uses its own data folder (`ReefScanner Dev` in the OS's
   app-data location); the installed app uses `ReefScanner`. `REEFSCANNER_DB`
   overrides both.
-- Releases: `app/scripts/set_version.sh X.Y.Z`, commit, then push a `vX.Y.Z`
-  tag; `.github/workflows/release.yml` builds, signs and notarizes the app.
+- Releases: `reef release X.Y.Z` (from an up-to-date `main`) sets the
+  version, commits, tags and pushes; `.github/workflows/release.yml` builds,
+  signs and notarizes the app.
   The app updates itself with Velopack (`desktop/update.py`); building it
   needs `vpk` on .NET.
 - Camtrap DP tables live in `core/src/reefscanner/core/camtrap/`, with field

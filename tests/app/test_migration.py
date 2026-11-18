@@ -99,7 +99,7 @@ def test_a_database_that_differs_from_the_models_stops_the_app(tmp_path) -> None
 def test_released_migrations_are_unchanged() -> None:
     """A released migration has already run on someone's database, so editing
     it would leave theirs different from a fresh one. Change the schema with a
-    new revision instead. set_version.sh locks new ones at each release."""
+    new revision instead. `reef release` locks new ones at each release."""
     import hashlib
 
     from reefscanner.app.migrations import SCRIPT_LOCATION

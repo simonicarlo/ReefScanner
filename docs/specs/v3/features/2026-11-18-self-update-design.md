@@ -127,7 +127,7 @@ and `releases.linux.json` sit in the same release, with `Setup.exe` and an
 AppImage for people.
 
 Velopack needs SemVer versions: a release candidate is `1.1.0-rc.1`
-(`set_version.sh` has to accept that form, not only PEP 440's `1.1.0rc1`).
+(`reef release` accepts only that form, not PEP 440's `1.1.0rc1`).
 
 ### 7. The workflow publishes in two steps
 

@@ -134,6 +134,9 @@ GitHub Releases ([design](features/2026-11-18-distribution-design.md)).
 - [ ] Self-update tried end to end with two release candidates from GitHub
 - [x] Settings → About: version, update status with "Check now", and the
       data folder and log shown in Finder; the version in the sidebar footer
+- [x] `reef`, the developer commands (doctor, setup, run, test, build,
+      release), replacing `set_version.sh`
+      ([design](features/2026-11-19-dev-tool-design.md))
 - [ ] Windows build in the same workflow
 - [ ] Linux build
 

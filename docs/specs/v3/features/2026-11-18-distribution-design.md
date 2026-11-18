@@ -24,7 +24,7 @@ release with:
   to 1.0.0 this was `ReefScanner-macOS.zip`, the stapled `.app` alone.
 
 The app's version starts at 1.0.0: "v3" names the spec generation, not
-something a tester sees. The tag must match the version in the code (`app/scripts/set_version.sh`
+something a tester sees. The tag must match the version in the code (`reef release`
 updates all three places), so a release can't say one version and contain
 another. Running the workflow by hand builds the same thing but only keeps it
 as a workflow artifact, for trying a build before tagging. App releases are
@@ -65,7 +65,7 @@ With no users yet, the development migrations 0001-0004 are replaced by one,
 restamped from `0004` to `0001` by hand (same tables).
 
 From the first release on, a migration that has shipped has run on someone's
-database and must never change. `set_version.sh` appends every new migration's
+database and must never change. `reef release` appends every new migration's
 SHA-256 to `migrations/released.txt`, and a test fails if a listed file is
 edited or removed. Schema changes are always a new revision.
 
@@ -119,13 +119,13 @@ since pywebview needs GTK or Qt from the distribution.
 ## Releasing
 
 ```sh
-app/scripts/set_version.sh 1.0.1
-git commit -am "chore: release 1.0.1" && git tag v1.0.1 && git push --follow-tags
+reef release 1.0.1
 ```
 
+From an up-to-date `main`: it runs the tests, sets the version, commits,
+pushes, and tags (see the [`reef` note](2026-11-19-dev-tool-design.md)).
 A release candidate is `1.1.0-rc.1` (SemVer, for Velopack) and is published as
 a prerelease: invisible to testers' apps, which only follow stable releases.
 To try one, start the app with `REEFSCANNER_UPDATE_PRERELEASE=1`.
-Building locally needs Velopack's `vpk` at the `velopack` version in
-`uv.lock` (`dotnet tool install -g vpk --version <it>`, on `brew install
-dotnet@10`); the build stops if they differ.
+`reef build` builds locally; `reef doctor` says what it needs (.NET, and
+Velopack's `vpk` at the `velopack` version in `uv.lock`).
