@@ -90,6 +90,12 @@ signed; until then, and on Linux, the hash is all there is.
   (`Bridge` in `desktop/main.py`), not through the HTTP API, so no other
   program on the machine can start an install. In a browser (`serve`) the
   banner never appears.
+- Restarting closes the window only after the bridge call has answered the
+  page, then exits the process outright. Closed from inside the call (the
+  first version), pywebview's thread handing the answer back waited forever
+  for the vanished page, the process never exited, and Velopack installed
+  after its 60 s timeout with the old app still running (seen in the
+  rc.1 → rc.4 test).
 - `GithubSource` takes no timeout, so a stalled connection leaves the check
   (or a download) pending. Nothing is shown for a check; a stuck download
   is left by quitting, and the next launch starts over.

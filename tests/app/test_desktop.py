@@ -158,3 +158,29 @@ def test_show_in_finder_opens_only_the_apps_own_paths(monkeypatch, tmp_path) -> 
     assert bridge.show_log() is True
     assert shown == [db, desktop.paths.log_file()]
     assert desktop.Bridge().show_data_folder() is False, "no database, nothing to show"
+
+
+def test_after_restart_to_update_the_process_exits(
+    fake_webview, fake_frontend, monkeypatch, tmp_path
+) -> None:
+    """Velopack installs only once this process is gone, so run() must not
+    return into anything that could keep it alive."""
+    exits: list[object] = []
+    monkeypatch.setattr(desktop, "_exit_for_update", lambda app: exits.append(app))
+
+    class Restarted(desktop.Bridge):
+        """As if "Restart to update" was clicked while the window was open."""
+
+        def __init__(self, *args, **kwargs) -> None:
+            super().__init__(*args, **kwargs)
+            self.restarting = True
+
+    monkeypatch.setattr(desktop, "Bridge", Restarted)
+
+    desktop.run(db_path=tmp_path / "d.db")
+    assert len(exits) == 1
+
+
+def test_a_normal_close_returns_as_before(fake_webview, fake_frontend, monkeypatch, tmp_path) -> None:
+    monkeypatch.setattr(desktop, "_exit_for_update", lambda app: pytest.fail("exited hard"))
+    assert desktop.run(db_path=tmp_path / "d.db") == 0
