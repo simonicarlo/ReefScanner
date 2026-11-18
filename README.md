@@ -23,8 +23,8 @@ You need three things installed:
   manages Python and every Python dependency, including a bundled ffmpeg. You
   don't need to install Python yourself: uv fetches the version pinned in
   `.python-version` (3.14; any 3.12+ works).
-- **[Node.js](https://nodejs.org/) 22 or newer**, only to build the review UI
-  once.
+- **[Node.js](https://nodejs.org/) 26** (the version in
+  `app/frontend/.nvmrc`), to build the review UI.
 
 Then:
 
@@ -32,22 +32,22 @@ Then:
 git clone https://github.com/simonicarlo/ReefScanner.git
 cd ReefScanner
 
-# 1. Python and all dependencies (first run downloads ~1 GB, mostly PyTorch,
-#    which development needs to convert models; scanning itself doesn't use it)
-uv sync
+# 1. The `reef` command, once per machine (works on macOS, Windows, Linux)
+uv tool install --editable tools/reef
 
-# 2. Build the review UI. Needed once, and again whenever app/frontend/ changes;
-#    the build is not committed to the repo.
-cd app/frontend && npm install && npm run build && cd ../..
+# 2. Everything else: Python and its dependencies (the first run downloads
+#    ~1 GB, mostly PyTorch, which development needs to convert models), the
+#    npm packages, and the review UI build
+reef setup
 
-# 3. Check the install: should end with "134 passed"
-uv run pytest
+# 3. Check the install
+reef test
 
 # 4. Some synthetic footage to try it on, if you have no dives at hand
 uv run python scripts/make_demo_footage.py ~/ReefScanner-demo
 
 # 5. Open the app
-uv run reefscanner desktop
+reef run
 ```
 
 In the app, create a project with `~/ReefScanner-demo` as the footage folder
@@ -65,9 +65,9 @@ activate. With the venv activated (`source .venv/bin/activate`), drop the
 
 | Symptom | Fix |
 |---|---|
+| Anything else, or you're not sure | `reef doctor` checks the setup and prints the fix for each problem |
 | `uv: command not found` | Install uv (link above), then open a new terminal |
-| The window says no frontend build was found | Run step 2 |
-| `npm run build` fails on syntax or engine errors | Node is too old: `node --version` should be 22 or newer |
+| `reef: command not found` | `uv tool update-shell`, then open a new terminal |
 | The first scan fails while downloading weights | Connect to the internet once; the weights are cached in `~/.cache/reefscanner` |
 | `reefscanner desktop` won't open a window | Use `uv run reefscanner serve` and open http://127.0.0.1:8000 in a browser instead |
 
@@ -292,13 +292,19 @@ folder resumes the same way.
 ## Development
 
 ```bash
-uv sync
-uv run pytest
-
-# Two terminals: the API with reload, and Vite with hot module replacement.
-uv run reefscanner serve --reload
-cd app/frontend && npm run dev    # http://localhost:5173, proxies /api
+reef doctor          # what's missing, and how to fix it
+reef setup           # install what's missing or out of date
+reef run             # the desktop app from source
+reef run --browser   # API with reload + Vite with hot reload: http://localhost:5173
+reef test            # pytest, TypeScript check, lint (--py, --web, -- pytest args)
+reef build           # the packaged Mac app
+reef release 1.2.0   # set the version, commit, tag and push (from main)
 ```
+
+`reef` lives in `tools/reef` and is installed editable, so changes to it
+apply at once ([design](docs/specs/v3/features/2026-11-19-dev-tool-design.md)).
+Running from source uses its own data folder (`ReefScanner Dev`), apart from
+the installed app's.
 
 Database changes go through Alembic. After changing a model, write a migration
 from `app/` with `uv run alembic revision --autogenerate -m "what changed"` and
@@ -311,7 +317,7 @@ gitignored; the wheel picks it up from there.
 ### Building the Mac app
 
 ```bash
-app/scripts/build_app.sh    # → app/dist/ReefScanner.dmg (Apple Silicon)
+reef build    # → app/dist/ReefScanner.dmg (Apple Silicon)
 ```
 
 Builds from a clean standalone Python, bundles the UI, the SharkTrack weights

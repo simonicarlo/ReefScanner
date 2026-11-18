@@ -1,5 +1,5 @@
 # Released migrations, locked: SHA-256 and path, as `shasum -a 256` prints them.
-# app/scripts/set_version.sh adds every new migration when a release is cut, and
+# `reef release` adds every new migration when a release is cut, and
 # tests/app/test_migration.py fails if a listed file changes or disappears.
 # Never edit a locked migration; write a new revision instead.
 92e1ea737973a6429231b1c0187155da0e7a0f64f248d1e3e21217e0d8409d3c  versions/0001_initial_db.py

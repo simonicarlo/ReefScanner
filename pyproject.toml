@@ -4,12 +4,13 @@
 #   core/  reefscanner-core  detection engine and CLI, no web dependencies
 #   edge/  reefscanner-edge  the headless on-rig agent (v3)
 #   app/   reefscanner-app   the field app: local service, review UI, desktop shell
+#   tools/reef               `reef`, the developer commands (installed as a uv tool)
 #
 # Splitting them keeps the rig from installing the web stack, and the laptop
 # from installing board runtimes. See docs/specs/v3/spec.md.
 
 [tool.uv.workspace]
-members = ["core", "edge", "app"]
+members = ["core", "edge", "app", "tools/reef"]
 
 # The dev group pulls in every member (editable), so a plain `uv sync` sets up
 # the whole repo with the test suite.
@@ -18,6 +19,7 @@ dev = [
     "reefscanner-core[ml]",
     "reefscanner-edge",
     "reefscanner-app[desktop]",
+    "reef",                 # so the tests can import the developer commands
     "pytest>=7.4",
     "httpx>=0.27",          # FastAPI TestClient transport
     "imageio-ffmpeg>=0.4.9",
@@ -38,6 +40,7 @@ build = [
 [tool.uv.sources]
 reefscanner-core = { workspace = true }
 reefscanner-edge = { workspace = true }
+reef = { workspace = true }
 reefscanner-app = { workspace = true }
 
 [tool.pytest.ini_options]
