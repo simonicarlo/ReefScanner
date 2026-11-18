@@ -1,7 +1,7 @@
 import { useState, type ReactNode } from "react";
 import { NavLink, useLocation } from "react-router-dom";
 import { BackdropContext } from "../lib/backdrop";
-import { useProjects } from "../lib/queries";
+import { useHealth, useProjects } from "../lib/queries";
 import { Backdrop } from "./Backdrop";
 import { ToastProvider } from "./Toast";
 import { UpdateBanner } from "./UpdateBanner";
@@ -37,6 +37,7 @@ const NAV = [
 export function AppShell({ children }: { children: ReactNode }) {
   const [backdrop, setBackdrop] = useState<string | null>(null);
   const { pathname } = useLocation();
+  const version = useHealth().data?.version;
   // Projects whose latest run still has events without a verdict.
   const waiting = (useProjects().data ?? []).filter(
     (p) => p.latest_run && p.latest_run.reviewed < p.latest_run.events,
@@ -110,7 +111,9 @@ export function AppShell({ children }: { children: ReactNode }) {
 
             <div className={styles.foot}>
               <UpdateBanner />
-              <p className={styles.status}>Local · works offline</p>
+              <p className={styles.status}>
+                Local · works offline{version && ` · ${version}`}
+              </p>
             </div>
           </aside>
 

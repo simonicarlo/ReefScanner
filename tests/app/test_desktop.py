@@ -145,3 +145,16 @@ def test_bridge_folder_picker(fake_webview) -> None:
 
     fake_webview["dialog"] = ("/Users/someone/footage",)
     assert bridge.pick_folder() == "/Users/someone/footage"
+
+
+def test_show_in_finder_opens_only_the_apps_own_paths(monkeypatch, tmp_path) -> None:
+    """Nothing from the page decides what is opened: the methods take no path."""
+    shown: list[Path] = []
+    monkeypatch.setattr(desktop, "_reveal", lambda path: shown.append(path) or True)
+    db = tmp_path / "reefscanner.db"
+    bridge = desktop.Bridge(db_path=db)
+
+    assert bridge.show_data_folder() is True
+    assert bridge.show_log() is True
+    assert shown == [db, desktop.paths.log_file()]
+    assert desktop.Bridge().show_data_folder() is False, "no database, nothing to show"

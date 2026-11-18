@@ -5,7 +5,7 @@ See docs/specs/v3/features/2026-11-18-self-update-design.md.
 The flow, each step started by the one before or by the user:
 
     checking → available → (user) downloading → verifying → ready → (user) restart
-        ↘ none                       ↘ failed ↙
+        ↘ none, unreachable          ↘ failed ↙
 
 Velopack finds the newest release on GitHub, downloads the full package or a
 delta (rebuilt into a full package), and checks it against the SHA-256 in the
@@ -66,8 +66,11 @@ _SYMLINK_SUFFIX = ".__symlink"
 _CODESIGN_TIMEOUT_S = 300
 
 State = Literal[
-    "off", "checking", "none", "available", "downloading", "verifying", "ready", "failed"
+    "off", "checking", "none", "unreachable", "available",
+    "downloading", "verifying", "ready", "failed",
 ]
+#: States from which a new check may start (Settings → About, "Check now").
+_CHECKABLE: tuple[State, ...] = ("none", "unreachable", "available")
 
 
 class UpdateError(RuntimeError):
@@ -221,8 +224,10 @@ class Updater:
         manager: Any | None,
         verify: Callable[[Path], None] = verify_package,
         find_package: Callable[[Any, Any], Path] | None = None,
+        prereleases: bool = False,
     ) -> None:
         self._manager = manager
+        self._prereleases = prereleases
         self._verify = verify
         self._find_package = find_package or _cached_package
         self._lock = threading.Lock()
@@ -241,10 +246,9 @@ class Updater:
         try:
             import velopack
 
-            source = velopack.GithubSource(
-                REPO_URL, prerelease=bool(os.environ.get(PRERELEASE_ENV))
-            )
-            return cls(velopack.UpdateManager(source))
+            prereleases = bool(os.environ.get(PRERELEASE_ENV))
+            source = velopack.GithubSource(REPO_URL, prerelease=prereleases)
+            return cls(velopack.UpdateManager(source), prereleases=prereleases)
         except Exception:
             # Velopack raises plain exceptions, e.g. for an app it didn't package.
             logger.exception("Updates are off: Velopack couldn't start")
@@ -253,23 +257,35 @@ class Updater:
     def status(self) -> dict[str, Any]:
         with self._lock:
             target = self._info.TargetFullRelease.Version if self._info is not None else None
-            return {"state": self._state, "version": target, "progress": self._progress}
+            return {
+                "state": self._state,
+                "version": target,
+                "progress": self._progress,
+                "prereleases": self._prereleases,
+            }
 
     # -- checking ------------------------------------------------------------
-    def start_check(self) -> None:
+    def start_check(self) -> bool:
+        """Check in the background. False if updates are off or one is under way."""
         if self._manager is None:
-            return
-        self._set("checking")
+            return False
+        with self._lock:
+            # The launch check starts from "none"; a later one never cuts into
+            # a download or a verified update.
+            if self._state not in _CHECKABLE:
+                return False
+            self._state = "checking"
         threading.Thread(target=self.check, name="reefscanner-update-check", daemon=True).start()
+        return True
 
     def check(self) -> None:
         """Ask the release feed for a newer version."""
         try:
             info = self._manager.check_for_updates()
         except Exception:
-            # Usually just offline. Logged, never shown.
+            # Usually just offline. Logged; only Settings → About says so.
             logger.warning("Update check failed", exc_info=True)
-            self._set("none")
+            self._set("unreachable")
             return
         if info is None:
             logger.info("ReefScanner is up to date")
