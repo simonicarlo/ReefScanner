@@ -34,6 +34,7 @@ import subprocess
 import sys
 import tempfile
 import threading
+import unicodedata
 import zipfile
 from collections.abc import Callable
 from pathlib import Path
@@ -90,8 +91,9 @@ def unpack_app(package: Path, dest: Path) -> Path:
 
     The package isn't trusted until ``codesign`` accepts what this unpacks,
     and Velopack unpacks it again to install it, so both must see the same
-    files: a name that appears twice (also differing only in case, which
-    macOS doesn't tell apart) or isn't in plain form refuses the package.
+    files: a name that appears twice anywhere in the package (also differing
+    only in case or Unicode form, which macOS doesn't tell apart), a
+    backslash, or a path not in plain form refuses the package.
     Every path, and every link's target, must stay inside ``dest``. Links
     are made last, never in a folder reached through another link, and each
     must still resolve inside ``dest`` once all exist.
@@ -103,15 +105,24 @@ def unpack_app(package: Path, dest: Path) -> Path:
     with zipfile.ZipFile(package) as archive:
         for entry in archive.infolist():
             name = entry.filename
-            if not name.startswith(_APP_PREFIX) or entry.is_dir():
+            if "\\" in name:
+                raise UpdateError(f"The update contains an unusual path: {name}")
+            # Compared as the Mac's file system would: case and Unicode form
+            # don't matter, and a link counts as the file it becomes.
+            key = _fold(name.removesuffix("/").removesuffix(_SYMLINK_SUFFIX))
+            if key in seen:
+                raise UpdateError(f"The update contains {name} twice")
+            seen.add(key)
+            if not name.startswith(_APP_PREFIX):
+                if key.startswith(_fold(_APP_PREFIX)):
+                    raise UpdateError(f"The update contains an unusual path: {name}")
+                continue
+            if entry.is_dir():
                 continue
             relative = name[len(_APP_PREFIX):]
             if not _is_plain(relative):
                 raise UpdateError(f"The update contains an unusual path: {name}")
             path = relative.removesuffix(_SYMLINK_SUFFIX)
-            if path.casefold() in seen:
-                raise UpdateError(f"The update contains {path} twice")
-            seen.add(path.casefold())
 
             target = root / path
             if relative.endswith(_SYMLINK_SUFFIX):
@@ -137,6 +148,11 @@ def unpack_app(package: Path, dest: Path) -> Path:
         if not Path(os.path.realpath(link)).is_relative_to(root):
             raise UpdateError(f"The update links outside the app: {link.relative_to(root)}")
     return dest
+
+
+def _fold(name: str) -> str:
+    """A name as APFS compares it: case- and normalization-insensitive."""
+    return unicodedata.normalize("NFD", name).casefold()
 
 
 def _is_plain(relative: str) -> bool:

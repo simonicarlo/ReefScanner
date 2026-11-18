@@ -195,6 +195,20 @@ def test_unpacking_refuses_a_name_that_appears_twice(tmp_path) -> None:
         unpack_app(package, tmp_path / "out" / "ReefScanner.app")
 
 
+@pytest.mark.parametrize("entries", [
+    # The same name in two Unicode forms (é composed, and e + combining accent).
+    {"lib/app/Contents/caf\u00e9": "a", "lib/app/Contents/cafe\u0301": "b"},
+    # A second copy of the app's folder that only differs in case.
+    {"lib/app/Contents/x": "a", "LIB/APP/Contents/y": "b"},
+    # Windows-style separators.
+    {"lib\\app\\Contents\\x": "a"},
+], ids=["unicode-forms", "case-of-prefix", "backslashes"])
+def test_unpacking_refuses_names_the_installer_might_read_differently(tmp_path, entries) -> None:
+    package = _package(tmp_path / "p.nupkg", entries)
+    with pytest.raises(UpdateError):
+        unpack_app(package, tmp_path / "out" / "ReefScanner.app")
+
+
 def test_unpacking_refuses_a_link_that_points_outside_the_app(tmp_path) -> None:
     for target in ("/etc", "../../.."):
         package = _package(tmp_path / "p.nupkg", {"lib/app/Contents/x.__symlink": target})
