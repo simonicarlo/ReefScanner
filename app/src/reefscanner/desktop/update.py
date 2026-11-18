@@ -26,6 +26,7 @@ check is deleted at once.
 
 from __future__ import annotations
 
+import hashlib
 import logging
 import os
 import shutil
@@ -87,23 +88,38 @@ def run_velopack_hooks() -> None:
 def unpack_app(package: Path, dest: Path) -> Path:
     """Unpack the app inside a Velopack package to ``dest`` and return it.
 
-    The package isn't trusted yet, so every path must stay inside ``dest``,
-    and symlinks are made only after all files are written, so nothing can
-    be written through one.
+    The package isn't trusted until ``codesign`` accepts what this unpacks,
+    and Velopack unpacks it again to install it, so both must see the same
+    files: a name that appears twice (also differing only in case, which
+    macOS doesn't tell apart) or isn't in plain form refuses the package.
+    Every path, and every link's target, must stay inside ``dest``. Links
+    are made last, never in a folder reached through another link, and each
+    must still resolve inside ``dest`` once all exist.
     """
     dest.mkdir(parents=True)
     root = dest.resolve()
+    seen: set[str] = set()
     links: list[tuple[Path, str]] = []
     with zipfile.ZipFile(package) as archive:
         for entry in archive.infolist():
-            if not entry.filename.startswith(_APP_PREFIX) or entry.is_dir():
+            name = entry.filename
+            if not name.startswith(_APP_PREFIX) or entry.is_dir():
                 continue
-            target = (root / entry.filename[len(_APP_PREFIX):]).resolve()
-            if not target.is_relative_to(root):
-                raise UpdateError(f"The update contains a path outside the app: {entry.filename}")
-            if target.name.endswith(_SYMLINK_SUFFIX):
-                link = target.with_name(target.name.removesuffix(_SYMLINK_SUFFIX))
-                links.append((link, archive.read(entry).decode().rstrip("/")))
+            relative = name[len(_APP_PREFIX):]
+            if not _is_plain(relative):
+                raise UpdateError(f"The update contains an unusual path: {name}")
+            path = relative.removesuffix(_SYMLINK_SUFFIX)
+            if path.casefold() in seen:
+                raise UpdateError(f"The update contains {path} twice")
+            seen.add(path.casefold())
+
+            target = root / path
+            if relative.endswith(_SYMLINK_SUFFIX):
+                link_target = archive.read(entry).decode().rstrip("/")
+                pointed = Path(os.path.normpath(target.parent / link_target))
+                if os.path.isabs(link_target) or not pointed.is_relative_to(root):
+                    raise UpdateError(f"The update links outside the app: {name}")
+                links.append((target, link_target))
                 continue
             target.parent.mkdir(parents=True, exist_ok=True)
             with archive.open(entry) as src, target.open("wb") as out:
@@ -111,10 +127,40 @@ def unpack_app(package: Path, dest: Path) -> Path:
             mode = (entry.external_attr >> 16) & 0o777
             if mode:
                 target.chmod(mode)
+
     for link, link_target in links:
+        _refuse_links_on_the_way(root, link.parent)
         link.parent.mkdir(parents=True, exist_ok=True)
         link.symlink_to(link_target)
+    for link, _ in links:
+        # Each target was inside on its own; chained, links can still leave.
+        if not Path(os.path.realpath(link)).is_relative_to(root):
+            raise UpdateError(f"The update links outside the app: {link.relative_to(root)}")
     return dest
+
+
+def _is_plain(relative: str) -> bool:
+    """A relative path with no empty, "." or ".." parts and no backslashes."""
+    parts = relative.split("/")
+    return "\\" not in relative and all(part not in ("", ".", "..") for part in parts)
+
+
+def _refuse_links_on_the_way(root: Path, folder: Path) -> None:
+    """Raise if any existing folder between ``root`` and ``folder`` is a link,
+    so making a link there can't write outside ``root``."""
+    current = root
+    for part in folder.relative_to(root).parts:
+        current = current / part
+        if current.is_symlink():
+            raise UpdateError(f"The update puts a link inside a link: {folder.relative_to(root)}")
+
+
+def _sha256(path: Path) -> str:
+    digest = hashlib.sha256()
+    with path.open("rb") as file:
+        for chunk in iter(lambda: file.read(1 << 20), b""):
+            digest.update(chunk)
+    return digest.hexdigest()
 
 
 def verify_package(package: Path) -> None:
@@ -166,6 +212,9 @@ class Updater:
         self._state: State = "off" if manager is None else "none"
         self._info: Any | None = None
         self._progress = 0
+        #: The package that passed the check, and its SHA-256 then: it must
+        #: be the same file when it is handed to Velopack.
+        self._verified: tuple[Path, str] | None = None
 
     @classmethod
     def for_this_app(cls) -> Updater:
@@ -232,6 +281,7 @@ class Updater:
             self._set("verifying")
             package = self._find_package(self._manager, info)
             self._verify(package)
+            verified = (package, _sha256(package))
         except Exception:
             # Velopack's own errors (network, hash mismatch) and ours alike: the
             # user gets the download page, the log gets the reason.
@@ -242,7 +292,9 @@ class Updater:
             self._set("failed")
             return
         logger.info("Update %s downloaded and verified", info.TargetFullRelease.Version)
-        self._set("ready")
+        with self._lock:
+            self._verified = verified
+            self._state = "ready"
 
     def _on_progress(self, percent: int) -> None:
         with self._lock:
@@ -256,8 +308,14 @@ class Updater:
         starts the new version. False if there is nothing verified to apply.
         """
         with self._lock:
-            if self._state != "ready" or self._info is None:
+            if self._state != "ready" or self._info is None or self._verified is None:
                 return False
+            package, sha256 = self._verified
+        if not package.is_file() or _sha256(package) != sha256:
+            logger.error("The verified update at %s changed before it was applied", package)
+            package.unlink(missing_ok=True)
+            self._set("failed")
+            return False
         try:
             self._manager.wait_exit_then_apply_updates(self._info, silent=True, restart=True)
         except Exception:

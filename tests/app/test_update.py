@@ -10,7 +10,9 @@ design note); it needs a release build, not the test suite.
 
 from __future__ import annotations
 
+import os
 import sys
+import tempfile
 import time
 import types
 import zipfile
@@ -57,7 +59,11 @@ class FakeManager:
 
 
 def _updater(manager: FakeManager, verify=lambda _package: None) -> Updater:
-    return Updater(manager, verify=verify, find_package=lambda _m, _i: Path("pkg.nupkg"))
+    """An updater whose "downloaded package" is a real (dummy) file."""
+    fd, name = tempfile.mkstemp(suffix=".nupkg")
+    os.write(fd, b"package")
+    os.close(fd)
+    return Updater(manager, verify=verify, find_package=lambda _m, _i: Path(name))
 
 
 # -- checking ------------------------------------------------------------------
@@ -178,9 +184,50 @@ def test_unpacking_restores_velopacks_symlinks(tmp_path) -> None:
     assert not (app / "ReefScanner.nuspec").exists(), "only the app is unpacked"
 
 
+def test_unpacking_refuses_a_name_that_appears_twice(tmp_path) -> None:
+    """Python and Velopack could each take a different copy: we'd check one
+    app and install another. Case counts too: macOS doesn't tell them apart."""
+    package = _package(tmp_path / "p.nupkg", {
+        "lib/app/Contents/MacOS/ReefScanner": "signed",
+        "lib/app/Contents/MacOS/reefscanner": "other",
+    })
+    with pytest.raises(UpdateError, match="twice"):
+        unpack_app(package, tmp_path / "out" / "ReefScanner.app")
+
+
+def test_unpacking_refuses_a_link_that_points_outside_the_app(tmp_path) -> None:
+    for target in ("/etc", "../../.."):
+        package = _package(tmp_path / "p.nupkg", {"lib/app/Contents/x.__symlink": target})
+        with pytest.raises(UpdateError, match="links outside"):
+            unpack_app(package, tmp_path / "out" / f"{abs(hash(target))}.app")
+
+
+def test_unpacking_never_writes_through_a_link(tmp_path) -> None:
+    """A link to a folder, then a link inside it, would land outside."""
+    outside = tmp_path / "outside"
+    outside.mkdir()
+    package = _package(tmp_path / "p.nupkg", {
+        "lib/app/Contents/a.__symlink": "b",
+        "lib/app/Contents/b/keep": "x",
+        "lib/app/Contents/a/evil.__symlink": "../keep",
+    })
+    with pytest.raises(UpdateError, match="link inside a link"):
+        unpack_app(package, tmp_path / "out" / "ReefScanner.app")
+
+
+def test_unpacking_refuses_links_that_leave_the_app_when_chained(tmp_path) -> None:
+    """Each target stays inside on paper; followed one after the other they don't."""
+    package = _package(tmp_path / "p.nupkg", {
+        "lib/app/d/c.__symlink": "..",
+        "lib/app/d/b.__symlink": "c/../..",
+    })
+    with pytest.raises(UpdateError, match="links outside"):
+        unpack_app(package, tmp_path / "out" / "ReefScanner.app")
+
+
 def test_unpacking_refuses_paths_outside_the_app(tmp_path) -> None:
     package = _package(tmp_path / "p.nupkg", {"lib/app/../../escaped.txt": "x"})
-    with pytest.raises(UpdateError, match="outside the app"):
+    with pytest.raises(UpdateError, match="unusual path"):
         unpack_app(package, tmp_path / "out" / "ReefScanner.app")
     assert not (tmp_path / "escaped.txt").exists()
 
@@ -244,6 +291,21 @@ def test_velopack_never_applies_a_download_on_startup_by_itself(monkeypatch) -> 
     monkeypatch.setitem(sys.modules, "velopack", types.SimpleNamespace(App=FakeApp))
     update.run_velopack_hooks()
     assert calls == [("auto_apply", False), ("run", None)]
+
+
+def test_a_package_changed_after_the_check_is_not_applied(tmp_path) -> None:
+    package = tmp_path / "ReefScanner-1.2.0-osx-full.nupkg"
+    package.write_bytes(b"signed")
+    manager = FakeManager(_info())
+    updater = Updater(manager, verify=lambda _p: None, find_package=lambda _m, _i: package)
+    updater.check()
+    _download_inline(updater)
+    assert updater.status()["state"] == "ready"
+
+    package.write_bytes(b"swapped")
+    assert updater.apply_on_exit() is False
+    assert manager.applied is None
+    assert updater.status()["state"] == "failed" and not package.exists()
 
 
 def test_a_package_that_fails_the_check_is_deleted(tmp_path) -> None:
