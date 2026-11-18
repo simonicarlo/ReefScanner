@@ -43,7 +43,7 @@ from .pipeline import (
 from .results import CSV_COLUMNS, CsvWriter, event_to_row
 from .videoio import VideoInfo, probe_video
 
-__version__ = "1.1.0-rc.2"
+__version__ = "1.1.0-rc.3"
 
 __all__ = [
     "__version__",
