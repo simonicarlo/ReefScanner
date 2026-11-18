@@ -2,6 +2,7 @@ import type {
   Appearance,
   EventFilters,
   EventPage,
+  Health,
   Job,
   DeploymentWrite,
   Settings,
@@ -70,7 +71,7 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
 }
 
 export const api = {
-  health: () => request<{ status: string; version: string }>("/api/health"),
+  health: () => request<Health>("/api/health"),
 
   getSettings: () => request<Settings>("/api/settings"),
   saveSettings: (body: Omit<Settings, "signed_as">) =>
@@ -167,9 +168,12 @@ export const api = {
  */
 export interface DesktopBridge {
   update_status(): Promise<UpdateStatus>;
+  check_for_updates(): Promise<boolean>;
   start_update(): Promise<boolean>;
   restart_to_update(): Promise<RestartResult>;
   open_download_page(): Promise<void>;
+  show_data_folder(): Promise<boolean>;
+  show_log(): Promise<boolean>;
 }
 
 declare global {

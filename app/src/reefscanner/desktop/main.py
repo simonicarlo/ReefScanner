@@ -8,12 +8,15 @@ retry, so a race here looks to the user like a broken app.
 The window is just a browser pointed at localhost, so everything the UI does
 here it also does in ``reefscanner serve`` + a browser tab. What the shell
 adds is reachable from JavaScript as ``window.pywebview.api.*``: a native
-folder picker, and self-update (``update.py``). Updating goes through here
-rather than the HTTP API, so no other program on the machine can start one.
+folder picker, self-update (``update.py``), and showing the data folder or the
+log in Finder. Updating goes through here rather than the HTTP API, so no
+other program on the machine can start one; the folders shown are fixed
+paths the app knows, never one passed in from the page.
 """
 
 from __future__ import annotations
 
+import html
 import logging
 import socket
 import subprocess
@@ -27,6 +30,7 @@ from collections.abc import Callable
 from pathlib import Path
 from typing import Any
 
+from . import paths
 from .update import DOWNLOAD_URL, Updater
 
 logger = logging.getLogger("reefscanner.desktop")
@@ -71,10 +75,12 @@ class Bridge:
         self,
         updater: Updater | None = None,
         busy: Callable[[], bool] = lambda: False,
+        db_path: Path | None = None,
     ) -> None:
         self._window = None
         self._updater = updater or Updater(None)
         self._busy = busy
+        self._db_path = db_path
 
     def attach(self, window) -> None:
         self._window = window
@@ -92,8 +98,12 @@ class Bridge:
 
     # -- self-update ------------------------------------------------------------
     def update_status(self) -> dict[str, Any]:
-        """``{"state", "version", "progress"}``; see ``update.State``."""
+        """``{"state", "version", "progress", "prereleases"}``; see ``update.State``."""
         return self._updater.status()
+
+    def check_for_updates(self) -> bool:
+        """Ask GitHub again. False if updates are off or one is under way."""
+        return self._updater.start_check()
 
     def start_update(self) -> bool:
         """Download and verify the waiting update. False if there is none."""
@@ -117,6 +127,15 @@ class Bridge:
     def open_download_page(self) -> None:
         """Open the latest release in the browser, for a manual update."""
         webbrowser.open(DOWNLOAD_URL)
+
+    # -- Settings → About ---------------------------------------------------------
+    def show_data_folder(self) -> bool:
+        """Show the database in Finder: projects, reviews and their backups."""
+        return self._db_path is not None and _reveal(self._db_path)
+
+    def show_log(self) -> bool:
+        """Show the log file in Finder, e.g. to send it with a problem."""
+        return _reveal(paths.log_file())
 
 
 def run(db_path: str | Path | None = None, debug: bool = False) -> int:
@@ -171,7 +190,7 @@ def run(db_path: str | Path | None = None, debug: bool = False) -> int:
     thread.start()
 
     updater = Updater.for_this_app()
-    bridge = Bridge(updater, busy=app.state.runner.any_running)
+    bridge = Bridge(updater, busy=app.state.runner.any_running, db_path=app.state.db.path)
     # The window opens straight away on a "Starting…" page rather than once the
     # server answers. A packaged app's first launch can take a while (macOS
     # verifying a large unsigned bundle, then Python loading OpenCV and the web
@@ -216,6 +235,25 @@ def _load_when_ready(window, url: str, outcome: dict, updater: Updater) -> None:
         window.load_html(FAILED_HTML)
 
 
+def _reveal(path: Path) -> bool:
+    """Select ``path`` in the OS file manager (its folder, if it's missing)."""
+    target = path if path.exists() else path.parent
+    if not target.exists():
+        return False
+    if sys.platform == "darwin":
+        command = ["open", "-R", str(target)]
+    elif sys.platform == "win32":
+        command = ["explorer", f"/select,{target}"]
+    else:
+        command = ["xdg-open", str(target if target.is_dir() else target.parent)]
+    try:
+        subprocess.run(command, check=False, timeout=10)
+    except (OSError, subprocess.SubprocessError):
+        logger.warning("Couldn't show %s", target, exc_info=True)
+        return False
+    return True
+
+
 def _system_is_dark() -> bool:
     """Whether macOS is in dark mode. False elsewhere or if it can't tell."""
     if sys.platform != "darwin":
@@ -256,5 +294,5 @@ FAILED_HTML = _PAGE.format(
     color="#FF453A",
     title="ReefScanner couldn't start",
     body="Quit and open it again. If it keeps happening, send the log file "
-    "from ~/Library/Logs/ReefScanner/reefscanner.log to whoever gave you the app.",
+    f"from {html.escape(paths.shown(paths.log_file()))} to whoever gave you the app.",
 )

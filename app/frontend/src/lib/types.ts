@@ -210,6 +210,7 @@ export const UPDATE_STATES = [
   "off",
   "checking",
   "none",
+  "unreachable",
   "available",
   "downloading",
   "verifying",
@@ -224,6 +225,16 @@ export interface UpdateStatus {
   version: string | null;
   /** Download progress, 0–100. */
   progress: number;
+  /** Whether release candidates are offered too (REEFSCANNER_UPDATE_PRERELEASE). */
+  prereleases: boolean;
+}
+
+/** `GET /api/health`. */
+export interface Health {
+  status: string;
+  version: string;
+  /** The database file: projects, reviews, and backups next to it. */
+  db: string;
 }
 
 export interface RestartResult {

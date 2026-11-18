@@ -2,6 +2,7 @@ import { useState } from "react";
 import { useSaveSettings, useSettings } from "../lib/queries";
 import type { Settings as SettingsData } from "../lib/types";
 import { Button, ErrorNote, Field, Input, Panel, Spinner } from "../components/ui";
+import { AboutPanel } from "../components/AboutPanel";
 import { AppearancePanel } from "../components/AppearancePanel";
 import { PageHeader } from "../components/PageHeader";
 import styles from "./Settings.module.css";
@@ -29,7 +30,7 @@ function SettingsForm({ saved }: { saved: SettingsData }) {
     <div className={styles.page}>
       <PageHeader
         title="Settings"
-        subtitle="How the app looks, and who you are on this laptop."
+        subtitle="How the app looks, who you are on this laptop, and which ReefScanner this is."
       />
 
       <AppearancePanel />
@@ -80,6 +81,8 @@ function SettingsForm({ saved }: { saved: SettingsData }) {
           </div>
         </form>
       </Panel>
+
+      <AboutPanel />
     </div>
   );
 }

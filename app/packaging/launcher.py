@@ -21,12 +21,12 @@ import multiprocessing
 import sys
 from pathlib import Path
 
-LOG_DIR = Path.home() / "Library" / "Logs" / "ReefScanner"
+from reefscanner.desktop import paths
 
 
 def _configure_logging() -> Path:
-    LOG_DIR.mkdir(parents=True, exist_ok=True)
-    log_file = LOG_DIR / "reefscanner.log"
+    log_file = paths.log_file()
+    log_file.parent.mkdir(parents=True, exist_ok=True)
     logging.basicConfig(
         filename=log_file,
         level=logging.INFO,

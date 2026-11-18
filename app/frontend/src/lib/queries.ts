@@ -30,6 +30,7 @@ export const keys = {
   species: (jobId: number) => ["species", jobId] as const,
   event: (id: string) => ["event", id] as const,
   update: ["update"] as const,
+  health: ["health"] as const,
 };
 
 /** The project list and every project page, e.g. after a verdict moves their progress. */
@@ -239,6 +240,11 @@ export function useJobProgressSocket(queryClient: QueryClient): void {
   }, [queryClient]);
 }
 
+/** The running version and where its database is. Fixed while the app runs. */
+export function useHealth() {
+  return useQuery({ queryKey: keys.health, queryFn: api.health, staleTime: Infinity });
+}
+
 // -- self-update (desktop window only) ------------------------------------------
 
 /** The desktop bridge, or null in a browser tab (and until it is ready). */
@@ -270,6 +276,14 @@ export function useUpdateStatus(bridge: DesktopBridge | null) {
       if (state === "off") return false;
       return state && UPDATE_MOVING.includes(state) ? 1000 : 30_000;
     },
+  });
+}
+
+export function useCheckForUpdates(bridge: DesktopBridge | null) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: () => bridge!.check_for_updates(),
+    onSettled: () => qc.invalidateQueries({ queryKey: keys.update }),
   });
 }
 

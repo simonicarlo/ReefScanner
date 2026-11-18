@@ -132,6 +132,8 @@ GitHub Releases ([design](features/2026-11-18-distribution-design.md)).
       and unsigned-package tests ([design](features/2026-11-18-self-update-design.md))
 - [x] Self-update on the Mac with Velopack: banner, Team ID check, restart
 - [ ] Self-update tried end to end with two release candidates from GitHub
+- [x] Settings → About: version, update status with "Check now", and the
+      data folder and log shown in Finder; the version in the sidebar footer
 - [ ] Windows build in the same workflow
 - [ ] Linux build
 

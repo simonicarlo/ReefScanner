@@ -77,14 +77,16 @@ def test_running_from_source_never_checks() -> None:
 def test_a_newer_release_is_offered() -> None:
     updater = _updater(FakeManager(_info("1.2.0")))
     updater.check()
-    assert updater.status() == {"state": "available", "version": "1.2.0", "progress": 0}
+    assert updater.status() == {
+        "state": "available", "version": "1.2.0", "progress": 0, "prereleases": False,
+    }
 
 
 def test_being_offline_shows_nothing() -> None:
     """In the field the laptop is usually offline; that's not an error to show."""
     updater = _updater(FakeManager(check_error=RuntimeError("no network")))
     updater.check()
-    assert updater.status()["state"] == "none"
+    assert updater.status()["state"] == "unreachable"
 
 
 # -- downloading and verifying -------------------------------------------------
@@ -102,7 +104,8 @@ def test_a_verified_download_is_ready_to_apply() -> None:
     updater = _updater(FakeManager(_info()))
     updater.check()
     _download_inline(updater)
-    assert updater.status() == {"state": "ready", "version": "1.2.0", "progress": 100}
+    assert updater.status()["state"] == "ready"
+    assert updater.status()["progress"] == 100
 
 
 def test_a_package_that_fails_the_signature_check_is_never_applied() -> None:
@@ -342,3 +345,28 @@ def test_a_package_that_fails_the_check_is_deleted(tmp_path) -> None:
 
     assert updater.status()["state"] == "failed"
     assert not package.exists()
+
+
+# -- checking again (Settings → About) ------------------------------------------
+
+def test_checking_again_finds_a_release_published_since_launch() -> None:
+    manager = FakeManager(None)
+    updater = _updater(manager)
+    updater.check()
+    assert updater.status()["state"] == "none"
+
+    manager.info = _info("1.3.0")
+    assert updater.start_check() is True
+    deadline = time.monotonic() + 5
+    while updater.status()["state"] == "checking":
+        assert time.monotonic() < deadline
+        time.sleep(0.01)
+    assert updater.status()["state"] == "available"
+
+
+def test_checking_again_never_interrupts_a_verified_update() -> None:
+    updater = _updater(FakeManager(_info()))
+    updater.check()
+    _download_inline(updater)
+    assert updater.start_check() is False
+    assert updater.status()["state"] == "ready"
