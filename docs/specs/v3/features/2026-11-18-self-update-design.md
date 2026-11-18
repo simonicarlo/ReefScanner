@@ -113,7 +113,10 @@ tests the way `webview` is.
 
 `ReefScanner-macOS.zip` goes; Velopack's portable zip isn't published (the
 DMG is the way in). For deltas, CI first fetches the previous release's
-packages (`vpk download github`). On Windows and Linux, `releases.win.json`
+packages (`vpk download github`), logged in with the workflow's token:
+anonymous API calls are counted per IP, and the shared Mac runners' IPs are
+often out of them (this failed the first `v1.1.0-rc.2` build). If the fetch
+fails anyway, the release goes out without a delta. On Windows and Linux, `releases.win.json`
 and `releases.linux.json` sit in the same release, with `Setup.exe` and an
 AppImage for people.
 
@@ -159,6 +162,6 @@ app releases, or the newest one drops out of what the updater sees.
 - `app/frontend/src/components/UpdateBanner.tsx`, at the foot of the sidebar.
 - `app/packaging/launcher.py`: `velopack.App().run()` before anything else.
 - `app/scripts/build_app.sh`: `vpk pack`, then the DMG from Velopack's app;
-  `VPK_PREVIOUS_FROM` fetches the last release for the delta.
+  `VPK_PREVIOUS_DIR` holds the last release, for the delta.
 - `tests/app/test_update.py`, with Velopack faked; the real `codesign` check
   was run by hand against the CI-built package and an unsigned one.

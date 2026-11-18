@@ -18,8 +18,8 @@
 #   VPK_NOTARY_PROFILE, VPK_KEYCHAIN   the same key as a notarytool profile, for vpk
 # Without them the app is ad-hoc signed, as a local build always was.
 #
-# With VPK_PREVIOUS_FROM set to the repository's URL (CI sets it), the latest
-# published release is fetched first, so vpk can add a delta package to it.
+# With VPK_PREVIOUS_DIR set to a folder holding the latest published release
+# (CI fetches it with `vpk download github`), vpk adds a delta package to it.
 # See docs/specs/v3/features/2026-11-18-self-update-design.md.
 set -euo pipefail
 
@@ -87,11 +87,10 @@ REEFSCANNER_BUNDLE_WEIGHTS="$ROOT/$WEIGHTS" REEFSCANNER_VERSION="$VERSION" \
 codesign --verify --deep --strict dist/ReefScanner.app
 
 rm -rf dist/ReefScanner.dmg dist/velopack build/velopack-app
-if [ -n "${VPK_PREVIOUS_FROM:-}" ]; then
+if [ -n "${VPK_PREVIOUS_DIR:-}" ] && [ -d "$VPK_PREVIOUS_DIR" ]; then
   step "Previous release (for the delta package)"
-  # Warns and carries on when there is none yet.
-  "$VPK" --skip-updates -x download github --repoUrl "$VPK_PREVIOUS_FROM" \
-    --channel osx --outputDir dist/velopack
+  mkdir -p dist/velopack
+  cp -R "$VPK_PREVIOUS_DIR"/. dist/velopack/
 fi
 
 step "Velopack release${IDENTITY:+ (signed${VPK_NOTARY_PROFILE:+, notarized})}"
