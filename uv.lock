@@ -25,6 +25,7 @@ members = [
 
 [manifest.dependency-groups]
 build = [
+    { name = "dmgbuild", specifier = ">=1.6" },
     { name = "imageio-ffmpeg", specifier = ">=0.8" },
     { name = "pyinstaller", specifier = ">=6.22" },
     { name = "reefscanner-app", extras = ["desktop"], editable = "app" },
@@ -533,6 +534,31 @@ wheels = [
 ]
 
 [[package]]
+name = "dmgbuild"
+version = "2.0.0"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "ds-store" },
+    { name = "mac-alias" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/96/b6/0c00a7e313e984d6da57d365801320763930bdb131791fa7ef5083acf521/dmgbuild-2.0.0.tar.gz", hash = "sha256:8775460fd888aebf56ed1eb9b947ac67e0a100eae2c23718aceb6bfd54ef99d3", size = 67652, upload-time = "2026-11-16T03:48:25.223Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/c7/e6/c05f595fd48046d85e8dd47f6ef9d0f2ce82ad2c263f8e04c2fdf8fdcae3/dmgbuild-2.0.0-py3-none-any.whl", hash = "sha256:3d4f33f3a0def7ae2a43701a40aa6ae341f90445433694abd4bc67aab779d2f8", size = 35678, upload-time = "2026-11-16T03:48:23.863Z" },
+]
+
+[[package]]
+name = "ds-store"
+version = "1.3.4"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "mac-alias" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/0c/a2/d7be57f055484ce073b70a77ebdd8f0773d25734ae3aff5037612ea0fd1d/ds_store-1.3.4.tar.gz", hash = "sha256:fc9f8cac2fc9274c7271288c4a1b0802fa418489cded5e28363a35fa5061294a", size = 28347, upload-time = "2026-11-16T03:30:21.422Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/48/9d/ced6d5b2d74d6b30e8afbb384fe7425e521ce963053a72984865aa6a326c/ds_store-1.3.4-py3-none-any.whl", hash = "sha256:6d8ae662921846c96b03c244a92aab19a5b4fb3d9cada118fc83cace9250f049", size = 16304, upload-time = "2026-11-16T03:30:20.049Z" },
+]
+
+[[package]]
 name = "fastapi"
 version = "0.164.0"
 source = { registry = "https://pypi.org/simple" }
@@ -1003,6 +1029,15 @@ wheels = [
     { url = "https://files.pythonhosted.org/packages/a9/c4/1407df7512a5b36cc79840e01710dc575733c461b13ab866cae77eaf87f3/kiwisolver-1.5.1-graalpy312-graalpy250_312_native-macosx_11_0_arm64.whl", hash = "sha256:482676e5bd48d70ac99d9fc78863469845421e01184fa83f1f9366dc49f7e974", size = 134002, upload-time = "2026-08-28T10:28:08.881Z" },
     { url = "https://files.pythonhosted.org/packages/16/45/c37a21ad5c0ab581a93c55ad544721aaa1f0ae94edb29c6a678a23d013e6/kiwisolver-1.5.1-graalpy312-graalpy250_312_native-manylinux_2_24_x86_64.manylinux_2_28_x86_64.whl", hash = "sha256:072bdb15a3c19a5b5dbc8f8fb1f4e1884bf4f3507eeb4cc6334401274d37a5c0", size = 194292, upload-time = "2026-08-28T10:28:11.06Z" },
     { url = "https://files.pythonhosted.org/packages/a6/c1/69f00d627949580e43d57af0aa465df46868d7c29801c137a55374101294/kiwisolver-1.5.1-graalpy312-graalpy250_312_native-win_amd64.whl", hash = "sha256:a5a00665d1a0e26763a7338d7e911d4598fbc1d50dd0d6b7919b7dc6c5d6569f", size = 73362, upload-time = "2026-08-28T10:28:12.449Z" },
+]
+
+[[package]]
+name = "mac-alias"
+version = "2.2.4"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/1d/40/11d162c625549e37fb71e90aec76234eab70360d438ac2714333e9079b8e/mac_alias-2.2.4.tar.gz", hash = "sha256:a505a1d3f5b7c0919db7b9a49bcc0d0bad2575189034206ac2ec722b9acd3999", size = 34174, upload-time = "2026-11-16T03:29:12.952Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/ef/5f/27dfff0e5ae012b4ddcf9db0357f64d51213b881dcef7d9acdedbf5ba42b/mac_alias-2.2.4-py3-none-any.whl", hash = "sha256:c20f95f75d7f966dd8ea2f84c317d4ff4abee0db9cc8a13b454891c15aa04226", size = 20846, upload-time = "2026-11-16T03:29:11.717Z" },
 ]
 
 [[package]]
