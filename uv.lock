@@ -2396,7 +2396,7 @@ wheels = [
 
 [[package]]
 name = "reefscanner-app"
-version = "1.1.0rc2"
+version = "1.1.0rc4"
 source = { editable = "app" }
 dependencies = [
     { name = "alembic" },
@@ -2428,7 +2428,7 @@ provides-extras = ["desktop"]
 
 [[package]]
 name = "reefscanner-core"
-version = "1.1.0rc2"
+version = "1.1.0rc4"
 source = { editable = "core" }
 dependencies = [
     { name = "numpy" },
@@ -2484,7 +2484,7 @@ provides-extras = ["ultralytics", "ml", "ffmpeg"]
 
 [[package]]
 name = "reefscanner-edge"
-version = "1.1.0rc2"
+version = "1.1.0rc4"
 source = { editable = "edge" }
 dependencies = [
     { name = "reefscanner-core" },

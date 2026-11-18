@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "reefscanner-edge"
-version = "1.1.0-rc.2"
+version = "1.1.0-rc.4"
 description = "ReefScanner's headless on-rig agent: films, detects and keeps the clips worth reviewing."
 requires-python = ">=3.12"
 license = "MIT"
