@@ -104,8 +104,16 @@
     font-weight: 500;
   }
 
+  /* Pinned to the bottom: an update offer above the status line. */
+  .foot {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-3);
+    margin-top: auto;
+  }
+
   .status {
-    margin: auto var(--space-2) 0;
+    margin: 0 var(--space-2);
     color: var(--secondary);
     font-size: var(--type-caption);
   }
@@ -138,7 +146,7 @@
     .nav + .nav {
       display: none;
     }
-    .status {
+    .foot {
       display: none;
     }
   }

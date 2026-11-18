@@ -151,6 +151,11 @@ class JobRunner:
             thread = self._threads.get(job_id)
         return thread is not None and thread.is_alive()
 
+    def any_running(self) -> bool:
+        """Whether a scan is in progress (the app mustn't restart under it)."""
+        with self._lock:
+            return any(thread.is_alive() for thread in self._threads.values())
+
     def shutdown(self, timeout: float = 5.0) -> None:
         """Signal every running job and wait briefly for the threads to exit."""
         with self._lock:

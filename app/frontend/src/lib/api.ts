@@ -7,7 +7,9 @@ import type {
   Settings,
   Project,
   ReefEvent,
+  RestartResult,
   ThresholdAnalysis,
+  UpdateStatus,
   Verdict,
 } from "./types";
 
@@ -156,3 +158,39 @@ export const api = {
       { method: "POST" },
     ),
 };
+
+/**
+ * The desktop shell's bridge (`Bridge` in desktop/main.py), present only in
+ * the app's own window: pywebview injects `window.pywebview.api` and then
+ * fires `pywebviewready`. In a browser tab (`reefscanner serve`) it never
+ * appears, and whatever needs it simply doesn't show.
+ */
+export interface DesktopBridge {
+  update_status(): Promise<UpdateStatus>;
+  start_update(): Promise<boolean>;
+  restart_to_update(): Promise<RestartResult>;
+  open_download_page(): Promise<void>;
+}
+
+declare global {
+  interface Window {
+    pywebview?: { api: DesktopBridge };
+  }
+}
+
+/** Resolves with the bridge once it is ready, or never outside the app. */
+export function desktopBridge(): Promise<DesktopBridge> {
+  return new Promise((resolve) => {
+    if (window.pywebview?.api) {
+      resolve(window.pywebview.api);
+      return;
+    }
+    window.addEventListener(
+      "pywebviewready",
+      () => {
+        if (window.pywebview?.api) resolve(window.pywebview.api);
+      },
+      { once: true },
+    );
+  });
+}

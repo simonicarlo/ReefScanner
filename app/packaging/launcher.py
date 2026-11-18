@@ -8,6 +8,10 @@ to happen before anything heavy is imported:
   spawns would boot a second copy of the whole app and open another window.
 * File logging — a windowed app has no terminal, so without a log file a
   failure on someone else's Mac leaves nothing to diagnose.
+
+Velopack's startup hook runs right after: when Velopack starts the app to
+handle an install or update event, the hook does that and exits, before any
+window opens (``reefscanner.desktop.update.run_velopack_hooks``).
 """
 
 from __future__ import annotations
@@ -45,4 +49,7 @@ def main() -> int:
 
 if __name__ == "__main__":
     multiprocessing.freeze_support()
+    from reefscanner.desktop.update import run_velopack_hooks
+
+    run_velopack_hooks()
     sys.exit(main())

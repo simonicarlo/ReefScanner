@@ -4,6 +4,7 @@ import { BackdropContext } from "../lib/backdrop";
 import { useProjects } from "../lib/queries";
 import { Backdrop } from "./Backdrop";
 import { ToastProvider } from "./Toast";
+import { UpdateBanner } from "./UpdateBanner";
 import styles from "./AppShell.module.css";
 
 const NAV = [
@@ -107,7 +108,10 @@ export function AppShell({ children }: { children: ReactNode }) {
               </nav>
             )}
 
-            <p className={styles.status}>Local · works offline</p>
+            <div className={styles.foot}>
+              <UpdateBanner />
+              <p className={styles.status}>Local · works offline</p>
+            </div>
           </aside>
 
           <main className={styles.main}>{children}</main>

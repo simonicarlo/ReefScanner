@@ -17,11 +17,11 @@ the same across versions, so one link always gives the newest build:
 
 `.github/workflows/release.yml` runs on a `v*` tag on a GitHub Apple Silicon
 runner: it builds with `build_app.sh`, signs, notarizes, and creates the
-release with two assets:
+release with:
 
 - `ReefScanner.dmg`, for people.
-- `ReefScanner-macOS.zip`, the stapled `.app` alone, for the self-updater
-  (decision 5).
+- Velopack's feed and packages, for the app's self-update (decision 5). Up
+  to 1.0.0 this was `ReefScanner-macOS.zip`, the stapled `.app` alone.
 
 The app's version starts at 1.0.0: "v3" names the spec generation, not
 something a tester sees. The tag must match the version in the code (`app/scripts/set_version.sh`
@@ -80,15 +80,11 @@ the installed app's `ReefScanner` (the packaged app is told apart by
 would migrate the installed app's database past what that app knows, and it
 would refuse to start.
 
-### 5. Self-update (next step, Mac first)
+### 5. Self-update
 
-On launch the app asks the GitHub API for the latest release. If it is newer,
-the UI offers to update: download `ReefScanner-macOS.zip`, unpack it to a temp
-folder, accept it only if `codesign` says it is signed by our Team ID, then on
-restart a helper swaps the bundles (old one to the Trash) and reopens the app.
-If anything fails, or `/Applications` isn't writable, it falls back to a
-download link. Sparkle (Objective-C) and tufup (its own signed metadata repo)
-are more machinery than this needs.
+Replaced by Velopack: see [self-update](2026-11-18-self-update-design.md).
+The first plan (check GitHub, verify the Team ID, swap with a helper of our
+own) survives only as the Team ID check before applying.
 
 ### 6. App icon
 
@@ -126,3 +122,10 @@ since pywebview needs GTK or Qt from the distribution.
 app/scripts/set_version.sh 1.0.1
 git commit -am "chore: release 1.0.1" && git tag v1.0.1 && git push --follow-tags
 ```
+
+A release candidate is `1.1.0-rc.1` (SemVer, for Velopack) and is published as
+a prerelease: invisible to testers' apps, which only follow stable releases.
+To try one, start the app with `REEFSCANNER_UPDATE_PRERELEASE=1`.
+Building locally needs Velopack's `vpk` at the `velopack` version in
+`uv.lock` (`dotnet tool install -g vpk --version <it>`, on `brew install
+dotnet@10`); the build stops if they differ.

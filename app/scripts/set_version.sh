@@ -1,15 +1,17 @@
 #!/usr/bin/env bash
 # Set the release version everywhere it is written down.
 #
-#   app/scripts/set_version.sh 1.0.1
+#   app/scripts/set_version.sh 1.0.1        (or 1.1.0-rc.1 for a prerelease)
 #
 # The release workflow refuses a tag that doesn't match these. It also locks
 # every migration not yet released (migrations/released.txt).
 set -euo pipefail
 
-VERSION="${1:?usage: set_version.sh <version, e.g. 1.0.1>}"
-if ! [[ "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+([.-]?[A-Za-z0-9.]+)?$ ]]; then
-  echo "error: '$VERSION' doesn't look like a version" >&2
+VERSION="${1:?usage: set_version.sh <version, e.g. 1.0.1 or 1.1.0-rc.1>}"
+# SemVer, because Velopack orders updates by it: a release candidate is
+# 1.1.0-rc.1, not PEP 440's 1.1.0rc1 (Python reads both the same).
+if ! [[ "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z]+(\.[0-9A-Za-z]+)*)?$ ]]; then
+  echo "error: '$VERSION' isn't a version like 1.0.1 or 1.1.0-rc.1" >&2
   exit 2
 fi
 
