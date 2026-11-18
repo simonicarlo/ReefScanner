@@ -31,6 +31,8 @@ build = [
     "reefscanner-app[desktop]",
     "imageio-ffmpeg>=0.8",
     "pyinstaller>=6.22",
+    # Writes the disk image's window layout without driving Finder, so it works in CI.
+    "dmgbuild>=1.6",
 ]
 
 [tool.uv.sources]

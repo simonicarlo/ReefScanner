@@ -76,14 +76,11 @@ fi
 ditto -c -k --keepParent dist/ReefScanner.app dist/ReefScanner-macOS.zip
 
 step "Disk image"
-STAGE="build/dmg"
-rm -rf "$STAGE"
-mkdir -p "$STAGE"
-cp -R dist/ReefScanner.app "$STAGE/"
-# The Applications shortcut is what makes "drag the app across" obvious.
-ln -s /Applications "$STAGE/Applications"
-hdiutil create -volname "ReefScanner" -srcfolder "$STAGE" -ov -format UDZO \
-  dist/ReefScanner.dmg >/dev/null
+# The window layout (app, Applications shortcut, arrow background) is in
+# packaging/dmg/settings.py; dmgbuild writes it without driving Finder.
+"$VENV/bin/dmgbuild" -s packaging/dmg/settings.py -D app=dist/ReefScanner.app \
+  -D background=packaging/dmg/background.tiff -D icon=packaging/icon/AppIcon.icns \
+  "ReefScanner" dist/ReefScanner.dmg
 
 if [ -n "$IDENTITY" ]; then
   step "Sign and notarize the disk image"
