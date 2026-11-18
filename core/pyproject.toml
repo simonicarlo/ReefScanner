@@ -14,7 +14,7 @@ keywords = ["marine", "bruv", "video", "triage", "opencv", "yolo"]
 # No web stack and no torch in here -- the rig and the CLI install this alone.
 # Detection runs on ONNX Runtime by default; PyTorch/Ultralytics is an extra.
 dependencies = [
-    "opencv-python-headless>=4.9,<5",
+    "opencv-python-headless>=5.1,<6",
     "numpy>=1.24,<3",
     "pandas>=2.0,<4",
     "tqdm>=4.65,<5",
@@ -44,7 +44,7 @@ ultralytics = [
     "onnxslim>=0.1.30",
 ]
 # SAHI tiled inference for distant/small animals (MIT). Runs through Ultralytics.
-ml = ["reefscanner-core[ultralytics]", "sahi>=0.11"]
+ml = ["reefscanner-core[ultralytics]", "sahi>=0.14"]
 # ffmpeg fallback for environments without a system binary.
 ffmpeg = ["imageio-ffmpeg>=0.4.9"]
 

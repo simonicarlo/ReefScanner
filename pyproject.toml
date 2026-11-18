@@ -25,6 +25,13 @@ dev = [
     "frictionless>=5.18,<6",
     "jsonschema>=4.20",
 ]
+# What app/scripts/build_app.sh installs into its clean build venv: the app,
+# the ffmpeg it bundles, and PyInstaller, all pinned by uv.lock like the rest.
+build = [
+    "reefscanner-app[desktop]",
+    "imageio-ffmpeg>=0.8",
+    "pyinstaller>=6.22",
+]
 
 [tool.uv.sources]
 reefscanner-core = { workspace = true }

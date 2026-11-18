@@ -5,7 +5,8 @@
 #   app/scripts/build_app.sh
 #
 # Builds from a clean uv-managed standalone Python, never the dev venv, so
-# nothing from the developer's machine (Anaconda, Homebrew) leaks into the app.
+# nothing from the developer's machine (Anaconda, Homebrew) leaks into the app,
+# with package versions taken from uv.lock (the root's `build` group).
 # Needs: uv and node/npm. The app ships without torch; the detector is the
 # published SharkTrack ONNX export, downloaded and hash-checked.
 #
@@ -42,11 +43,11 @@ notarize() {
   fi
 }
 
-step "Build environment (standalone Python from .python-version)"
-if [ ! -x "$PY" ]; then
-  uv venv --managed-python --python "$(cat "$ROOT/../.python-version")" "$VENV"
-fi
-uv pip install --python "$PY" -e ../core -e ".[desktop]" imageio-ffmpeg pyinstaller
+step "Build environment (standalone Python, versions from uv.lock)"
+# Exactly the versions the tests ran against: the root's `build` group, frozen
+# from the lockfile, never re-resolved at build time.
+(cd "$ROOT/.." && UV_PROJECT_ENVIRONMENT="$ROOT/$VENV" \
+  uv sync --frozen --managed-python --no-default-groups --group build)
 
 step "Review UI"
 (cd frontend && npm ci && npm run build)

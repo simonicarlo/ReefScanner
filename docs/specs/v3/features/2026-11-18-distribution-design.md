@@ -30,6 +30,9 @@ as a workflow artifact, for trying a build before tagging.
 
 The build downloads the published SharkTrack ONNX (hash-checked, as at
 runtime) instead of exporting it, so CI needs no torch.
+Its Python packages come from `uv.lock` (the root's `build` group, `uv sync
+--frozen`), and Node from `app/frontend/.nvmrc`, so a release contains exactly
+what the tests ran against.
 
 ### 3. Developer ID signing and notarization
 

@@ -4,7 +4,7 @@ Small, distant animals shrink to a few pixels once a 1080p frame is scaled
 down to the model's 640 px input. Running the detector on overlapping tiles as
 well finds them at a scale it can see (the missed-distant-shark failure mode).
 
-This mirrors ``sahi.predict.get_sliced_prediction`` (0.12) with its defaults,
+This mirrors ``sahi.predict.get_sliced_prediction`` (0.14) with its defaults,
 so the Ultralytics backend running ``sahi`` itself serves as the reference
 (``scripts/check_onnx_parity.py --sahi``). It needs only NumPy, so it runs on
 the rig with any backend. Design:
@@ -92,8 +92,9 @@ def greedy_merge(dets: list[Detection], threshold: float = MATCH_THRESHOLD) -> l
 
     Each box, by score, absorbs the not-yet-absorbed lower-scored boxes it
     overlaps by ``threshold`` or more. An absorbed box widens the kept one to
-    their union only if it still overlaps the (possibly grown) kept box by more
-    than ``threshold``; the merged score is the higher one.
+    their union only if it still overlaps the (possibly grown) kept box by
+    ``threshold`` or more (``>=`` since sahi 0.14; 0.12 used ``>``); the merged
+    score is the higher one.
     """
     if not dets:
         return []
@@ -111,7 +112,7 @@ def greedy_merge(dets: list[Detection], threshold: float = MATCH_THRESHOLD) -> l
         absorbed.update(merge)
         box, score = boxes[i].copy(), dets[i].confidence
         for j in merge:
-            if _overlap(box, boxes[j], "IOS") > threshold:
+            if _overlap(box, boxes[j], "IOS") >= threshold:
                 box = np.concatenate([np.minimum(box[:2], boxes[j][:2]),
                                       np.maximum(box[2:], boxes[j][2:])])
                 score = max(score, dets[j].confidence)
