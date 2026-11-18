@@ -74,6 +74,12 @@ migrations are pending on an existing database, `Database.migrate()` first
 copies it with SQLite's backup API (safe with WAL) to
 `reefscanner.db.bak-<revision>` next to it.
 
+Running from source uses a separate data folder, `ReefScanner Dev`, next to
+the installed app's `ReefScanner` (the packaged app is told apart by
+`sys.frozen`). Otherwise a development build carrying an unreleased migration
+would migrate the installed app's database past what that app knows, and it
+would refuse to start.
+
 ### 5. Self-update (next step, Mac first)
 
 On launch the app asks the GitHub API for the latest release. If it is newer,

@@ -32,6 +32,9 @@ never import from `app` or `edge`.
   `tests/app/test_migration.py` fails if models and migrations disagree.
   Released migrations are locked in `migrations/released.txt`: never edit
   one, write a new revision.
+- Running from source uses its own data folder (`ReefScanner Dev` in the OS's
+  app-data location); the installed app uses `ReefScanner`. `REEFSCANNER_DB`
+  overrides both.
 - Releases: `app/scripts/set_version.sh X.Y.Z`, commit, then push a `vX.Y.Z`
   tag; `.github/workflows/release.yml` builds, signs and notarizes the app.
 - Camtrap DP tables live in `core/src/reefscanner/core/camtrap/`, with field
